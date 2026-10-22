@@ -3,6 +3,8 @@ import {
   BorderStyle,
   BuilderElement,
   Document,
+  Footer,
+  Header,
   ImageRun,
   Math as DocxMath,
   MathCurlyBrackets,
@@ -16,6 +18,7 @@ import {
   MathSuperScript,
   Packer,
   PageBreak,
+  PageNumber,
   Paragraph,
   Table,
   TableCell,
@@ -25,9 +28,197 @@ import {
   WidthType,
   XmlComponent,
 } from 'docx';
-import { ExamMetadata, ExamPackage, MatrixRow, Question, SpecRow, calculateExamScores, getCognitiveTag, getSpecRowQuestionDetails } from '../types';
+import { AppSettings, ExamMetadata, ExamPackage, MatrixRow, Question, SpecRow, calculateExamScores, getCognitiveTag, getSpecRowQuestionDetails } from '../types';
+import { StorageEngine } from './storageEngine';
 import { normalizeNewlines, repairLatexCorruptions, parseRequirementsByLevel } from '../utils/textUtils';
 import { getSpecCellQuestions, getSubjectCompetencies } from '../utils/competencyUtils';
+
+/**
+ * Tạo Header đầu trang chuẩn Microsoft Word (.docx)
+ * Chứa thông tin tác giả và bản quyền ở vùng Running Header (lề trên trang)
+ * ĐẶC BIỆT: Nằm hoàn toàn ở vùng Header của trang Word (lề trên), 
+ * KHÔNG nằm trong thân bài thi nên KHÔNG làm ảnh hưởng đến cấu trúc câu hỏi hay bảng ma trận, bảng đặc tả.
+ */
+function createDocxPageHeader(): Header {
+  return new Header({
+    children: [
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: {
+          top: { style: BorderStyle.NONE },
+          left: { style: BorderStyle.NONE },
+          right: { style: BorderStyle.NONE },
+          insideHorizontal: { style: BorderStyle.NONE },
+          insideVertical: { style: BorderStyle.NONE },
+          bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
+        },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 45, type: WidthType.PERCENTAGE },
+                borders: {
+                  top: { style: BorderStyle.NONE },
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
+                  left: { style: BorderStyle.NONE },
+                  right: { style: BorderStyle.NONE },
+                },
+                children: [
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: 'Biên soạn đề kiểm tra chuẩn CV 7991/BGDĐT',
+                        size: 16, // 8pt
+                        italics: true,
+                        font: 'Times New Roman',
+                        color: '6B7280',
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+              new TableCell({
+                width: { size: 55, type: WidthType.PERCENTAGE },
+                borders: {
+                  top: { style: BorderStyle.NONE },
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' },
+                  left: { style: BorderStyle.NONE },
+                  right: { style: BorderStyle.NONE },
+                },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    children: [
+                      new TextRun({
+                        text: 'Tác giả: Ngô Thanh Hùng - GV THCS Bình San - Mỹ Đức, Hà Tiên (ĐT/Zalo: 0913117321)',
+                        size: 16, // 8pt
+                        italics: true,
+                        bold: true,
+                        font: 'Times New Roman',
+                        color: '374151',
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      }),
+      new Paragraph({ text: '', spacing: { after: 120 } }),
+    ],
+  });
+}
+
+/**
+ * Tạo Footer chân trang chuẩn Word (.docx) với số trang tự động
+ */
+function createDocxPageFooter(): Footer {
+  return new Footer({
+    children: [
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: {
+          top: { style: BorderStyle.SINGLE, size: 4, color: 'E5E7EB' },
+          left: { style: BorderStyle.NONE },
+          right: { style: BorderStyle.NONE },
+          insideHorizontal: { style: BorderStyle.NONE },
+          insideVertical: { style: BorderStyle.NONE },
+          bottom: { style: BorderStyle.NONE },
+        },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 60, type: WidthType.PERCENTAGE },
+                borders: {
+                  top: { style: BorderStyle.SINGLE, size: 4, color: 'E5E7EB' },
+                  bottom: { style: BorderStyle.NONE },
+                  left: { style: BorderStyle.NONE },
+                  right: { style: BorderStyle.NONE },
+                },
+                children: [
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: 'Ứng dụng AI Test Generator Pro - Thầy Ngô Thanh Hùng',
+                        size: 16,
+                        italics: true,
+                        font: 'Times New Roman',
+                        color: '9CA3AF',
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+              new TableCell({
+                width: { size: 40, type: WidthType.PERCENTAGE },
+                borders: {
+                  top: { style: BorderStyle.SINGLE, size: 4, color: 'E5E7EB' },
+                  bottom: { style: BorderStyle.NONE },
+                  left: { style: BorderStyle.NONE },
+                  right: { style: BorderStyle.NONE },
+                },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    children: [
+                      new TextRun({
+                        children: ['Trang ', PageNumber.CURRENT, ' / ', PageNumber.TOTAL_PAGES],
+                        size: 16,
+                        font: 'Times New Roman',
+                        color: '6B7280',
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
+/**
+ * Tạo Section chuẩn cho Document docx, hỗ trợ cấu hình Header/Footer
+ */
+function createDocxSection(children: any[]) {
+  let includeAuthor = true;
+  try {
+    const s = StorageEngine.getSettings();
+    if (s && s.includeAuthorHeaderDocx === false) {
+      includeAuthor = false;
+    }
+  } catch {
+    includeAuthor = true;
+  }
+
+  return {
+    properties: {
+      page: {
+        margin: {
+          top: 1440,
+          bottom: 1440,
+          left: 1440,
+          right: 1440,
+          header: 720,
+          footer: 720,
+        },
+      },
+    },
+    headers: includeAuthor
+      ? {
+          default: createDocxPageHeader(),
+        }
+      : undefined,
+    footers: {
+      default: createDocxPageFooter(),
+    },
+    children,
+  };
+}
 
 /**
  * Sinh khối tiêu đề bài thi / đáp án chuẩn bộ mẫu hành chính cho Word (.docx)
@@ -3162,7 +3353,7 @@ export class ExportDocx {
     }
 
     const doc = new Document({
-      sections: [{ children: docChildren }],
+      sections: [createDocxSection(docChildren)],
     });
 
     const blob = await Packer.toBlob(doc);
@@ -3305,7 +3496,7 @@ export class ExportDocx {
     }
 
     const doc = new Document({
-      sections: [{ children: docChildren }],
+      sections: [createDocxSection(docChildren)],
     });
 
     const blob = await Packer.toBlob(doc);
@@ -3580,7 +3771,7 @@ export class ExportDocx {
     }
 
     const doc = new Document({
-      sections: [{ children: docChildren }],
+      sections: [createDocxSection(docChildren)],
     });
 
     const blob = await Packer.toBlob(doc);
@@ -3661,7 +3852,7 @@ export class ExportDocx {
     docChildren.push(buildMatrixDocxTable(matrix));
 
     const doc = new Document({
-      sections: [{ children: docChildren }],
+      sections: [createDocxSection(docChildren)],
     });
 
     const blob = await Packer.toBlob(doc);
@@ -3790,7 +3981,7 @@ export class ExportDocx {
     }
 
     const doc = new Document({
-      sections: [{ children: docChildren }],
+      sections: [createDocxSection(docChildren)],
     });
 
     const blob = await Packer.toBlob(doc);

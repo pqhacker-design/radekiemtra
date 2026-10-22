@@ -336,6 +336,7 @@ export interface AppSettings {
   theme: 'light' | 'dark';
   saveExamHistory: boolean;
   autoSaveToBank: boolean;
+  includeAuthorHeaderDocx?: boolean; // Tự động chèn thông tin tác giả vào Header file Word (.docx)
 }
 
 /**

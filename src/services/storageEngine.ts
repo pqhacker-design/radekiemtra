@@ -66,6 +66,7 @@ export const defaultSettings: AppSettings = {
   theme: 'light',
   saveExamHistory: true,
   autoSaveToBank: true,
+  includeAuthorHeaderDocx: true,
 };
 
 export type StorageChangeListener = () => void;

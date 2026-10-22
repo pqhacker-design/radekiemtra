@@ -64,6 +64,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [teacherName, setTeacherName] = useState(settings.defaultTeacherName || 'Giáo viên');
   const [customApiKey, setCustomApiKey] = useState(settings.customApiKey || '');
   const [selectedModel, setSelectedModel] = useState(settings.selectedModel || 'gemini-3.8-flash');
+  const [includeAuthorHeaderDocx, setIncludeAuthorHeaderDocx] = useState(
+    settings.includeAuthorHeaderDocx !== false
+  );
   const [showApiKey, setShowApiKey] = useState(false);
 
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -116,6 +119,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       defaultTeacherName: teacherName.trim(),
       customApiKey: customApiKey.trim(),
       selectedModel,
+      includeAuthorHeaderDocx,
     };
 
     onSaveSettings(updated);
@@ -324,6 +328,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               placeholder="Ví dụ: Nguyễn Văn A"
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
             />
+          </div>
+
+          {/* Option: Chèn thông tin tác giả vào Header file Word */}
+          <div className="md:col-span-2 pt-3 border-t border-slate-200/60 dark:border-slate-800/60">
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={includeAuthorHeaderDocx}
+                onChange={(e) => setIncludeAuthorHeaderDocx(e.target.checked)}
+                className="mt-0.5 rounded-md border-slate-300 dark:border-slate-700 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+              />
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                  Chèn thông tin tác giả vào Header đầu trang file Word (.docx) khi xuất
+                </span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Thông tin tác giả (Thầy Ngô Thanh Hùng - GV THCS Bình San - Mỹ Đức, Hà Tiên - ĐT/Zalo: 0913117321) sẽ được đặt ở lề trên (Running Header) của tệp Word, hoàn toàn không làm xô lệch câu hỏi hay bảng ma trận/đặc tả của đề thi.
+                </p>
+              </div>
+            </label>
           </div>
         </div>
 

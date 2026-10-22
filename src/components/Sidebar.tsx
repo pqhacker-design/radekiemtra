@@ -198,9 +198,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             {!isCollapsed && (
-              <div className="px-1 text-center">
+              <div className="px-1 text-center space-y-0.5">
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">
+                  Tác giả: Ngô Thanh Hùng
+                </p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                  Ứng dụng biên soạn đề kiểm tra AI
+                  THCS Bình San - Mỹ Đức, Hà Tiên
+                </p>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                  ĐT/Zalo: 0913117321
                 </p>
               </div>
             )}
