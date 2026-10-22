@@ -1,6 +1,6 @@
 import { ExamMetadata, MatrixRow, Question, SpecRow, calculateExamScores } from '../types';
 import { safeJsonParse } from './jsonRepair';
-import { normalizeNewlines } from '../utils/textUtils';
+import { normalizeNewlines, parseRequirementsByLevel, combineRequirementsByLevel } from '../utils/textUtils';
 import { inferQuestionCompetency } from '../utils/competencyUtils';
 
 export interface ValidationResult {
@@ -483,41 +483,164 @@ export class ValidationEngine {
       }
     }
 
-    // Repair Matrix if needed
-    const repairedMatrix: MatrixRow[] = rawMatrix.map((m: any, idx: number) => ({
-      stt: m.stt || idx + 1,
-      topic: m.topic || metadata.chapterTitle || 'Chủ đề chính',
-      subTopic: m.subTopic || 'Đơn vị kiến thức',
-      part1: m.part1 || { remember: 1, understand: 1, apply: 0, advanced: 0 },
-      part2: m.part2 || { remember: 0, understand: 1, apply: 0, advanced: 0 },
-      part3: m.part3 || { remember: 0, understand: 0, apply: 1, advanced: 0 },
-      part4: m.part4 || { remember: 0, understand: 0, apply: 0, advanced: 1 },
-      totalQuestions: typeof m.totalQuestions === 'number' ? m.totalQuestions : 3,
-      totalPoints: typeof m.totalPoints === 'number' ? m.totalPoints : 2.0,
-      percentage: typeof m.percentage === 'number' ? m.percentage : 20,
-    }));
+    // 2. KHỞI TẠO VÀ CHUẨN HÓA CÁC ĐƠN VỊ KIẾN THỨC CHO MA TRẬN & BẢN ĐẶC TẢ
+    let processedMatrix: MatrixRow[] = [];
+    let processedSpec: SpecRow[] = [];
 
-    // Repair Specification if needed
-    const repairedSpec: SpecRow[] = rawSpec.map((s: any, idx: number) => ({
-      stt: s.stt || idx + 1,
-      topic: s.topic || metadata.chapterTitle || 'Chủ đề chính',
-      subTopic: s.subTopic || 'Đơn vị kiến thức',
-      requirements:
-        s.requirements ||
-        'Nhận biết được kiến thức cơ bản, thông hiểu bản chất và vận dụng giải bài tập.',
-      part1: s.part1 || { remember: 1, understand: 1, apply: 0, advanced: 0 },
-      part2: s.part2 || { remember: 0, understand: 1, apply: 0, advanced: 0 },
-      part3: s.part3 || { remember: 0, understand: 0, apply: 1, advanced: 0 },
-      part4: s.part4 || { remember: 0, understand: 0, apply: 0, advanced: 1 },
-      totalPoints: typeof s.totalPoints === 'number' ? s.totalPoints : 2.0,
-    }));
+    // Kiểm tra xem AI có trả về ma trận với nhiều đơn vị kiến thức riêng biệt không
+    const hasDifferentiatedMatrix =
+      Array.isArray(rawMatrix) &&
+      rawMatrix.length > 1 &&
+      rawMatrix.some((m: any) => m.subTopic && m.subTopic.trim() !== (rawMatrix[0]?.subTopic || '').trim());
+
+    if (hasDifferentiatedMatrix) {
+      processedMatrix = rawMatrix.map((m: any, idx: number) => ({
+        stt: m.stt || idx + 1,
+        topic: m.topic || metadata.chapterTitle || 'Chủ đề chính',
+        subTopic: m.subTopic || `Đơn vị kiến thức ${idx + 1}`,
+        part1: m.part1 || { remember: '', understand: '', apply: '', advanced: '' },
+        part2: m.part2 || { remember: '', understand: '', apply: '', advanced: '' },
+        part3: m.part3 || { remember: '', understand: '', apply: '', advanced: '' },
+        part4: m.part4 || { remember: '', understand: '', apply: '', advanced: '' },
+        totalQuestions: typeof m.totalQuestions === 'number' ? m.totalQuestions : 0,
+        totalPoints: typeof m.totalPoints === 'number' ? m.totalPoints : 0,
+        percentage: typeof m.percentage === 'number' ? m.percentage : 0,
+      }));
+    } else {
+      // Phân tách đơn vị kiến thức tự động dựa trên danh sách câu hỏi thực tế hoặc topic câu hỏi
+      const topicGroups = new Map<string, Question[]>();
+      repairedQuestions.forEach((q) => {
+        const top = (q.topic || '').trim() || metadata.chapterTitle || 'Kiến thức trọng tâm';
+        if (!topicGroups.has(top)) {
+          topicGroups.set(top, []);
+        }
+        topicGroups.get(top)!.push(q);
+      });
+
+      // Nếu chỉ có 1 topic duy nhất nhưng có nhiều câu hỏi (>= 4), tự động phân chia thành các đơn vị kiến thức logic
+      if (topicGroups.size <= 1 && repairedQuestions.length >= 4) {
+        const chapter = metadata.chapterTitle || 'Chuyên đề học tập';
+        const partsCount = Math.min(3, Math.ceil(repairedQuestions.length / 4));
+        const chunkSize = Math.ceil(repairedQuestions.length / partsCount);
+
+        const subNames = [
+          'Khái niệm, định nghĩa và tính chất cơ bản',
+          'Các quy tắc tính toán và biến đổi kiến thức trọng tâm',
+          'Ứng dụng giải bài tập và giải quyết tình huống thực tế',
+        ];
+
+        processedMatrix = Array.from({ length: partsCount }, (_, idx) => {
+          const qsSlice = repairedQuestions.slice(idx * chunkSize, (idx + 1) * chunkSize);
+          const p1Remember = qsSlice.filter((q) => q.partType === 'PART1' && q.cognitiveLevel === 'REMEMBER').map((q) => q.number).join(', ');
+          const p1Understand = qsSlice.filter((q) => q.partType === 'PART1' && q.cognitiveLevel === 'UNDERSTAND').map((q) => q.number).join(', ');
+          const p1Apply = qsSlice.filter((q) => q.partType === 'PART1' && (q.cognitiveLevel === 'APPLY' || q.cognitiveLevel === 'ADVANCED')).map((q) => q.number).join(', ');
+
+          const p2Remember = qsSlice.filter((q) => q.partType === 'PART2' && q.cognitiveLevel === 'REMEMBER').map((q) => `${q.number}`).join(', ');
+          const p2Understand = qsSlice.filter((q) => q.partType === 'PART2' && q.cognitiveLevel === 'UNDERSTAND').map((q) => `${q.number}`).join(', ');
+          const p2Apply = qsSlice.filter((q) => q.partType === 'PART2' && (q.cognitiveLevel === 'APPLY' || q.cognitiveLevel === 'ADVANCED')).map((q) => `${q.number}`).join(', ');
+
+          const p3Remember = qsSlice.filter((q) => q.partType === 'PART3' && q.cognitiveLevel === 'REMEMBER').map((q) => q.number).join(', ');
+          const p3Understand = qsSlice.filter((q) => q.partType === 'PART3' && q.cognitiveLevel === 'UNDERSTAND').map((q) => q.number).join(', ');
+          const p3Apply = qsSlice.filter((q) => q.partType === 'PART3' && (q.cognitiveLevel === 'APPLY' || q.cognitiveLevel === 'ADVANCED')).map((q) => q.number).join(', ');
+
+          const p4Remember = qsSlice.filter((q) => q.partType === 'PART4' && q.cognitiveLevel === 'REMEMBER').map((q) => q.number).join(', ');
+          const p4Understand = qsSlice.filter((q) => q.partType === 'PART4' && q.cognitiveLevel === 'UNDERSTAND').map((q) => q.number).join(', ');
+          const p4Apply = qsSlice.filter((q) => q.partType === 'PART4' && (q.cognitiveLevel === 'APPLY' || q.cognitiveLevel === 'ADVANCED')).map((q) => q.number).join(', ');
+
+          const slicePts = Math.round(qsSlice.reduce((s, q) => s + (q.points || 0), 0) * 100) / 100;
+
+          return {
+            stt: idx + 1,
+            topic: chapter,
+            subTopic: subNames[idx] || `Đơn vị kiến thức ${idx + 1}`,
+            part1: { remember: p1Remember, understand: p1Understand, apply: p1Apply },
+            part2: { remember: p2Remember, understand: p2Understand, apply: p2Apply },
+            part3: { remember: p3Remember, understand: p3Understand, apply: p3Apply },
+            part4: { remember: p4Remember, understand: p4Understand, apply: p4Apply },
+            totalQuestions: qsSlice.length,
+            totalPoints: slicePts,
+            percentage: Math.round((slicePts / 10.0) * 100),
+          };
+        });
+      } else {
+        let stt = 1;
+        topicGroups.forEach((qs, topName) => {
+          const p1Remember = qs.filter((q) => q.partType === 'PART1' && q.cognitiveLevel === 'REMEMBER').map((q) => q.number).join(', ');
+          const p1Understand = qs.filter((q) => q.partType === 'PART1' && q.cognitiveLevel === 'UNDERSTAND').map((q) => q.number).join(', ');
+          const p1Apply = qs.filter((q) => q.partType === 'PART1' && (q.cognitiveLevel === 'APPLY' || q.cognitiveLevel === 'ADVANCED')).map((q) => q.number).join(', ');
+
+          const p2Remember = qs.filter((q) => q.partType === 'PART2' && q.cognitiveLevel === 'REMEMBER').map((q) => `${q.number}`).join(', ');
+          const p2Understand = qs.filter((q) => q.partType === 'PART2' && q.cognitiveLevel === 'UNDERSTAND').map((q) => `${q.number}`).join(', ');
+          const p2Apply = qs.filter((q) => q.partType === 'PART2' && (q.cognitiveLevel === 'APPLY' || q.cognitiveLevel === 'ADVANCED')).map((q) => `${q.number}`).join(', ');
+
+          const p3Remember = qs.filter((q) => q.partType === 'PART3' && q.cognitiveLevel === 'REMEMBER').map((q) => q.number).join(', ');
+          const p3Understand = qs.filter((q) => q.partType === 'PART3' && q.cognitiveLevel === 'UNDERSTAND').map((q) => q.number).join(', ');
+          const p3Apply = qs.filter((q) => q.partType === 'PART3' && (q.cognitiveLevel === 'APPLY' || q.cognitiveLevel === 'ADVANCED')).map((q) => q.number).join(', ');
+
+          const p4Remember = qs.filter((q) => q.partType === 'PART4' && q.cognitiveLevel === 'REMEMBER').map((q) => q.number).join(', ');
+          const p4Understand = qs.filter((q) => q.partType === 'PART4' && q.cognitiveLevel === 'UNDERSTAND').map((q) => q.number).join(', ');
+          const p4Apply = qs.filter((q) => q.partType === 'PART4' && (q.cognitiveLevel === 'APPLY' || q.cognitiveLevel === 'ADVANCED')).map((q) => q.number).join(', ');
+
+          const pts = Math.round(qs.reduce((s, q) => s + (q.points || 0), 0) * 100) / 100;
+
+          processedMatrix.push({
+            stt: stt++,
+            topic: metadata.chapterTitle || 'Chủ đề chính',
+            subTopic: topName,
+            part1: { remember: p1Remember, understand: p1Understand, apply: p1Apply },
+            part2: { remember: p2Remember, understand: p2Understand, apply: p2Apply },
+            part3: { remember: p3Remember, understand: p3Understand, apply: p3Apply },
+            part4: { remember: p4Remember, understand: p4Understand, apply: p4Apply },
+            totalQuestions: qs.length,
+            totalPoints: pts,
+            percentage: Math.round((pts / 10.0) * 100),
+          });
+        });
+      }
+    }
+
+    // Xây dựng Bản Đặc Tả (Specification) khớp chính xác với từng đơn vị kiến thức của Ma Trận
+    // và nêu đầy đủ các Yêu cầu cần đạt ở các mức độ theo đúng Công văn 7991/BGDĐT
+    processedSpec = processedMatrix.map((mRow, idx) => {
+      const matchedRawSpec = rawSpec.find(
+        (s: any) =>
+          (s.subTopic && s.subTopic.trim().toLowerCase() === mRow.subTopic.trim().toLowerCase()) ||
+          s.stt === mRow.stt
+      ) || rawSpec[idx];
+
+      const rawReqText = cleanQuestionText(matchedRawSpec?.requirements || '');
+      const parsedReq = parseRequirementsByLevel(rawReqText);
+
+      const subName = mRow.subTopic || `Đơn vị kiến thức ${mRow.stt}`;
+      const rememberText = parsedReq.remember.trim() || `Nhận biết và phát biểu được các khái niệm, quy tắc, định nghĩa cơ bản về ${subName}.`;
+      const understandText = parsedReq.understand.trim() || `Thông hiểu bản chất, giải thích được ý nghĩa và áp dụng trực tiếp các kiến thức về ${subName}.`;
+      const applyText = parsedReq.apply.trim() || `Vận dụng linh hoạt các phương pháp, công thức về ${subName} để tính toán, giải quyết bài toán và liên hệ tình huống thực tế.`;
+
+      const formattedReq = combineRequirementsByLevel({
+        remember: rememberText,
+        understand: understandText,
+        apply: applyText,
+      });
+
+      return {
+        stt: mRow.stt,
+        topic: mRow.topic,
+        subTopic: mRow.subTopic,
+        requirements: formattedReq,
+        part1: matchedRawSpec?.part1 || mRow.part1,
+        part2: matchedRawSpec?.part2 || mRow.part2,
+        part3: matchedRawSpec?.part3 || mRow.part3,
+        part4: matchedRawSpec?.part4 || mRow.part4,
+        totalPoints: mRow.totalPoints,
+      };
+    });
 
     return {
       isValid: errors.length === 0,
       errors,
       warnings,
-      matrix: repairedMatrix,
-      specification: repairedSpec,
+      matrix: processedMatrix,
+      specification: processedSpec,
       questions: repairedQuestions,
     };
   }

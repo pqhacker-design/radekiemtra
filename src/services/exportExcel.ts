@@ -138,40 +138,46 @@ export class ExportExcel {
       });
     });
 
-    const wsCV7991Spec = XLSX.utils.json_to_sheet(cv7991SpecData);
-    XLSX.utils.book_append_sheet(wb, wsCV7991Spec, 'Bản đặc tả CV 7991');
+    const matrixOutputFormat = metadata.matrixOutputFormat || 'cv7991';
 
-    // --- SHEET 3: BẢNG ĐẶC TẢ CHI TIẾT (MẪU 5 CỘT HIỆN CÓ) ---
-    const specData = specification.map((row, rowIdx) => {
-      const details = getSpecRowQuestionDetails(row, rowIdx, specification, primaryQuestions);
-      const rowComps = [
-        ...getSpecCellQuestions(row, rowIdx, specification, 'part1', 'remember', primaryQuestions, metadata?.subject),
-        ...getSpecCellQuestions(row, rowIdx, specification, 'part1', 'understand', primaryQuestions, metadata?.subject),
-        ...getSpecCellQuestions(row, rowIdx, specification, 'part1', 'apply', primaryQuestions, metadata?.subject),
-        ...getSpecCellQuestions(row, rowIdx, specification, 'part2', 'remember', primaryQuestions, metadata?.subject),
-        ...getSpecCellQuestions(row, rowIdx, specification, 'part2', 'understand', primaryQuestions, metadata?.subject),
-        ...getSpecCellQuestions(row, rowIdx, specification, 'part2', 'apply', primaryQuestions, metadata?.subject),
-        ...getSpecCellQuestions(row, rowIdx, specification, 'part3', 'remember', primaryQuestions, metadata?.subject),
-        ...getSpecCellQuestions(row, rowIdx, specification, 'part3', 'understand', primaryQuestions, metadata?.subject),
-        ...getSpecCellQuestions(row, rowIdx, specification, 'part3', 'apply', primaryQuestions, metadata?.subject),
-        ...getSpecCellQuestions(row, rowIdx, specification, 'part4', 'remember', primaryQuestions, metadata?.subject),
-        ...getSpecCellQuestions(row, rowIdx, specification, 'part4', 'understand', primaryQuestions, metadata?.subject),
-        ...getSpecCellQuestions(row, rowIdx, specification, 'part4', 'apply', primaryQuestions, metadata?.subject),
-      ];
-      const uniqueComps = Array.from(new Map(rowComps.map((c) => [c.competencyCode, c])).values());
+    if (matrixOutputFormat === 'cv7991' || matrixOutputFormat === 'both') {
+      const wsCV7991Spec = XLSX.utils.json_to_sheet(cv7991SpecData);
+      XLSX.utils.book_append_sheet(wb, wsCV7991Spec, 'Bản đặc tả CV 7991');
+    }
 
-      return {
-        STT: row.stt,
-        'Chủ đề / Đơn vị kiến thức': cleanLatexForDocx(row.topic),
-        'Yêu cầu cần đạt': cleanLatexForDocx(row.requirements),
-        'Số câu / Dạng câu': details.join('; '),
-        'Năng lực đặc thù': uniqueComps.map((c) => `(${c.competencyCode}) ${c.competencyName}`).join('; ') || '-',
-        'Điểm số': row.totalPoints,
-      };
-    });
+    if (matrixOutputFormat === 'classic' || matrixOutputFormat === 'both') {
+      // --- SHEET: BẢNG ĐẶC TẢ CHI TIẾT (MẪU 5 CỘT TRUYỀN THỐNG) ---
+      const specData = specification.map((row, rowIdx) => {
+        const details = getSpecRowQuestionDetails(row, rowIdx, specification, primaryQuestions);
+        const rowComps = [
+          ...getSpecCellQuestions(row, rowIdx, specification, 'part1', 'remember', primaryQuestions, metadata?.subject),
+          ...getSpecCellQuestions(row, rowIdx, specification, 'part1', 'understand', primaryQuestions, metadata?.subject),
+          ...getSpecCellQuestions(row, rowIdx, specification, 'part1', 'apply', primaryQuestions, metadata?.subject),
+          ...getSpecCellQuestions(row, rowIdx, specification, 'part2', 'remember', primaryQuestions, metadata?.subject),
+          ...getSpecCellQuestions(row, rowIdx, specification, 'part2', 'understand', primaryQuestions, metadata?.subject),
+          ...getSpecCellQuestions(row, rowIdx, specification, 'part2', 'apply', primaryQuestions, metadata?.subject),
+          ...getSpecCellQuestions(row, rowIdx, specification, 'part3', 'remember', primaryQuestions, metadata?.subject),
+          ...getSpecCellQuestions(row, rowIdx, specification, 'part3', 'understand', primaryQuestions, metadata?.subject),
+          ...getSpecCellQuestions(row, rowIdx, specification, 'part3', 'apply', primaryQuestions, metadata?.subject),
+          ...getSpecCellQuestions(row, rowIdx, specification, 'part4', 'remember', primaryQuestions, metadata?.subject),
+          ...getSpecCellQuestions(row, rowIdx, specification, 'part4', 'understand', primaryQuestions, metadata?.subject),
+          ...getSpecCellQuestions(row, rowIdx, specification, 'part4', 'apply', primaryQuestions, metadata?.subject),
+        ];
+        const uniqueComps = Array.from(new Map(rowComps.map((c) => [c.competencyCode, c])).values());
 
-    const wsSpec = XLSX.utils.json_to_sheet(specData);
-    XLSX.utils.book_append_sheet(wb, wsSpec, 'Bảng đặc tả (Chi tiết)');
+        return {
+          STT: row.stt,
+          'Chủ đề / Đơn vị kiến thức': cleanLatexForDocx(row.topic),
+          'Yêu cầu cần đạt': cleanLatexForDocx(row.requirements),
+          'Số câu / Dạng câu': details.join('; '),
+          'Năng lực đặc thù': uniqueComps.map((c) => `(${c.competencyCode}) ${c.competencyName}`).join('; ') || '-',
+          'Điểm số': row.totalPoints,
+        };
+      });
+
+      const wsSpec = XLSX.utils.json_to_sheet(specData);
+      XLSX.utils.book_append_sheet(wb, wsSpec, 'Bảng đặc tả (Chi tiết)');
+    }
 
     // --- SHEET 3: BẢNG ĐÁP ÁN TỔNG HỢP CÁC MÃ ĐỀ ---
     const answersData: any[] = [];

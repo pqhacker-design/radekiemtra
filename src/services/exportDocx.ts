@@ -2921,62 +2921,75 @@ export class ExportDocx {
       new Paragraph({ text: '', spacing: { after: 300 } })
     );
 
-    // --- 2. BẢN ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KÌ THEO CÔNG VĂN 7991/BGDĐT ---
-    docChildren.push(
-      new Paragraph({
-        spacing: { before: 200, after: 100 },
-        children: [
-          new TextRun({
-            text: `II. BẢN ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KÌ (CHUẨN CÔNG VĂN 7991/BGDĐT)`,
-            bold: true,
-            size: 24,
-            font: 'Times New Roman',
-          }),
-        ],
-      }),
-      buildCV7991SpecDocxTable(specification, metadata, exams[0]?.questions || []),
-      new Paragraph({
-        spacing: { before: 60, after: 80 },
-        children: [
-          new TextRun({
-            text: '* Có ở trong một số ô của bản đặc tả, ghi tắt tên của năng lực (đã được quy định trong chương trình môn học/hoạt động giáo dục).',
-            italics: true,
-            size: 16,
-            font: 'Times New Roman',
-            color: '666666',
-          }),
-        ],
-      }),
-      new Paragraph({
-        spacing: { before: 40, after: 180 },
-        children: [
-          new TextRun({
-            text: `Ký hiệu các Năng lực đặc thù môn ${metadata.subject} (CT GDPT 2018): ` +
-              getSubjectCompetencies(metadata.subject)
-                .map((c) => `${c.code}: ${c.name}`)
-                .join('; '),
-            italics: true,
-            size: 16,
-            font: 'Times New Roman',
-            color: '006666',
-          }),
-        ],
-      }),
-      new Paragraph({
-        spacing: { before: 150, after: 80 },
-        children: [
-          new TextRun({
-            text: `BẢNG PHÂN BỔ SỐ CÂU VÀ DẠNG CÂU CHI TIẾT (YCCĐ):`,
-            bold: true,
-            size: 20,
-            font: 'Times New Roman',
-            color: '008080',
-          }),
-        ],
-      }),
-      buildClassicSpecDocxTable(specification, exams[0]?.questions || []),
-      new Paragraph({ text: '', spacing: { after: 350 } })
-    );
+    // --- 2. BẢN ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KÌ ---
+    const matrixOutputFormat = metadata.matrixOutputFormat || 'cv7991';
+
+    if (matrixOutputFormat === 'cv7991' || matrixOutputFormat === 'both') {
+      docChildren.push(
+        new Paragraph({
+          spacing: { before: 200, after: 100 },
+          children: [
+            new TextRun({
+              text: `II. BẢN ĐẶC TẢ ĐỀ KIỂM TRA ĐỊNH KÌ (CHUẨN CÔNG VĂN 7991/BGDĐT)`,
+              bold: true,
+              size: 24,
+              font: 'Times New Roman',
+            }),
+          ],
+        }),
+        buildCV7991SpecDocxTable(specification, metadata, exams[0]?.questions || []),
+        new Paragraph({
+          spacing: { before: 60, after: 80 },
+          children: [
+            new TextRun({
+              text: '* Có ở trong một số ô của bản đặc tả, ghi tắt tên của năng lực (đã được quy định trong chương trình môn học/hoạt động giáo dục).',
+              italics: true,
+              size: 16,
+              font: 'Times New Roman',
+              color: '666666',
+            }),
+          ],
+        }),
+        new Paragraph({
+          spacing: { before: 40, after: 180 },
+          children: [
+            new TextRun({
+              text: `Ký hiệu các Năng lực đặc thù môn ${metadata.subject} (CT GDPT 2018): ` +
+                getSubjectCompetencies(metadata.subject)
+                  .map((c) => `${c.code}: ${c.name}`)
+                  .join('; '),
+              italics: true,
+              size: 16,
+              font: 'Times New Roman',
+              color: '006666',
+            }),
+          ],
+        })
+      );
+    }
+
+    if (matrixOutputFormat === 'classic' || matrixOutputFormat === 'both') {
+      docChildren.push(
+        new Paragraph({
+          spacing: { before: 150, after: 80 },
+          children: [
+            new TextRun({
+              text: matrixOutputFormat === 'both'
+                ? `BẢNG PHÂN BỔ SỐ CÂU VÀ DẠNG CÂU CHI TIẾT (YCCĐ - MẪU TRUYỀN THỐNG):`
+                : `II. BẢNG ĐẶC TẢ YÊU CẦU CẦN ĐẠT ĐỀ KIỂM TRA (MẪU TRUYỀN THỐNG)`,
+              bold: true,
+              size: matrixOutputFormat === 'both' ? 20 : 24,
+              font: 'Times New Roman',
+              color: '008080',
+            }),
+          ],
+        }),
+        buildClassicSpecDocxTable(specification, exams[0]?.questions || []),
+        new Paragraph({ text: '', spacing: { after: 350 } })
+      );
+    } else {
+      docChildren.push(new Paragraph({ text: '', spacing: { after: 350 } }));
+    }
 
     // --- 3. ĐỀ THI CÁC MÃ ĐỀ ---
     docChildren.push(new Paragraph({ children: [new PageBreak()] }));

@@ -58,7 +58,20 @@ BẮT BUỘC TUÂN THỦ CÁC NGUYÊN TẮC SAU:
    - BẮT BUỘC cung cấp chuỗi mã SVG chuẩn, trực quan trong trường "svgDiagram" (cho đề thi) và "solutionDiagramSvg" (cho phần đáp án / hướng dẫn giải chi tiết).
    - Mã SVG phải chứa thẻ <svg viewBox='0 0 400 300' ...>, màu sắc sắc nét, nét vẽ đứt đoạn cho nét khuất hình học (stroke-dasharray='4,4'), và các nhãn tên điểm / trục tọa độ. MỌI THUỘC TÍNH TRONG SVG BẮT BUỘC DÙNG DẤU NHÁY ĐƠN '...' (ví dụ: viewBox='0 0 400 300') ĐỂ KHÔNG PHÁ VỠ CÚ PHÁP CHUỖI JSON.
 11. NĂNG LỰC ĐẶC THÙ BỘ MÔN (CHUẨN CÔNG VĂN 7991/BGDĐT VÀ GDPT 2018):
-   - MỖI CÂU HỎI BẮT BUỘC xác định năng lực đặc thù tương ứng: trường "competency" (Tên đầy đủ) và "competencyCode" (Ký hiệu viết tắt như NL TDLL, NL MHH, NL GQVĐ, NL NTHH, NL NTVL, NL VDKN, NL Đọc, NL Viết, NLa, NLb, v.v.) để hiển thị trong bản đặc tả phía dưới tên câu hỏi.`;
+   - MỖI CÂU HỎI BẮT BUỘC xác định năng lực đặc thù tương ứng: trường "competency" (Tên đầy đủ) và "competencyCode" (Ký hiệu viết tắt như NL TDLL, NL MHH, NL GQVĐ, NL NTHH, NL NTVL, NL VDKN, NL Đọc, NL Viết, NLa, NLb, v.v.) để hiển thị trong bản đặc tả phía dưới tên câu hỏi.
+12. NGUYÊN TẮC PHÂN CHIA ĐƠN VỊ KIẾN THỨC VÀ YÊU CẦU CẦN ĐẠT TRONG MA TRẬN & BẢN ĐẶC TẢ (CHUẨN CÔNG VĂN 7991/BGDĐT):
+   - PHÂN CHIA ĐƠN VỊ KIẾN THỨC (subTopic): Chủ đề/chương kiểm tra BẮT BUỘC phải được chia nhỏ thành các "ĐƠN VỊ KIẾN THỨC" (subTopic) cụ thể, mạch lạc (thường từ 2 đến 5 đơn vị kiến thức/mạch chuyên đề khác nhau tùy theo quy mô chương bài). TUYỆT ĐỐI KHÔNG gom cả bài thi thành 1 dòng đơn điệu!
+   - Mỗi "Đơn vị kiến thức" là MỘT DÒNG RIÊNG BIỆT trong cả mảng "matrix" và mảng "specification", gồm:
+     + "stt": Số thứ tự tăng dần (1, 2, 3...)
+     + "topic": Tên chương / chủ đề lớn (ví dụ: "Chương I. Tập hợp các số tự nhiên", "Chủ đề: Động học chất điểm")
+     + "subTopic": Tên đơn vị kiến thức cụ thể (ví dụ: "Tập hợp và phần tử của tập hợp", "Lũy thừa với số mũ tự nhiên", "Dấu hiệu chia hết")
+     + "part1", "part2", "part3", "part4": Phân bổ số câu hoặc nhãn câu hỏi theo 3 mức độ (remember: Biết, understand: Hiểu, apply: Vận dụng).
+   - NÊU ĐÚNG VÀ ĐỦ CÁC YÊU CẦU CẦN ĐẠT Ở CÁC MỨC ĐỘ THEO CÔNG VĂN 7991:
+     Trong mảng "specification", trường "requirements" của MỖI dòng BẮT BUỘC PHẢI NÊU RÕ CÁC YÊU CẦU CẦN ĐẠT Ở CÁC MỨC ĐỘ NHẬN THỨC (chuẩn GDPT 2018), định dạng chuẩn xác bằng các gạch đầu dòng:
+     "- Biết: [Nêu các yêu cầu cần đạt mức Nhận biết cụ thể với các động từ hành vi: Nhận biết được..., Nhớ được..., Nêu được..., Chỉ ra được...]"
+     "- Hiểu: [Nêu các yêu cầu cần đạt mức Thông hiểu cụ thể với các động từ hành vi: Hiểu được..., Giải thích được..., Phân biệt được..., Mô tả được...]"
+     "- Vận dụng: [Nêu các yêu cầu cần đạt mức Vận dụng / Vận dụng cao với các động từ hành vi: Vận dụng được để tính toán..., Giải quyết được bài toán..., Thiết lập được..., Vận dụng giải quyết vấn đề thực tiễn...]"
+   - BẮT BUỘC mọi mức độ có câu hỏi trong đơn vị kiến thức đó đều phải có nội dung Yêu cầu cần đạt chi tiết, sát với câu hỏi trong bài!`;
   }
 
   /**
@@ -257,6 +270,22 @@ HÃY SINH MA TRẬN, BẢNG ĐẶC TẢ VÀ ĐỀ KIỂM TRA CHUẨN CÔNG VĂN 
 - Thời gian làm bài: ${durationMinutes} phút
 - Thang điểm tổng: ${totalPoints} điểm
 - Chế độ đề: ${hasCustomMatrix ? '100% Theo Ma trận bộ môn (Bỏ qua cấu trúc và tỉ lệ mặc định)' : modeDescription}
+${(() => {
+  const mFmt = metadata.matrixOutputFormat || 'cv7991';
+  if (mFmt === 'cv7991') {
+    return `
+📋 ĐỊNH DẠNG MA TRẬN & BẢN ĐẶC TẢ YÊU CẦU: CHUẨN CÔNG VĂN 7991/BGDĐT (16 CỘT - ĐỊNH DẠNG CHÍNH):
+- BẮT BUỘC chỉ sinh 1 khung ma trận và 1 bản đặc tả DUY NHẤT theo chuẩn 16 cột Công văn 7991/BGDĐT.
+- TUYỆT ĐỐI KHÔNG phân tách làm 2 ma trận hay sinh dư thừa bảng phân bổ gây lỗi cấu trúc dữ liệu JSON.
+- Các ô Biết (remember), Hiểu (understand), Vận dụng (apply) trong 4 phần (part1: Nhiều lựa chọn, part2: Đúng/Sai, part3: Trả lời ngắn, part4: Tự luận) phải khớp chính xác 100% với các câu hỏi trong mảng "questions".`;
+  } else if (mFmt === 'classic') {
+    return `
+📋 ĐỊNH DẠNG MA TRẬN & BẢNG ĐẶC TẢ YÊU CẦU: ĐỊNH DẠNG TRUYỀN THỐNG (5 CỘT YCCĐ):
+- Sinh bảng đặc tả và ma trận theo từng chủ đề, đơn vị kiến thức gắn liền với Yêu cầu cần đạt chi tiết và phân bổ số câu theo mức độ.`;
+  }
+  return `
+📋 ĐỊNH DẠNG MA TRẬN & BẢNG ĐẶC TẢ: XUẤT CẢ 2 ĐỊNH DẠNG (Chuẩn CV 7991 và Bảng đặc tả chi tiết YCCĐ).`;
+})()}
 ${subjectSpecificSection}
 ${referenceSection}
 ${matrixModeSection}
@@ -287,36 +316,74 @@ ${existingQuestionsToAvoid.slice(0, 15).map((q, idx) => `  [${idx + 1}] ${q}`).j
 5. Phần III (Trả lời ngắn) BẮT BUỘC có "shortAnswer" là một đáp số cụ thể (ví dụ: "$15$", "$x = 3$", "24 cm").
 6. Phần IV (Tự luận) BẮT BUỘC có "essayAnswerGuide" giải chi tiết và mảng "rubric" chia điểm cụ thể từng bước.
 
+🛑 QUY ĐỊNH BẮT BUỘC VỀ MA TRẬN & BẢN ĐẶC TẢ (CHUẨN CÔNG VĂN 7991/BGDĐT):
+1. PHÂN CHIA ĐƠN VỊ KIẾN THỨC (subTopic):
+   - Mảng "matrix" và mảng "specification" BẮT BUỘC PHẢI PHÂN CHIA THÀNH CÁC ĐƠN VỊ KIẾN THỨC CỤ THỂ của chủ đề (thường từ 2 đến 5 đơn vị kiến thức/mạch nội dung khác nhau, TUYỆT ĐỐI KHÔNG gom cả đề thi thành 1 dòng duy nhất).
+   - Mỗi đơn vị kiến thức là 1 dòng riêng trong bảng với "stt" tăng dần, "topic" là tên chủ đề/chương và "subTopic" là tên đơn vị kiến thức cụ thể.
+   - Các câu hỏi trong mảng "questions" phải phân bổ đều và tương ứng với từng đơn vị kiến thức này.
+2. YÊU CẦU CẦN ĐẠT (YCCĐ) TRONG BẢN ĐẶC TẢ BẮT BUỘC NÊU ĐỦ CÁC MỨC ĐỘ THEO CÔNG VĂN 7991:
+   - Trong mảng "specification", trường "requirements" của TỪNG đơn vị kiến thức BẮT BUỘC PHẢI VIẾT ĐỦ các gạch đầu dòng rõ ràng theo 3 mức độ nhận thức chuẩn GDPT 2018:
+     "- Biết: [Yêu cầu cần đạt mức Nhận biết cụ thể với các động từ hành vi: Nhận biết được..., Nhớ được..., Nêu được..., Chỉ ra được...]"
+     "- Hiểu: [Yêu cầu cần đạt mức Thông hiểu cụ thể với các động từ hành vi: Hiểu được..., Giải thích được..., Phân biệt được..., Mô tả được...]"
+     "- Vận dụng: [Yêu cầu cần đạt mức Vận dụng / Vận dụng cao với các động từ hành vi: Vận dụng được để tính toán..., Giải quyết được bài toán..., Thiết lập được..., Vận dụng giải quyết vấn đề thực tiễn...]"
+   - Không được bỏ trống các mức độ nhận thức có câu hỏi trong đơn vị kiến thức đó.
+
 YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
 {
   "matrix": [
     {
       "stt": 1,
-      "topic": "Chương I: Số tự nhiên",
-      "subTopic": "Tập hợp, ghi số tự nhiên, thứ tự trong N",
-      "part1": { "remember": "1, 2", "understand": "", "apply": "" },
-      "part2": { "remember": "", "understand": "", "apply": "" },
-      "part3": { "remember": "15a", "understand": "", "apply": "" },
-      "part4": { "remember": "", "understand": "", "apply": "" },
+      "topic": "${chapterTitle || 'Chương I: Mạch nội dung chính'}",
+      "subTopic": "Đơn vị kiến thức 1 (VD: Khái niệm, tính chất và phép toán cơ bản)",
+      "part1": { "remember": "1, 2", "understand": "3", "apply": "" },
+      "part2": { "remember": "1a, 1b", "understand": "1c", "apply": "1d" },
+      "part3": { "remember": "1", "understand": "2", "apply": "" },
+      "part4": { "remember": "", "understand": "", "apply": "1" },
+      "totalRemember": 4,
+      "totalUnderstand": 3,
+      "totalApply": 2,
+      "totalQuestions": 5,
+      "totalPoints": 5.0,
+      "percentage": 50.0
+    },
+    {
+      "stt": 2,
+      "topic": "${chapterTitle || 'Chương I: Mạch nội dung chính'}",
+      "subTopic": "Đơn vị kiến thức 2 (VD: Ứng dụng, bài toán tính toán và giải quyết vấn đề)",
+      "part1": { "remember": "4, 5", "understand": "6", "apply": "7" },
+      "part2": { "remember": "2a", "understand": "2b, 2c", "apply": "2d" },
+      "part3": { "remember": "", "understand": "3", "apply": "4" },
+      "part4": { "remember": "", "understand": "", "apply": "2" },
       "totalRemember": 3,
-      "totalUnderstand": 0,
-      "totalApply": 0,
-      "totalQuestions": 3,
-      "totalPoints": 1.0,
-      "percentage": 10.0
+      "totalUnderstand": 4,
+      "totalApply": 3,
+      "totalQuestions": 5,
+      "totalPoints": 5.0,
+      "percentage": 50.0
     }
   ],
   "specification": [
     {
       "stt": 1,
-      "topic": "Chương I: Số tự nhiên",
-      "subTopic": "Tập hợp, ghi số tự nhiên, thứ tự trong N",
-      "requirements": "Nhận biết: Nhận biết được tập hợp, các phần tử của tập hợp, thứ tự trong N...",
-      "part1": { "remember": "1, 2", "understand": "", "apply": "" },
-      "part2": { "remember": "", "understand": "", "apply": "" },
-      "part3": { "remember": "15a", "understand": "", "apply": "" },
-      "part4": { "remember": "", "understand": "", "apply": "" },
-      "totalPoints": 1.0
+      "topic": "${chapterTitle || 'Chương I: Mạch nội dung chính'}",
+      "subTopic": "Đơn vị kiến thức 1 (VD: Khái niệm, tính chất và phép toán cơ bản)",
+      "requirements": "- Biết: Nhận biết và phát biểu được các khái niệm, quy tắc, định nghĩa cơ bản về đơn vị kiến thức 1.\\n- Hiểu: Thông hiểu và giải thích được bản chất, ý nghĩa của các tính chất, phân biệt được các trường hợp cụ thể.\\n- Vận dụng: Vận dụng trực tiếp các kiến thức, định lí đã học để tính toán, biến đổi và giải quyết bài toán đặt ra.",
+      "part1": { "remember": "1, 2", "understand": "3", "apply": "" },
+      "part2": { "remember": "1a, 1b", "understand": "1c", "apply": "1d" },
+      "part3": { "remember": "1", "understand": "2", "apply": "" },
+      "part4": { "remember": "", "understand": "", "apply": "1" },
+      "totalPoints": 5.0
+    },
+    {
+      "stt": 2,
+      "topic": "${chapterTitle || 'Chương I: Mạch nội dung chính'}",
+      "subTopic": "Đơn vị kiến thức 2 (VD: Ứng dụng, bài toán tính toán và giải quyết vấn đề)",
+      "requirements": "- Biết: Nhớ và chỉ ra được các công thức, định dạng bài toán của đơn vị kiến thức 2.\\n- Hiểu: Giải thích được các bước biến đổi, liên hệ mối quan hệ giữa các đại lượng.\\n- Vận dụng: Vận dụng linh hoạt các phương pháp để giải các bài toán nâng cao, liên hệ giải quyết các tình huống thực tiễn.",
+      "part1": { "remember": "4, 5", "understand": "6", "apply": "7" },
+      "part2": { "remember": "2a", "understand": "2b, 2c", "apply": "2d" },
+      "part3": { "remember": "", "understand": "3", "apply": "4" },
+      "part4": { "remember": "", "understand": "", "apply": "2" },
+      "totalPoints": 5.0
     }
   ],
   "questions": [

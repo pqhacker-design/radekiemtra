@@ -180,6 +180,7 @@ export interface ExamMetadata {
   referenceImages?: string[]; // Danh sách ảnh đính kèm (SGK, trang sách, ảnh mục lục, v.v...)
   customMatrixContext?: string; // Nội dung ma trận có sẵn do giáo viên cung cấp (dạng text, bảng, copy từ Word/Excel)
   customMatrixImages?: string[]; // Ảnh chụp khung ma trận có sẵn do tổ bộ môn phê duyệt
+  matrixOutputFormat?: 'cv7991' | 'classic' | 'both'; // Định dạng ma trận & bảng đặc tả xuất ra (Mặc định: 'cv7991' - Chuẩn Công văn 7991/BGDĐT)
   onlineExamCode?: string;   // Mã đề thi trực tuyến (nếu đã xuất bản)
 }
 

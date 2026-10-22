@@ -470,6 +470,8 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
 
   // 5. Số mã đề
   const [codeCount, setCodeCount] = useState(4);
+  // 6. Tùy chọn định dạng ma trận xuất ra (Mặc định: 'cv7991' - Công văn 7991/BGDĐT là chính)
+  const [matrixOutputFormat, setMatrixOutputFormat] = useState<'cv7991' | 'classic' | 'both'>('cv7991');
   const [errorMsg, setErrorMsg] = useState('');
 
   // Hàm thay đổi bộ đếm (+)(-) cho Phần 1, 2, 3
@@ -673,6 +675,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
         referenceImages,
         customMatrixContext: customMatrixContext.trim() || undefined,
         customMatrixImages: customMatrixImages.length > 0 ? customMatrixImages : undefined,
+        matrixOutputFormat,
       });
       setShowApiKeyModal(true);
       return;
@@ -729,6 +732,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
       referenceImages,
       customMatrixContext: customMatrixContext.trim() || undefined,
       customMatrixImages: customMatrixImages.length > 0 ? customMatrixImages : undefined,
+      matrixOutputFormat,
     };
 
     try {
@@ -1608,13 +1612,125 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
           )}
         </div>
 
-        {/* 3. Chọn loại đề */}
+        {/* 3. Định Dạng Ma Trận & Bản Đặc Tả Xuất Ra */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-xs border border-slate-200 dark:border-slate-800 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="flex items-center space-x-2">
+              <Table className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                  <span>3. Định Dạng Ma Trận &amp; Bản Đặc Tả Xuất Ra</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300">
+                    Mới
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Tùy chọn xuất theo ma trận 7791 hoặc ma trận truyền thống.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            {/* Lựa chọn 1: Chuẩn Công văn 7991 (Khuyên dùng - Mặc định) */}
+            <button
+              type="button"
+              onClick={() => setMatrixOutputFormat('cv7991')}
+              className={`p-4 rounded-xl border-2 text-left transition-all relative flex flex-col justify-between ${
+                matrixOutputFormat === 'cv7991'
+                  ? 'border-teal-600 bg-teal-50/60 dark:bg-teal-950/40 text-teal-950 dark:text-teal-100 shadow-sm ring-1 ring-teal-500/20'
+                  : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/40 dark:bg-slate-800/30'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-extrabold text-sm text-slate-900 dark:text-white">
+                    ① Chuẩn Công văn 7991/BGDĐT
+                  </span>
+                  {matrixOutputFormat === 'cv7991' && (
+                    <CheckCircle className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+                  )}
+                </div>
+                <div className="mb-2">
+                  <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/60">
+                    ★ Khuyên dùng (Chính - Tránh lỗi sinh ma trận)
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Xuất <strong>duy nhất 1 Ma trận &amp; Bản đặc tả 16 cột</strong> chuẩn Công văn 7991 (gồm 4 dạng: TN Nhiều lựa chọn, Đúng-Sai, Trả lời ngắn, Tự luận). Đồng bộ và tối ưu tốc độ sinh.
+                </p>
+              </div>
+            </button>
+
+            {/* Lựa chọn 2: Mẫu truyền thống 5 cột YCCĐ */}
+            <button
+              type="button"
+              onClick={() => setMatrixOutputFormat('classic')}
+              className={`p-4 rounded-xl border-2 text-left transition-all relative flex flex-col justify-between ${
+                matrixOutputFormat === 'classic'
+                  ? 'border-teal-600 bg-teal-50/60 dark:bg-teal-950/40 text-teal-950 dark:text-teal-100 shadow-sm ring-1 ring-teal-500/20'
+                  : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/40 dark:bg-slate-800/30'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-extrabold text-sm text-slate-900 dark:text-white">
+                    ② Mẫu truyền thống (5 cột YCCĐ)
+                  </span>
+                  {matrixOutputFormat === 'classic' && (
+                    <CheckCircle className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+                  )}
+                </div>
+                <div className="mb-2">
+                  <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                    Bảng phân bổ chi tiết
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Xuất <strong>duy nhất bảng đặc tả truyền thống</strong> 5 cột gắn liền trực tiếp với từng Yêu cầu cần đạt (Chủ đề, YCCĐ, Số câu Biết/Hiểu/VD, Điểm số).
+                </p>
+              </div>
+            </button>
+
+            {/* Lựa chọn 3: Xuất cả 2 định dạng */}
+            <button
+              type="button"
+              onClick={() => setMatrixOutputFormat('both')}
+              className={`p-4 rounded-xl border-2 text-left transition-all relative flex flex-col justify-between ${
+                matrixOutputFormat === 'both'
+                  ? 'border-teal-600 bg-teal-50/60 dark:bg-teal-950/40 text-teal-950 dark:text-teal-100 shadow-sm ring-1 ring-teal-500/20'
+                  : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/40 dark:bg-slate-800/30'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-extrabold text-sm text-slate-900 dark:text-white">
+                    ③ Xuất cả 2 định dạng ma trận
+                  </span>
+                  {matrixOutputFormat === 'both' && (
+                    <CheckCircle className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+                  )}
+                </div>
+                <div className="mb-2">
+                  <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">
+                    Kết hợp 2 bảng
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Tài liệu xuất ra sẽ gồm cả <strong>Bản đặc tả 16 cột CV 7991</strong> và <strong>Bảng đặc tả 5 cột YCCĐ</strong> truyền thống.
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* 4. Chọn loại đề */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-xs border border-slate-200 dark:border-slate-800 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <div className="flex items-center space-x-2">
               <Sliders className="w-5 h-5 text-teal-600 dark:text-teal-400" />
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                3. Chọn Chế Độ Đề Kiểm Tra (3 Loại)
+                4. Chọn Chế Độ Đề Kiểm Tra (3 Loại)
               </h3>
             </div>
           </div>
@@ -1676,13 +1792,13 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
           </div>
         </div>
 
-        {/* 4. Cấu trúc số lượng câu hỏi & Tùy chọn điểm số */}
+        {/* 5. Cấu trúc số lượng câu hỏi & Tùy chọn điểm số */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-xs border border-slate-200 dark:border-slate-800 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
             <div className="flex items-center space-x-2">
               <BookOpen className="w-5 h-5 text-teal-600 dark:text-teal-400" />
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                4. Cấu Trúc / Số Lượng Câu Hỏi & Thang Điểm (Yêu cầu đúng 10 điểm)
+                5. Cấu Trúc / Số Lượng Câu Hỏi & Thang Điểm (Yêu cầu đúng 10 điểm)
               </h3>
             </div>
             <div className="flex items-center space-x-2">
@@ -2092,13 +2208,13 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
           </div>
         </div>
 
-        {/* 5. Mức độ nhận thức (Thanh kéo %) */}
+        {/* 6. Mức độ nhận thức (Thanh kéo %) */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-xs border border-slate-200 dark:border-slate-800 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <div className="flex items-center space-x-2">
               <Sliders className="w-5 h-5 text-teal-600 dark:text-teal-400" />
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                5. Tỷ Lệ Mức Độ Nhận Thức (Thanh Kéo / Số %)
+                6. Tỷ Lệ Mức Độ Nhận Thức (Thanh Kéo / Số %)
               </h3>
             </div>
             <span
@@ -2198,12 +2314,12 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
           </div>
         </div>
 
-        {/* 6. Chọn số mã đề */}
+        {/* 7. Chọn số mã đề */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-xs border border-slate-200 dark:border-slate-800 space-y-4">
           <div className="flex items-center space-x-2 border-b border-slate-100 dark:border-slate-800 pb-3">
             <Copy className="w-5 h-5 text-teal-600 dark:text-teal-400" />
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              6. Số Lượng Mã Đề Cần Sinh (Đảo Câu Hỏi & Đáp Án)
+              7. Số Lượng Mã Đề Cần Sinh (Đảo Câu Hỏi & Đáp Án)
             </h3>
           </div>
 

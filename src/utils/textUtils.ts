@@ -227,8 +227,9 @@ export function parseRequirementsByLevel(reqText: string): RequirementsByLevel {
     return { remember: '', understand: '', apply: '' };
   }
 
-  const text = reqText.trim();
-  const regex = /(?:^|\n)(?:[-*•]\s*)?(?:[1-4][\.\)]\s*|[a-d][\.\)]\s*)?(Nhận biết|Biết|NB|Thông hiểu|Hiểu|TH|Vận dụng cao|Vận dụng|VDC|VD)\s*[:：\-–]([\s\S]*?)(?=(?:\n(?:[-*•]\s*)?(?:[1-4][\.\)]\s*|[a-d][\.\)]\s*)?(?:Nhận biết|Biết|NB|Thông hiểu|Hiểu|TH|Vận dụng cao|Vận dụng|VDC|VD)\s*[:：\-–])|$)/gi;
+  const text = reqText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  // Regex bắt mọi biến thể nhãn mức độ: [Nhận biết]:, - Nhận biết:, 1. Biết:, - Thông hiểu:, - Vận dụng:, v.v.
+  const regex = /(?:^|\n)(?:[-*•+]\s*)?(?:\[|\()?([0-9a-dA-D]+[\.\)]\s*)?(?:Mức\s*(?:độ\s*)?)?(Nhận biết|Biết|NB|Thông hiểu|Hiểu|TH|Vận dụng cao|Vận dụng|VDC|VD)(?:\]|\))?\s*[:：\-–]([\s\S]*?)(?=(?:\n(?:[-*•+]\s*)?(?:\[|\()?([0-9a-dA-D]+[\.\)]\s*)?(?:Mức\s*(?:độ\s*)?)?(?:Nhận biết|Biết|NB|Thông hiểu|Hiểu|TH|Vận dụng cao|Vận dụng|VDC|VD)(?:\]|\))?\s*[:：\-–])|$)/gi;
 
   const matches = Array.from(text.matchAll(regex));
 
@@ -238,8 +239,8 @@ export function parseRequirementsByLevel(reqText: string): RequirementsByLevel {
     let apply = '';
 
     for (const match of matches) {
-      const label = match[1].trim().toLowerCase();
-      const content = match[2].trim();
+      const label = (match[2] || '').trim().toLowerCase();
+      const content = (match[3] || '').trim().replace(/^[-*•+]\s*/, '');
 
       if (label.includes('nhận biết') || label === 'biết' || label === 'nb') {
         remember = remember ? `${remember}\n${content}` : content;
@@ -257,19 +258,19 @@ export function parseRequirementsByLevel(reqText: string): RequirementsByLevel {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
   if (lines.length >= 3) {
     return {
-      remember: lines[0].replace(/^[-*•]\s*/, ''),
-      understand: lines[1].replace(/^[-*•]\s*/, ''),
-      apply: lines.slice(2).join('\n').replace(/^[-*•]\s*/, ''),
+      remember: lines[0].replace(/^[-*•+]\s*(?:Nhận biết|Biết|NB)?[：:\-–]?\s*/i, ''),
+      understand: lines[1].replace(/^[-*•+]\s*(?:Thông hiểu|Hiểu|TH)?[：:\-–]?\s*/i, ''),
+      apply: lines.slice(2).join('\n').replace(/^[-*•+]\s*(?:Vận dụng|VD|VDC)?[：:\-–]?\s*/i, ''),
     };
   } else if (lines.length === 2) {
     return {
-      remember: lines[0].replace(/^[-*•]\s*/, ''),
-      understand: lines[1].replace(/^[-*•]\s*/, ''),
+      remember: lines[0].replace(/^[-*•+]\s*/, ''),
+      understand: lines[1].replace(/^[-*•+]\s*/, ''),
       apply: '',
     };
   } else if (lines.length === 1) {
     return {
-      remember: lines[0].replace(/^[-*•]\s*/, ''),
+      remember: lines[0].replace(/^[-*•+]\s*/, ''),
       understand: '',
       apply: '',
     };

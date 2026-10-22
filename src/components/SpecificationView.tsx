@@ -47,10 +47,20 @@ export const SpecificationView: React.FC<SpecificationViewProps> = ({
   }
 
   const { metadata, specification } = examPackage;
-  const [templateMode, setTemplateMode] = useState<'cv7991' | 'classic'>('cv7991');
+  const [templateMode, setTemplateMode] = useState<'cv7991' | 'classic'>(
+    metadata?.matrixOutputFormat === 'classic' ? 'classic' : 'cv7991'
+  );
   const [isEditing, setIsEditing] = useState(false);
   const [editableSpec, setEditableSpec] = useState<SpecRow[]>(specification);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (metadata?.matrixOutputFormat === 'classic') {
+      setTemplateMode('classic');
+    } else {
+      setTemplateMode('cv7991');
+    }
+  }, [metadata?.matrixOutputFormat]);
 
   // Tính điểm và tỉ lệ % chuẩn Công văn 7991
   const examScores = calculateExamScores(metadata.questionCounts || {
