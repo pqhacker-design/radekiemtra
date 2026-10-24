@@ -932,7 +932,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
 
             <div className="md:col-span-2 lg:col-span-3">
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Tên Bài / Tên Chương / Mạch Nội Dung Kiến Thức
+                Tên Bài / Tên Chương / Mạch Nội Dung Kiến Thức (Nhiều bài hoặc chương nhập cách nhau bởi dấu phẩy ",")
               </label>
               <input
                 type="text"
@@ -1653,7 +1653,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
                 </div>
                 <div className="mb-2">
                   <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/60">
-                    ★ Khuyên dùng (Chính - Tránh lỗi sinh ma trận)
+                    ★ Khuyên dùng
                   </span>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
