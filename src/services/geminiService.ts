@@ -44,6 +44,7 @@ export class GeminiService {
     const combinedImages = [
       ...(metadata.referenceImages || []),
       ...(metadata.customMatrixImages || []),
+      ...(metadata.customSpecImages || []),
     ];
 
     const rawText = await callGeminiApi({

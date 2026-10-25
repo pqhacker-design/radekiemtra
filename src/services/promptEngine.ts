@@ -178,13 +178,62 @@ ${metadata.referenceContext.trim()}
 `;
     }
 
+    const hasCustomSpec = Boolean(
+      (metadata.customSpecContext && metadata.customSpecContext.trim()) ||
+      (metadata.customSpecImages && metadata.customSpecImages.length > 0) ||
+      metadata.matrixInputMode === 'spec'
+    );
+
     const hasCustomMatrix = Boolean(
       (metadata.customMatrixContext && metadata.customMatrixContext.trim()) ||
-      (metadata.customMatrixImages && metadata.customMatrixImages.length > 0)
+      (metadata.customMatrixImages && metadata.customMatrixImages.length > 0) ||
+      metadata.matrixInputMode === 'custom'
     );
 
     let matrixModeSection = '';
-    if (hasCustomMatrix) {
+    if (hasCustomSpec) {
+      matrixModeSection = `
+🎯🎯🎯 YÊU CẦU TỐI CAO: RA ĐỀ BÁM SÁT 100% BẢNG ĐẶC TẢ CHI TIẾT (CĂN CỨ YÊU CẦU CẦN ĐẠT - YCCĐ & MỨC ĐỘ NHẬN THỨC) 🎯🎯🎯
+Giáo viên đã cung cấp BẢNG ĐẶC TẢ ĐỀ KIỂM TRA CHI TIẾT (văn bản hoặc ảnh chụp đính kèm bên dưới).
+Trong quy trình kiểm tra đánh giá theo Công văn 7991/BGDĐT và chương trình GDPT 2018, BẢNG ĐẶC TẢ LÀ CĂN CỨ PHÁP LÝ & SƯ PHẠM CHI TIẾT NHẤT để ra đề.
+
+BẠN BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT 5 NGUYÊN TẮC SAU ĐÂY ĐỂ TRÁNH HOÀN TOÀN TÌNH TRẠNG HỎI SAI TRỌNG TÂM, SAI MỨC ĐỘ, KHÔNG ĐÚNG YÊU CẦU CẦN ĐẠT:
+
+1. BÁM SÁT TUYỆT ĐỐI YÊU CẦU CẦN ĐẠT (YCCĐ):
+   - MỖI CÂU HỎI TRONG ĐỀ THI PHẢI ĐỐI ỨNG TRỰC TIẾP VỚI 1 YÊU CẦU CẦN ĐẠT (YCCĐ) được chỉ định trong Bảng đặc tả.
+   - Nội dung câu hỏi chỉ được hỏi về kiến thức, kỹ năng đã được mô tả cụ thể trong YCCĐ của từng đơn vị kiến thức (subTopic).
+   - TUYỆT ĐỐI KHÔNG ra câu hỏi lạc đề, không hỏi những nội dung kiến thức nằm ngoài Yêu cầu cần đạt đã quy định trong Bảng đặc tả.
+
+2. ĐÚNG CHUẨN TỪNG MỨC ĐỘ NHẬN THỨC (NB, TH, VD, VDC):
+   - Mức Nhận biết (REMEMBER): Chỉ hỏi các câu nhận diện khái niệm, công thức, định nghĩa, nhận biết đối tượng trực tiếp theo đúng động từ hành vi trong YCCĐ (Nhận biết được..., Chỉ ra được..., Nêu được...). Không hỏi mẹo, không tính toán nhiều bước.
+   - Mức Thông hiểu (UNDERSTAND): Chỉ hỏi các câu giải thích bản chất, làm rõ nguyên lí, phân biệt, so sánh hoặc tính toán trực tiếp qua 1 bước theo YCCĐ (Hiểu được..., Phân biệt được..., Giải thích được...).
+   - Mức Vận dụng (APPLY): Hỏi các câu vận dụng kiến thức, kết nối nhiều bước để giải quyết bài toán hoặc tình huống thực tế đời sống theo YCCĐ.
+   - Mức Vận dụng cao (ADVANCED): Bài toán tổng hợp, phân hóa học sinh giải quyết vấn đề phức tạp trong bối cảnh thực tiễn theo YCCĐ.
+   - TUYỆT ĐỐI KHÔNG ra sai mức độ (ví dụ: YCCĐ yêu cầu "Nhận biết" lại ra bài toán phức tạp đòi hỏi nhiều bước biến đổi; hoặc YCCĐ yêu cầu "Vận dụng" lại ra câu hỏi học vẹt).
+
+3. ĐÚNG SỐ CÂU, DẠNG THỨC VÀ ĐIỂM SỐ THEO BẢNG ĐẶC TẢ:
+   - Phần I (Trắc nghiệm 4 lựa chọn), Phần II (Đúng/Sai gồm 4 ý a,b,c,d), Phần III (Trả lời ngắn), Phần IV (Tự luận): Đúng tuyệt đối số câu được phân bổ cho từng đơn vị kiến thức trong Bảng đặc tả.
+   - Điểm số của từng câu hỏi và tổng điểm phải khớp chính xác với Bảng đặc tả (Tổng toàn đề = 10.0 điểm).
+   - QUY TẮC PHẦN II (Đúng/Sai): Nếu Bảng đặc tả ghi các ý như 13a, 13b, 13c, 13d... hãy gộp vào 1 Câu hỏi lớn (Câu 13, partType: "PART2") chứa 4 ý a,b,c,d bám sát YCCĐ tương ứng.
+   - QUY TẮC PHẦN IV (Tự luận): Nếu có các ý a, b hoặc ý 1, 2 thì trình bày rõ ràng từng ý trong đề bài kèm biểu điểm rubric chi tiết cho từng ý.
+
+4. BỎ QUA HOÀN TOÀN CẤU TRÚC VÀ TỶ LỆ MẶC ĐỊNH KHI ĐÃ CÓ BẢNG ĐẶC TẢ CHI TIẾT.
+
+5. ĐỒNG BỘ TRẢ VỀ TRONG JSON KẾT QUẢ:
+   - Mảng "specification" trong kết quả trả về PHẢI giữ trọn vẹn và thể hiện đầy đủ các đơn vị kiến thức (subTopic) và nội dung Yêu cầu cần đạt chi tiết (requirements) theo từng mức độ (- Biết: ..., - Hiểu: ..., - Vận dụng: ...) khớp với Bảng đặc tả đã cung cấp.
+   - Mảng "matrix" tương ứng cũng phải khớp số câu và điểm số 100%.
+
+${metadata.customSpecContext ? `
+--------------------- NỘI DUNG BẢNG ĐẶC TẢ CHI TIẾT DO GIÁO VIÊN CUNG CẤP ---------------------
+${metadata.customSpecContext.trim()}
+--------------------- KẾT THÚC BẢNG ĐẶC TẢ CHI TIẾT ---------------------
+` : ''}
+${metadata.customSpecImages && metadata.customSpecImages.length > 0 ? `
+📸 ĐÃ ĐÍNH KÈM ${metadata.customSpecImages.length} ẢNH CHỤP BẢNG ĐẶC TẢ CHI TIẾT:
+Hãy phân tích kỹ từng cột: Đơn vị kiến thức, Mức độ nhận thức, Cột Yêu cầu cần đạt (YCCĐ), Số câu hỏi theo 4 phần và Điểm số trong ảnh chụp để ra đề bám sát 100%!
+` : ''}
+`;
+    } else if (hasCustomMatrix) {
       matrixModeSection = `
 ⚡⚡⚡ YÊU CẦU TỐI QUAN TRỌNG: RA ĐỀ ĐỘC QUYỀN THEO MA TRẬN BỘ MÔN (BỎ QUA CẤU TRÚC VÀ TỈ LỆ MẶC ĐỊNH) ⚡⚡⚡
 Người dùng đã cung cấp khung Ma trận & Bản đặc tả bộ môn (dạng văn bản hoặc ảnh chụp đính kèm bên dưới).
@@ -269,7 +318,7 @@ HÃY SINH MA TRẬN, BẢNG ĐẶC TẢ VÀ ĐỀ KIỂM TRA CHUẨN CÔNG VĂN 
 - Bộ sách giáo khoa: ${curriculum}
 - Thời gian làm bài: ${durationMinutes} phút
 - Thang điểm tổng: ${totalPoints} điểm
-- Chế độ đề: ${hasCustomMatrix ? '100% Theo Ma trận bộ môn (Bỏ qua cấu trúc và tỉ lệ mặc định)' : modeDescription}
+- Chế độ đề: ${hasCustomSpec ? '100% Bám sát Bảng đặc tả chi tiết (Chuẩn Yêu cầu cần đạt YCCĐ)' : hasCustomMatrix ? '100% Theo Ma trận bộ môn (Bỏ qua cấu trúc và tỉ lệ mặc định)' : modeDescription}
 ${(() => {
   const mFmt = metadata.matrixOutputFormat || 'cv7991';
   if (mFmt === 'cv7991') {

@@ -163,7 +163,10 @@ export class ValidationEngine {
 
     const hasCustomMatrix = Boolean(
       (metadata.customMatrixContext && metadata.customMatrixContext.trim()) ||
-      (metadata.customMatrixImages && metadata.customMatrixImages.length > 0)
+      (metadata.customMatrixImages && metadata.customMatrixImages.length > 0) ||
+      (metadata.customSpecContext && metadata.customSpecContext.trim()) ||
+      (metadata.customSpecImages && metadata.customSpecImages.length > 0) ||
+      metadata.matrixInputMode === 'spec'
     );
 
     const part1Questions = rawQuestions.filter((q) => q.partType === 'PART1');

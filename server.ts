@@ -3,7 +3,7 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
-import { registerExamRoutes } from './server/api';
+import { registerExamRoutes } from './server/api.ts';
 
 const app = express();
 app.use(express.json({ limit: '20mb' }));

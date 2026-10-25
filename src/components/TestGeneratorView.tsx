@@ -111,7 +111,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
         };
         reader.readAsText(file);
       } else {
-        alert(
+        console.warn(
           'Vui lòng chọn các file định dạng hình ảnh (PNG, JPG, WEBP) hoặc file văn bản (.txt) để tải lên.'
         );
       }
@@ -163,11 +163,17 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
   };
 
   // 1c. Khung Ma trận bộ môn có sẵn (Tùy chọn nâng cao)
-  const [matrixInputMode, setMatrixInputMode] = useState<'auto' | 'custom'>('auto');
+  const [matrixInputMode, setMatrixInputMode] = useState<'auto' | 'custom' | 'spec'>('auto');
   const [customMatrixContext, setCustomMatrixContext] = useState('');
   const [customMatrixImages, setCustomMatrixImages] = useState<string[]>([]);
   const [showMatrixHelp, setShowMatrixHelp] = useState(false);
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string>('');
+
+  // 1d. Bảng đặc tả chi tiết bộ môn có sẵn (Mục C - Căn cứ chi tiết chuẩn YCCĐ & Mức độ nhận thức)
+  const [customSpecContext, setCustomSpecContext] = useState('');
+  const [customSpecImages, setCustomSpecImages] = useState<string[]>([]);
+  const [showSpecHelp, setShowSpecHelp] = useState(false);
+  const [selectedSpecTemplateKey, setSelectedSpecTemplateKey] = useState<string>('');
 
   const MATRIX_TEMPLATES: Record<
     string,
@@ -355,12 +361,14 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     setMatrixInputMode('custom');
   };
 
-  const handleClearMatrix = () => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ nội dung ma trận và ảnh đính kèm không?')) {
-      setCustomMatrixContext('');
-      setCustomMatrixImages([]);
-      setSelectedTemplateKey('');
+  const handleClearMatrix = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
     }
+    setCustomMatrixContext('');
+    setCustomMatrixImages([]);
+    setSelectedTemplateKey('');
   };
 
   const isCustomMatrixActive =
@@ -395,7 +403,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
         };
         reader.readAsText(file);
       } else {
-        alert(
+        console.warn(
           'Vui lòng chọn các file định dạng hình ảnh (PNG, JPG, WEBP) hoặc file văn bản (.txt, .csv) để tải lên.'
         );
       }
@@ -440,6 +448,295 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
 
   const handleRemoveMatrixImage = (index: number) => {
     setCustomMatrixImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // CÁC MẪU BẢNG ĐẶC TẢ CHI TIẾT GỢI Ý CHUẨN CÔNG VĂN 7991/BGDĐT (MỤC C)
+  const SPEC_TEMPLATES: Record<
+    string,
+    { label: string; text: string; defaultP1?: number; defaultP2?: number; defaultP3?: number; defaultP4?: number; defaultP3Pts?: number; defaultP4Pts?: number }
+  > = {
+    spec_toan_thcs_18: {
+      label: '📐 Bảng đặc tả Toán THCS (18 câu/29 ý - Chuẩn 7991)',
+      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA MÔN TOÁN THCS (CHUẨN CÔNG VĂN 7991/BGDĐT - 18 CÂU / 29 Ý)
+| TT | Chủ đề / Mạch kiến thức | Đơn vị kiến thức | Mức độ nhận thức | Yêu cầu cần đạt (YCCĐ) chi tiết | Số câu & Dạng thức theo 4 phần | Điểm số |
+|---|---|---|---|---|---|---|
+| 1 | Số & Đại số | Đơn thức và Đa thức nhiều biến | **Nhận biết (NB)** | - Nhận biết được đơn thức, đa thức nhiều biến.<br>- Nhận biết được các hạng tử, bậc của đơn thức và đa thức.<br>- Chỉ ra được các đơn thức đồng dạng. | 4 câu Phần I (Câu 1, 2, 3, 4)<br>1 ý Phần II (Câu 13a) | 1.25đ |
+| 1 | Số & Đại số | Các phép toán cộng, trừ, nhân, chia đa thức | **Thông hiểu (TH)** | - Thực hiện được phép nhân đơn thức với đa thức, đa thức với đa thức.<br>- Thu gọn được đa thức nhiều biến và tính giá trị của đa thức tại giá trị cho trước của biến. | 2 câu Phần I (Câu 5, 6)<br>2 ý Phần II (Câu 13b, 13c)<br>1 câu Phần III (Câu 15a) | 1.50đ |
+| 1 | Số & Đại số | Vận dụng biểu thức đại số giải bài toán thực tiễn | **Vận dụng (VD)** | - Vận dụng được quy tắc nhân chia đa thức để tính toán diện tích, chu vi, thể tích hình học biểu diễn qua biểu thức đại số.<br>- Tìm điều kiện của biến thỏa mãn biểu thức. | 1 ý Phần II (Câu 13d)<br>1 câu Phần III (Câu 15b)<br>1 câu Phần IV (Câu 16: gồm 2 ý a, b) | 1.75đ |
+| 2 | Hình học & Đo lường | Tứ giác & Các hình đặc biệt (Hình thang cân, Hình bình hành, Hình chữ nhật, Hình thoi, Hình vuông) | **Nhận biết (NB)** | - Nhận biết được định nghĩa, tính chất về cạnh, góc, đường chéo của hình chữ nhật, hình thoi, hình bình hành.<br>- Nhận biết dấu hiệu nhận biết một tứ giác là hình thang cân, hình thoi, hình chữ nhật. | 4 câu Phần I (Câu 7, 8, 9, 10)<br>2 ý Phần II (Câu 14a, 14b) | 1.50đ |
+| 2 | Hình học & Đo lường | Chứng minh tứ giác đặc biệt & Tính độ dài, góc | **Thông hiểu (TH)** | - Giải thích và chứng minh được một tứ giác là hình bình hành, hình thoi hoặc hình chữ nhật.<br>- Tính được độ dài đoạn thẳng, số đo góc trong hình học thực nghiệm. | 2 câu Phần I (Câu 11, 12)<br>1 ý Phần II (Câu 14c)<br>1 câu Phần III (Câu 15c) | 1.25đ |
+| 2 | Hình học & Đo lường | Vận dụng hình học giải quyết vấn đề thực tế & Cực trị | **Vận dụng & VDC** | - Vận dụng tính chất hình học giải bài toán đo đạc thực tế đời sống.<br>- Vận dụng cao: Chứng minh hệ thức hình học hoặc tìm vị trí điểm để biểu thức khoảng cách đạt giá trị nhỏ nhất. | 1 ý Phần II (Câu 14d)<br>1 câu Phần III (Câu 15d)<br>2 câu Phần IV (Câu 17: 1.0đ; Câu 18: gồm 2 ý 18.1, 18.2 - 1.0đ) | 2.75đ |
+| **CỘNG** | | | | **Bám sát 100% YCCĐ phân theo 4 mức độ: NB 40% (4.0đ) - TH 30% (3.0đ) - VD 20% (2.0đ) - VDC 10% (1.0đ)** | **18 câu lớn (29 ý)** | **10.0đ** |
+
+🎯 CẤU TRÚC ĐỀ VÀ PHÂN BỔ ĐIỂM BÁM SÁT BẢNG ĐẶC TẢ:
+1. Phần I: 12 câu trắc nghiệm nhiều lựa chọn (Câu 1 -> 12 | mỗi câu 0.25đ = 3.0đ).
+2. Phần II: 2 câu hỏi Đúng/Sai (Câu 13 và Câu 14, mỗi câu gồm 4 ý a,b,c,d chia đều 0.25đ/ý = 2.0đ).
+3. Phần III: 4 câu trả lời ngắn (15a, 15b, 15c, 15d | mỗi câu 0.5đ = 2.0đ).
+4. Phần IV: 3 câu tự luận (Câu 16 gồm ý a, b; Câu 17; Câu 18 gồm ý 18.1, 18.2 | Tổng = 3.0đ).`,
+      defaultP1: 12,
+      defaultP2: 2,
+      defaultP3: 4,
+      defaultP4: 3,
+      defaultP3Pts: 0.5,
+      defaultP4Pts: 1.0,
+    },
+    spec_toan_thpt_22: {
+      label: '📐 Bảng đặc tả Toán THPT (22 câu - Cấu trúc mới Bộ GD&ĐT)',
+      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA MÔN TOÁN THPT (CHUẨN BỘ GIÁO DỤC VÀ ĐÀO TẠO - 22 CÂU)
+| TT | Chủ đề / Mạch kiến thức | Đơn vị kiến thức | Mức độ nhận thức | Yêu cầu cần đạt (YCCĐ) chi tiết | Số câu & Dạng thức theo 4 phần | Điểm số |
+|---|---|---|---|---|---|---|
+| 1 | Hàm số & Đạo hàm | Tính đơn điệu, cực trị, GTLN & GTNN, Tiệm cận của hàm số | **Nhận biết (NB)** | - Nhận biết được tính đồng biến, nghịch biến của hàm số trên khoảng cho trước qua bảng biến thiên hoặc đồ thị.<br>- Nhận biết điểm cực trị, giá trị cực trị của hàm số.<br>- Nhận biết đường tiệm cận đứng, tiệm cận ngang của đồ thị hàm phân thức. | 6 câu Phần I (Câu 1 - 6)<br>1 câu Phần II (Câu 1: ý a, b) | 2.0đ |
+| 1 | Hàm số & Đạo hàm | Khảo sát hàm số & Ứng dụng đạo hàm giải toán thực tế | **Thông hiểu & Vận dụng** | - Tìm được tham số m để hàm số đơn điệu hoặc đạt cực trị.<br>- Tìm được GTLN, GTNN của hàm số trên đoạn.<br>- Vận dụng đạo hàm giải quyết bài toán tối ưu hóa kinh tế / hình học thực tế (chi phí nhỏ nhất, thể tích lớn nhất). | 3 câu Phần I (Câu 7, 8, 9)<br>1 câu Phần II (Câu 1: ý c, d)<br>2 câu Phần III (Câu 1, 2) | 2.25đ |
+| 2 | Hình học & Tọa độ | Vectơ và hệ tọa độ trong không gian Oxyz | **Nhận biết & Thông hiểu** | - Nhận biết tọa độ điểm, vectơ, độ dài vectơ, tích vô hướng trong không gian Oxyz.<br>- Viết được phương trình mặt cầu, phương trình mặt phẳng đi qua các điểm cơ bản.<br>- Tính được khoảng cách từ điểm đến mặt phẳng, góc giữa hai mặt phẳng. | 3 câu Phần I (Câu 10, 11, 12)<br>1 câu Phần II (Câu 2: 4 ý a,b,c,d)<br>2 câu Phần III (Câu 3, 4) | 2.75đ |
+| 3 | Thống kê & Xác suất | Số đặc trưng đo mức độ phân tán & Xác suất có điều kiện | **Thông hiểu, VD & VDC** | - Tính được phương sai, độ lệch chuẩn của mẫu số liệu ghép nhóm.<br>- Vận dụng công thức xác suất toàn phần và công thức Bayes giải bài toán thực tiễn y học/sản xuất.<br>- Bài toán thực tế liên môn tối ưu hóa xác suất. | 2 câu Phần II (Câu 3, 4: mỗi câu 4 ý a,b,c,d)<br>2 câu Phần III (Câu 5, 6) | 3.0đ |
+| **CỘNG** | | | | **Bám sát 100% YCCĐ phân theo 4 mức độ: NB 40% - TH 30% - VD 20% - VDC 10%** | **22 câu (12 câu P.I + 4 câu P.II + 6 câu P.III)** | **10.0đ** |`,
+      defaultP1: 12,
+      defaultP2: 4,
+      defaultP3: 6,
+      defaultP4: 0,
+      defaultP3Pts: 0.5,
+    },
+    spec_van_thcs_thpt: {
+      label: '📖 Bảng đặc tả Ngữ văn (Đọc hiểu & Viết chuẩn YCCĐ)',
+      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA MÔN NGỮ VĂN (CHUẨN GDPT 2018 - ĐỌC HIỂU & VIẾT)
+| TT | Kỹ năng | Đơn vị kiến thức / Thể loại | Mức độ | Yêu cầu cần đạt (YCCĐ) chi tiết | Số câu & Dạng thức | Điểm số |
+|---|---|---|---|---|---|---|
+| 1 | **ĐỌC HIỂU** (Ngữ liệu ngoài SGK) | Nhận diện thể loại, phương thức biểu đạt & chi tiết | **Nhận biết (NB)** | - Nhận biết được thể loại truyện/thơ, phương thức biểu đạt chính, ngôi kể.<br>- Nhận diện được từ ngữ, hình ảnh đặc sắc, bối cảnh không gian thời gian và nhân vật trong đoạn trích. | 4 câu Trắc nghiệm (Câu 1, 2, 3, 4) | 1.0đ |
+| 1 | **ĐỌC HIỂU** | Phân tích chi tiết, biện pháp tu từ & tư tưởng chủ đề | **Thông hiểu (TH)** | - Hiểu và phân tích được tác dụng của biện pháp tu từ (so sánh, ẩn dụ, điệp ngữ...) trong ngữ cảnh.<br>- Giải thích được ý nghĩa hình tượng, diễn biến tâm trạng nhân vật hoặc nhan đề văn bản.<br>- Nêu và làm rõ chủ đề, tư tưởng chính của đoạn trích. | 4 câu Trắc nghiệm (Câu 5, 6, 7, 8) | 1.0đ |
+| 1 | **ĐỌC HIỂU** | Rút ra thông điệp, bài học & Thể hiện quan điểm | **Vận dụng (VD)** | - Rút ra được thông điệp sâu sắc, bài học về nhận thức và hành động cho bản thân từ văn bản.<br>- Bày tỏ được quan điểm đồng tình hoặc không đồng tình với tư tưởng của tác giả và lí giải hợp lí. | 2 câu Trả lời ngắn / Tự luận ngắn (Câu 9, 10) | 2.0đ |
+| 2 | **VIẾT** | Viết đoạn văn nghị luận xã hội (khoảng 200 chữ) | **Vận dụng (VD)** | - Viết đoạn văn nghị luận xã hội hoàn chỉnh bàn về một vấn đề đạo lí, lối sống hoặc hiện tượng đời sống rút ra từ phần Đọc hiểu.<br>- Đảm bảo cấu trúc đoạn văn, xác định đúng vấn đề, triển khai luận điểm rõ ràng, dẫn chứng xác thực, cảm xúc chân thực. | 1 câu Tự luận (Câu 1 Phần Viết) | 2.0đ |
+| 2 | **VIẾT** | Viết bài văn hoàn chỉnh (Nghị luận văn học / Phân tích) | **Vận dụng cao (VDC)** | - Viết bài văn nghị luận hoàn chỉnh phân tích đặc sắc nội dung và nghệ thuật của đoạn trích truyện/thơ hoặc bàn luận sâu sắc về một vấn đề văn học - đời sống.<br>- Bố cục ba phần mở - thân - kết rõ ràng, lập luận sắc bén, có phát hiện mới mẻ, sáng tạo trong hành văn và từ ngữ. | 1 câu Tự luận (Câu 2 Phần Viết) | 4.0đ |
+| **CỘNG** | | | | **Đầy đủ 100% YCCĐ Đọc hiểu (4.0đ) & Viết (6.0đ)** | **12 câu** | **10.0đ** |`,
+      defaultP1: 8,
+      defaultP2: 0,
+      defaultP3: 2,
+      defaultP4: 2,
+      defaultP3Pts: 1.0,
+      defaultP4Pts: 2.0,
+    },
+    spec_khtn_vatli: {
+      label: '🔬 Bảng đặc tả KHTN / Vật lí (Thực nghiệm & Ứng dụng)',
+      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA KHOA HỌC TỰ NHIÊN / VẬT LÍ (CHUẨN 7991)
+| TT | Mạch nội dung | Đơn vị kiến thức | Mức độ | Yêu cầu cần đạt (YCCĐ) chi tiết | Số câu & Dạng thức theo 4 phần | Điểm số |
+|---|---|---|---|---|---|---|
+| 1 | Chuyển động & Lực | Tốc độ, Quãng đường, Đồ thị quãng đường - thời gian | **Nhận biết (NB)** | - Nhận biết được khái niệm tốc độ, đơn vị đo tốc độ trong hệ SI.<br>- Nhận biết hình dạng đồ thị quãng đường - thời gian của chuyển động đều. | 4 câu Phần I (Câu 1 - 4)<br>1 ý Phần II (Câu 13a) | 1.25đ |
+| 1 | Chuyển động & Lực | Tính toán tốc độ, đọc đồ thị & Lực ma sát | **Thông hiểu (TH)** | - Tính được tốc độ trung bình từ công thức v = s / t.<br>- Đọc và mô tả được trạng thái chuyển động từ đồ thị quãng đường - thời gian.<br>- Giải thích được tác dụng của lực ma sát trong đời sống và kỹ thuật. | 2 câu Phần I (Câu 5, 6)<br>2 ý Phần II (Câu 13b, 13c)<br>1 câu Phần III (Câu 15a) | 1.50đ |
+| 1 | Chuyển động & Lực | Vận dụng tính an toàn giao thông & Tính toán nhiều bước | **Vận dụng (VD)** | - Vận dụng hiểu biết về tốc độ và khoảng cách an toàn để giải thích quy tắc an toàn giao thông.<br>- Giải bài toán chuyển động của hai vật ngược chiều/cùng chiều gặp nhau. | 1 ý Phần II (Câu 13d)<br>1 câu Phần III (Câu 15b)<br>1 câu Phần IV (Câu 16) | 1.75đ |
+| 2 | Năng lượng & Sự biến đổi | Động năng, Thế năng & Bảo toàn năng lượng | **Nhận biết & Thông hiểu** | - Nhận biết được dạng năng lượng (cơ năng, nhiệt năng, hóa năng, điện năng).<br>- Lấy được ví dụ về sự chuyển hóa năng lượng từ dạng này sang dạng khác.<br>- Tính được động năng hoặc thế năng của vật trong các trường hợp đơn giản. | 6 câu Phần I (Câu 7 - 12)<br>2 ý Phần II (Câu 14a, 14b)<br>1 câu Phần III (Câu 15c) | 2.50đ |
+| 2 | Năng lượng & Sự biến đổi | Vận dụng định luật bảo toàn năng lượng & Hiệu suất | **Vận dụng & VDC** | - Tính được công cơ học, công suất và hiệu suất của máy móc thiết bị.<br>- Vận dụng định luật bảo toàn cơ năng giải bài toán vật rơi tự do hoặc trượt có ma sát. | 2 ý Phần II (Câu 14c, 14d)<br>1 câu Phần III (Câu 15d)<br>2 câu Phần IV (Câu 17, Câu 18) | 3.0đ |
+| **CỘNG** | | | | **Bám sát 100% YCCĐ phân theo 4 mức độ: NB 40% - TH 30% - VD 20% - VDC 10%** | **18 câu lớn (29 ý)** | **10.0đ** |`,
+      defaultP1: 12,
+      defaultP2: 2,
+      defaultP3: 4,
+      defaultP4: 3,
+      defaultP3Pts: 0.5,
+      defaultP4Pts: 1.0,
+    },
+    spec_hoa_hoc: {
+      label: '🧪 Bảng đặc tả Hóa học (Công thức, Phương trình & Thí nghiệm)',
+      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA MÔN HÓA HỌC (CHUẨN BỘ GIÁO DỤC VÀ ĐÀO TẠO)
+| TT | Mạch kiến thức | Đơn vị kiến thức | Mức độ | Yêu cầu cần đạt (YCCĐ) chi tiết | Số câu & Dạng thức theo 4 phần | Điểm số |
+|---|---|---|---|---|---|---|
+| 1 | Cấu tạo chất | Nguyên tử, Nguyên tố hóa học & Bảng tuần hoàn | **Nhận biết (NB)** | - Nhận biết thành phần cấu tạo nguyên tử (p, n, e), số hiệu nguyên tử, số khối.<br>- Nhận biết vị trí của nguyên tố trong bảng tuần hoàn (ô, chu kì, nhóm). | 6 câu Phần I (Câu 1 - 6)<br>2 ý Phần II (Câu 13a, 13b) | 2.0đ |
+| 2 | Phản ứng hóa học | Liên kết hóa học & Phản ứng Oxi hóa - Khử | **Thông hiểu (TH)** | - Phân biệt liên kết ion và liên kết cộng hóa trị.<br>- Xác định số oxi hóa, chất khử, chất oxi hóa và cân bằng phương trình phản ứng oxi hóa - khử theo phương pháp thăng bằng electron. | 4 câu Phần I (Câu 7 - 10)<br>2 ý Phần II (Câu 13c, 13d)<br>2 câu Phần III (Câu 1, 2) | 2.50đ |
+| 3 | Thực nghiệm & Tính toán | Nồng độ dung dịch, Hiệu suất phản ứng & Bài toán hóa học | **Vận dụng & VDC** | - Tính nồng độ phần trăm, nồng độ mol của dung dịch sau phản ứng.<br>- Tính lượng chất tham gia/sản phẩm theo phương trình hóa học có tính hiệu suất phản ứng.<br>- Vận dụng cao: Biện luận xác định công thức phân tử hoặc bài toán hỗn hợp nhiều phản ứng phức tạp. | 2 câu Phần I (Câu 11, 12)<br>1 câu Phần II (Câu 14: 4 ý a,b,c,d)<br>2 câu Phần III (Câu 3, 4)<br>2 câu Phần IV (Câu 1, 2) | 5.50đ |
+| **CỘNG** | | | | **Bám sát 100% YCCĐ phân theo 4 mức độ: NB 40% - TH 30% - VD 20% - VDC 10%** | **20 câu** | **10.0đ** |`,
+      defaultP1: 12,
+      defaultP2: 2,
+      defaultP3: 4,
+      defaultP4: 2,
+      defaultP3Pts: 0.5,
+      defaultP4Pts: 1.5,
+    },
+    spec_tieng_anh: {
+      label: '🇬🇧 Bảng đặc tả Tiếng Anh (Kỹ năng ngôn ngữ chuẩn CEFR)',
+      text: `### SPECIFICATION TABLE FOR ENGLISH EXAMINATION (CV 7991 FORMAT)
+| No | Language Skill / Component | Learning Objectives & Competencies (YCCĐ) | Cognitive Level | Question Formats | Points |
+|---|---|---|---|---|---|
+| 1 | Pronunciation & Stress | - Identify correct pronunciation of vowels/consonants (-s/es, -ed, vowels).<br>- Identify primary stress in 2-syllable and 3-syllable words. | Remember (NB) | 4 MCQs Part I (Qs 1 - 4) | 1.0 pt |
+| 2 | Grammar & Vocabulary | - Recognize and apply correct tenses, prepositions, phrasal verbs, collocations.<br>- Choose appropriate communicative exchanges in everyday contexts. | Remember & Understand (NB/TH) | 8 MCQs Part I (Qs 5 - 12)<br>Part II (TF 4 statements) | 3.0 pts |
+| 3 | Reading Comprehension | - Read a passage (150-250 words) to find main idea and specific factual details.<br>- Infer word meaning from context and author's tone/attitude. | Understand & Apply (TH/VD) | 6 MCQs Part I (Qs 13 - 18)<br>2 Short-Answer Qs Part III | 2.5 pts |
+| 4 | Writing (Transformations & Paragraph) | - Rewrite sentences using given prompt words without changing the original meaning.<br>- Write a coherent paragraph (80-120 words) with clear topic sentence, supporting ideas and correct mechanics. | Apply & Advanced (VD/VDC) | 2 Short-Answer Part III (Sentence completion)<br>2 Writing Prompts Part IV | 3.5 pts |
+| **TOTAL** | | **Comprehensive 4 Skills assessment strictly adhering to CV 7991** | | **28 Items** | **10.0 pts** |`,
+      defaultP1: 18,
+      defaultP2: 2,
+      defaultP3: 4,
+      defaultP4: 2,
+      defaultP3Pts: 0.5,
+      defaultP4Pts: 1.0,
+    },
+  };
+
+  const handleApplySpecTemplate = (key: string) => {
+    const tpl = SPEC_TEMPLATES[key];
+    if (!tpl) return;
+    setCustomSpecContext(tpl.text);
+    setMatrixInputMode('spec');
+    setSelectedSpecTemplateKey(key);
+    if (
+      tpl.defaultP1 !== undefined &&
+      tpl.defaultP2 !== undefined &&
+      tpl.defaultP3 !== undefined &&
+      tpl.defaultP4 !== undefined
+    ) {
+      setQuestionCounts((prev) => ({
+        ...prev,
+        part1_MCQSingle: tpl.defaultP1!,
+        part2_MCQTrueFalse: tpl.defaultP2!,
+        part3_MCQShort: tpl.defaultP3!,
+        part4_Essay: tpl.defaultP4!,
+        part3_PointsPerQuestion: tpl.defaultP3Pts ?? prev.part3_PointsPerQuestion,
+        part4_ApplyPoints: tpl.defaultP4Pts ?? prev.part4_ApplyPoints,
+        part4_AdvancedPoints: tpl.defaultP4Pts ?? prev.part4_AdvancedPoints,
+      }));
+    }
+  };
+
+  const handleInsertSpecStructurePrompt = (type: 'thcs_18' | 'thpt_22' | 'van') => {
+    let snippet = '';
+    if (type === 'thcs_18') {
+      snippet = `\n\n### CẤU TRÚC ĐỀ BÁM SÁT BẢNG ĐẶC TẢ TRÊN (18 CÂU - 29 Ý | TỔNG 10.0 ĐIỂM):
+- Phần I (Câu 1 -> 12): Đúng 12 câu trắc nghiệm 4 lựa chọn (8 Biết, 4 Hiểu - mỗi câu 0.25đ = 3.0đ).
+- Phần II (Câu 13, 14): Đúng 2 câu lớn Đúng/Sai (Câu 13 gồm 4 ý a,b,c,d; Câu 14 gồm 4 ý a,b,c,d - mỗi câu 1.0đ = 2.0đ).
+- Phần III (Câu 15a, 15b, 15c, 15d): Đúng 4 câu trả lời ngắn độc lập (2 Biết, 1 Hiểu, 1 Vận dụng - mỗi câu 0.5đ = 2.0đ).
+- Phần IV (Câu 16, 17, 18): Đúng 3 câu tự luận (Câu 16 gồm ý a, b; Câu 17; Câu 18 gồm ý 18.1, 18.2 - Tổng = 3.0đ).
+* YÊU CẦU AI: Ra đủ 100% 18 câu hỏi trên khớp với từng Yêu cầu cần đạt (YCCĐ) trong Bảng đặc tả, không gộp và không bỏ sót!`;
+      setQuestionCounts((prev) => ({
+        ...prev,
+        part1_MCQSingle: 12,
+        part1_PointsPerQuestion: 0.25,
+        part2_MCQTrueFalse: 2,
+        part2_PointsPerQuestion: 1.0,
+        part3_MCQShort: 4,
+        part3_PointsPerQuestion: 0.5,
+        part4_Essay: 3,
+        part4_ApplyCount: 2,
+        part4_ApplyPoints: 1.0,
+        part4_AdvancedCount: 1,
+        part4_AdvancedPoints: 1.0,
+      }));
+    } else if (type === 'thpt_22') {
+      snippet = `\n\n### CẤU TRÚC ĐỀ CHUẨN THPT/ĐGNL BÁM SÁT BẢNG ĐẶC TẢ (22 CÂU | TỔNG 10.0 ĐIỂM):
+- Phần I: 12 câu trắc nghiệm 4 lựa chọn (Câu 1-12 | 0.25đ/câu = 3.0đ).
+- Phần II: 4 câu trắc nghiệm Đúng/Sai (Câu 1-4 | mỗi câu 4 ý a,b,c,d = 4.0đ).
+- Phần III: 6 câu trắc nghiệm Trả lời ngắn (Câu 1-6 | 0.5đ/câu = 3.0đ).
+* Phần IV: 0 câu Tự luận.
+* YÊU CẦU AI: Mỗi câu hỏi đo lường chính xác 1 Yêu cầu cần đạt trong Bảng đặc tả, đúng mức độ nhận thức.`;
+      setQuestionCounts((prev) => ({
+        ...prev,
+        part1_MCQSingle: 12,
+        part1_PointsPerQuestion: 0.25,
+        part2_MCQTrueFalse: 4,
+        part2_PointsPerQuestion: 1.0,
+        part3_MCQShort: 6,
+        part3_PointsPerQuestion: 0.5,
+        part4_Essay: 0,
+      }));
+    } else if (type === 'van') {
+      snippet = `\n\n### CẤU TRÚC ĐỀ MÔN NGỮ VĂN BÁM SÁT BẢNG ĐẶC TẢ (ĐỌC HIỂU & VIẾT | TỔNG 10.0 ĐIỂM):
+- Phần I Đọc hiểu: 8 câu (Câu 1-8 | 4.0đ) bám sát YCCĐ thể loại, biện pháp nghệ thuật và nội dung tư tưởng.
+- Phần II Viết (Tự luận): 2 câu (Câu 1: Viết đoạn văn nghị luận 2.0đ; Câu 2: Bài văn 4.0đ) bám sát YCCĐ tạo lập văn bản.`;
+      setQuestionCounts((prev) => ({
+        ...prev,
+        part1_MCQSingle: 8,
+        part1_PointsPerQuestion: 0.5,
+        part2_MCQTrueFalse: 0,
+        part3_MCQShort: 0,
+        part4_Essay: 2,
+        part4_ApplyCount: 1,
+        part4_ApplyPoints: 2.0,
+        part4_AdvancedCount: 1,
+        part4_AdvancedPoints: 4.0,
+      }));
+    }
+
+    setCustomSpecContext((prev) => (prev ? prev.trim() + snippet : snippet.trim()));
+    setMatrixInputMode('spec');
+  };
+
+  const handleClearSpec = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setCustomSpecContext('');
+    setCustomSpecImages([]);
+    setSelectedSpecTemplateKey('');
+  };
+
+  // Xử lý tải ảnh / file bảng đặc tả có sẵn
+  const processSpecFiles = (files: FileList | File[]) => {
+    setMatrixInputMode('spec');
+    Array.from(files).forEach((file: File) => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const result = event.target?.result as string;
+          if (result) {
+            setCustomSpecImages((prev) => [...prev, result]);
+          }
+        };
+        reader.readAsDataURL(file);
+      } else if (
+        file.type === 'text/plain' ||
+        file.name.endsWith('.txt') ||
+        file.name.endsWith('.md') ||
+        file.name.endsWith('.csv')
+      ) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target?.result as string;
+          if (text) {
+            setCustomSpecContext((prev) => (prev ? prev + '\n\n' + text : text));
+          }
+        };
+        reader.readAsText(file);
+      } else {
+        console.warn(
+          'Vui lòng chọn các file định dạng hình ảnh (PNG, JPG, WEBP) hoặc file văn bản (.txt, .csv) để tải lên.'
+        );
+      }
+    });
+  };
+
+  const handleSpecFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    processSpecFiles(files);
+    e.target.value = '';
+  };
+
+  const handleSpecPaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        const blob = item.getAsFile();
+        if (blob) {
+          imageFiles.push(blob);
+        }
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      processSpecFiles(imageFiles);
+    }
+  };
+
+  const handleSpecDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processSpecFiles(e.dataTransfer.files);
+    }
+  };
+
+  const handleRemoveSpecImage = (index: number) => {
+    setCustomSpecImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   // 2. Chế độ đề (3 lựa chọn)
@@ -681,11 +978,17 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
       return;
     }
 
-    const hasCustomMatrix = Boolean(
-      customMatrixContext.trim() || customMatrixImages.length > 0
+    const hasCustomSpec = Boolean(
+      customSpecContext.trim() || customSpecImages.length > 0 || matrixInputMode === 'spec'
     );
 
-    if (!hasCustomMatrix) {
+    const hasCustomMatrix = Boolean(
+      customMatrixContext.trim() || customMatrixImages.length > 0 || matrixInputMode === 'custom'
+    );
+
+    const hasCustomMatrixOrSpec = hasCustomMatrix || hasCustomSpec;
+
+    if (!hasCustomMatrixOrSpec) {
       if (totalPercentage !== 100) {
         setErrorMsg('Tổng tỷ lệ mức độ nhận thức phải bằng đúng 100% (Hiện tại: ' + totalPercentage + '%).');
         return;
@@ -730,8 +1033,11 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
       subjectConfig,
       referenceContext,
       referenceImages,
+      matrixInputMode,
       customMatrixContext: customMatrixContext.trim() || undefined,
       customMatrixImages: customMatrixImages.length > 0 ? customMatrixImages : undefined,
+      customSpecContext: customSpecContext.trim() || undefined,
+      customSpecImages: customSpecImages.length > 0 ? customSpecImages : undefined,
       matrixOutputFormat,
     };
 
@@ -1228,10 +1534,10 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
                       </span>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (window.confirm('Bạn có chắc chắn muốn xóa tất cả ảnh tài liệu đính kèm không?')) {
-                            setReferenceImages([]);
-                          }
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setReferenceImages([]);
                         }}
                         className="text-xs text-red-600 hover:text-red-700 font-medium flex items-center space-x-1 cursor-pointer"
                       >
@@ -1254,10 +1560,10 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
                           <div className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <button
                               type="button"
-                              onClick={() => {
-                                if (window.confirm('Bạn có chắc chắn muốn xóa ảnh này không?')) {
-                                  handleRemoveImage(idx);
-                                }
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleRemoveImage(idx);
                               }}
                               className="p-1.5 rounded-full bg-red-600 text-white hover:bg-red-700 shadow-md transition-transform hover:scale-110 cursor-pointer"
                               title="Xóa ảnh này"
@@ -1330,10 +1636,12 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
           </div>
         </div>
 
-        {/* 2. Khung Ma Trận & Bản Đặc Tả Bộ Môn Có Sẵn */}
+        {/* 2. Khung Ma Trận & Bảng Đặc Tả Bộ Môn Có Sẵn */}
         <div
           className={`rounded-2xl p-6 shadow-xs border transition-all space-y-4 ${
-            customMatrixContext.trim() || customMatrixImages.length > 0
+            customSpecContext.trim() || customSpecImages.length > 0 || matrixInputMode === 'spec'
+              ? 'bg-indigo-50/50 dark:bg-indigo-950/25 border-indigo-300 dark:border-indigo-800 ring-1 ring-indigo-500/25'
+              : customMatrixContext.trim() || customMatrixImages.length > 0 || matrixInputMode === 'custom'
               ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800 ring-1 ring-emerald-500/20'
               : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
           }`}
@@ -1342,19 +1650,24 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
             <div className="flex items-center space-x-2.5">
               <Table className="w-5 h-5 text-teal-600 dark:text-teal-400" />
               <div>
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    2. Ra Đề Dựa Trên Ma Trận Bộ Môn Có Sẵn (Tùy Chọn)
+                    2. Ra Đề Dựa Trên Ma Trận &amp; Bảng Đặc Tả Có Sẵn (Tùy Chọn)
                   </h3>
-                  {(customMatrixContext.trim() || customMatrixImages.length > 0) && (
+                  {(customSpecContext.trim() || customSpecImages.length > 0) ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-indigo-100 text-indigo-900 dark:bg-indigo-900/60 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-700 flex items-center space-x-1 animate-fade-in shadow-xs">
+                      <CheckCircle className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>🎯 Đã nạp Bảng đặc tả chi tiết ({customSpecContext.trim() ? 'Văn bản' : ''}{customSpecContext.trim() && customSpecImages.length ? ' + ' : ''}{customSpecImages.length ? `${customSpecImages.length} ảnh chụp` : ''}) - Chuẩn YCCĐ</span>
+                    </span>
+                  ) : (customMatrixContext.trim() || customMatrixImages.length > 0) ? (
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-300 flex items-center space-x-1 animate-fade-in">
                       <CheckCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                       <span>Đã nạp Ma trận ({customMatrixContext.trim() ? 'Văn bản' : ''}{customMatrixContext.trim() && customMatrixImages.length ? ' + ' : ''}{customMatrixImages.length ? `${customMatrixImages.length} ảnh chụp` : ''})</span>
                     </span>
-                  )}
+                  ) : null}
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Khi tổ chuyên môn đã có Ma trận &amp; Bản đặc tả được duyệt, nhập hoặc dán vào đây để AI sinh đề bám sát tuyệt đối từng dòng mạch kiến thức.
+                  Khi tổ chuyên môn đã có Ma trận hoặc Bảng đặc tả chi tiết (chuẩn YCCĐ) được duyệt, nạp vào đây để AI sinh đề bám sát tuyệt đối từng câu hỏi và mức độ.
                 </p>
               </div>
             </div>
@@ -1362,24 +1675,39 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
             <div className="flex items-center space-x-2">
               <button
                 type="button"
-                onClick={() => setShowMatrixHelp(!showMatrixHelp)}
-                className="text-xs text-slate-600 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 font-medium flex items-center space-x-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                onClick={() => {
+                  if (matrixInputMode === 'spec') {
+                    setShowSpecHelp(!showSpecHelp);
+                  } else {
+                    setShowMatrixHelp(!showMatrixHelp);
+                  }
+                }}
+                className="text-xs text-slate-600 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 font-medium flex items-center space-x-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <HelpCircle className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                <span>{showMatrixHelp ? 'Ẩn hướng dẫn' : 'Cách nhập ma trận'}</span>
+                <span>
+                  {matrixInputMode === 'spec'
+                    ? showSpecHelp
+                      ? 'Ẩn hướng dẫn Bảng đặc tả'
+                      : 'Cách nhập Bảng đặc tả'
+                    : showMatrixHelp
+                    ? 'Ẩn hướng dẫn Ma trận'
+                    : 'Cách nhập ma trận'}
+                </span>
               </button>
             </div>
           </div>
 
-          {/* Lựa chọn chế độ ma trận */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Lựa chọn 3 chế độ: A, B, C */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            {/* Chế độ A */}
             <button
               type="button"
               onClick={() => {
                 setMatrixInputMode('auto');
               }}
-              className={`p-3.5 rounded-xl border-2 text-left transition-all ${
-                matrixInputMode === 'auto' && !customMatrixContext.trim() && customMatrixImages.length === 0
+              className={`p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                matrixInputMode === 'auto' && !customMatrixContext.trim() && customMatrixImages.length === 0 && !customSpecContext.trim() && customSpecImages.length === 0
                   ? 'border-teal-600 bg-teal-50/60 dark:bg-teal-950/40 text-teal-950 dark:text-teal-100 shadow-xs'
                   : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300'
               }`}
@@ -1387,9 +1715,9 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
               <div className="flex items-center justify-between">
                 <span className="font-bold text-xs flex items-center space-x-1.5">
                   <Sparkles className="w-4 h-4 text-amber-500" />
-                  <span>A. AI Tự Động Xây Dựng Ma Trận (Mặc định)</span>
+                  <span>A. AI Tự Động Xây Dựng (Mặc định)</span>
                 </span>
-                {matrixInputMode === 'auto' && !customMatrixContext.trim() && customMatrixImages.length === 0 && (
+                {matrixInputMode === 'auto' && !customMatrixContext.trim() && customMatrixImages.length === 0 && !customSpecContext.trim() && customSpecImages.length === 0 && (
                   <Check className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                 )}
               </div>
@@ -1398,12 +1726,13 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
               </p>
             </button>
 
+            {/* Chế độ B */}
             <button
               type="button"
               onClick={() => {
                 setMatrixInputMode('custom');
               }}
-              className={`p-3.5 rounded-xl border-2 text-left transition-all ${
+              className={`p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer ${
                 matrixInputMode === 'custom' || customMatrixContext.trim() || customMatrixImages.length > 0
                   ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 shadow-xs'
                   : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300'
@@ -1411,21 +1740,51 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
             >
               <div className="flex items-center justify-between">
                 <span className="font-bold text-xs flex items-center space-x-1.5">
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  <span>B. Ra Đề Bám Sát Khung Ma Trận Bộ Môn Có Sẵn</span>
+                  <Table className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>B. Ra Đề Bám Sát Khung Ma Trận Có Sẵn</span>
                 </span>
                 {(matrixInputMode === 'custom' || customMatrixContext.trim() || customMatrixImages.length > 0) && (
                   <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 )}
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                Dán bảng ma trận Word/Excel hoặc tải ảnh chụp ma trận đã duyệt. AI sẽ đọc từng dòng và bám sát 100%.
+                Dán bảng ma trận Word/Excel hoặc tải ảnh chụp ma trận. AI bám sát phân bổ số câu, các dạng thức I/II/III/IV và điểm số.
+              </p>
+            </button>
+
+            {/* Chế độ C - Bổ sung theo yêu cầu người dùng */}
+            <button
+              type="button"
+              onClick={() => {
+                setMatrixInputMode('spec');
+              }}
+              className={`p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer relative ${
+                matrixInputMode === 'spec' || customSpecContext.trim() || customSpecImages.length > 0
+                  ? 'border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/50 text-indigo-950 dark:text-indigo-100 shadow-md ring-1 ring-indigo-500/30'
+                  : 'border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 bg-slate-50/50 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs flex items-center space-x-1.5 text-indigo-700 dark:text-indigo-300">
+                  <FileSpreadsheet className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span>C. Ra Đề Bám Sát Bảng Đặc Tả Chi Tiết</span>
+                </span>
+                {(matrixInputMode === 'spec' || customSpecContext.trim() || customSpecImages.length > 0) ? (
+                  <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
+                    Khuyên dùng
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                Căn cứ chi tiết nhất để ra đề với số câu hỏi và sát với <b>yêu cầu cần đạt (YCCĐ)</b>, nội dung kiến thức, mức độ nhận thức, số câu và điểm tương ứng, tránh hỏi sai trọng tâm hoặc sai mức độ.
               </p>
             </button>
           </div>
 
-          {/* Hướng dẫn chi tiết */}
-          {showMatrixHelp && (
+          {/* Hướng dẫn chi tiết Ma trận (khi đang ở chế độ B) */}
+          {showMatrixHelp && matrixInputMode !== 'spec' && (
             <div className="text-xs text-slate-700 dark:text-slate-300 bg-teal-50/80 dark:bg-slate-800/90 p-4 rounded-xl border border-teal-200 dark:border-teal-800 space-y-2 leading-relaxed animate-fade-in">
               <p className="font-bold text-teal-800 dark:text-teal-300 flex items-center space-x-1.5">
                 <Info className="w-4 h-4 text-teal-600 shrink-0" />
@@ -1439,9 +1798,229 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
             </div>
           )}
 
-          {/* Vùng làm việc Nhập ma trận (Hiển thị khi chọn B hoặc đã có dữ liệu) */}
-          {(matrixInputMode === 'custom' || customMatrixContext.trim() || customMatrixImages.length > 0) && (
-            <div className="space-y-3 pt-1 animate-fade-in">
+          {/* Hướng dẫn chi tiết Bảng đặc tả (khi đang ở chế độ C) */}
+          {showSpecHelp && matrixInputMode === 'spec' && (
+            <div className="text-xs text-indigo-950 dark:text-indigo-200 bg-indigo-50/90 dark:bg-slate-800/95 p-4 rounded-xl border border-indigo-200 dark:border-indigo-800 space-y-2.5 leading-relaxed animate-fade-in">
+              <div className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center space-x-2 text-sm">
+                <BookOpen className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>Vì sao Bảng đặc tả là căn cứ chi tiết và chuẩn mực nhất để ra đề kiểm tra?</span>
+              </div>
+              <p className="text-[12px] leading-relaxed">
+                Theo Công văn 7991/BGDĐT và chương trình GDPT 2018, trong khi <i>Khung Ma trận</i> chỉ quy định số câu và tỉ lệ điểm tổng quát, thì <b>BẢNG ĐẶC TẢ ĐỀ KIỂM TRA</b> là văn bản pháp lí &amp; sư phạm trực tiếp quy định:
+              </p>
+              <ul className="list-disc list-inside space-y-1.5 pl-2 text-[12px]">
+                <li><b>Chuẩn hóa Yêu cầu cần đạt (YCCĐ):</b> Từng dòng ghi rõ học sinh cần đạt được năng lực, thao tác hay kiến thức gì (nhận biết được khái niệm, giải thích được hiện tượng, tính toán được đại lượng, vận dụng giải bài toán thực tiễn...). AI sẽ đối chiếu từng câu hỏi đúng với YCCĐ này.</li>
+                <li><b>Tránh hỏi sai trọng tâm &amp; lạc đề:</b> Đề thi sẽ chỉ tập trung vào đúng nội dung kiến thức được đặc tả, không bao giờ hỏi những phần giảm tải hoặc chưa học.</li>
+                <li><b>Tránh hỏi sai mức độ:</b> Yêu cầu nhận biết thì ra câu hỏi nhận biết trực tiếp; yêu cầu vận dụng thì ra câu hỏi giải quyết tình huống, không đánh đố học sinh.</li>
+                <li><b>Chuẩn số câu và dạng thức:</b> Xác định rõ câu nào là Trắc nghiệm 4 lựa chọn (Phần I), câu nào là Đúng/Sai (Phần II), câu nào là Trả lời ngắn (Phần III) và Tự luận (Phần IV).</li>
+              </ul>
+            </div>
+          )}
+
+          {/* ==================== VÙNG LÀM VIỆC MỤC C: BẢNG ĐẶC TẢ CHI TIẾT ==================== */}
+          {(matrixInputMode === 'spec' || customSpecContext.trim() || customSpecImages.length > 0) && (
+            <div className="space-y-4 pt-1 animate-fade-in border-t border-indigo-200 dark:border-indigo-900/60 pt-4">
+              {/* Presets nạp mẫu Bảng đặc tả nhanh */}
+              <div className="bg-indigo-50/70 dark:bg-slate-800/80 p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-800 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-indigo-950 dark:text-indigo-200 flex items-center space-x-1.5 mr-1">
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>Nạp mẫu Bảng đặc tả chuẩn bộ môn (Gợi ý):</span>
+                    </span>
+                  </div>
+
+                  {(customSpecContext.trim() || customSpecImages.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={handleClearSpec}
+                      className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 font-semibold flex items-center space-x-1 px-2.5 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors ml-auto cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Xóa Bảng đặc tả</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {Object.entries(SPEC_TEMPLATES).map(([key, tpl]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => handleApplySpecTemplate(key)}
+                      className={`text-xs px-2.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                        selectedSpecTemplateKey === key && customSpecContext.includes(tpl.label.slice(2, 6))
+                          ? 'bg-indigo-600 text-white shadow-xs font-bold ring-2 ring-indigo-400'
+                          : 'bg-white dark:bg-slate-700 border border-indigo-200 dark:border-indigo-700/60 text-slate-800 dark:text-slate-200 hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-300'
+                      }`}
+                    >
+                      {tpl.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Hộp gợi ý cấu trúc đề bám sát Bảng đặc tả */}
+              <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 dark:from-indigo-950/40 dark:via-purple-950/30 dark:to-pink-950/20 p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5 text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                    <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                    <span>Gợi ý chèn cấu trúc đề khớp Bảng đặc tả (Tự động cân bằng 10.0 điểm):</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-indigo-900/80 dark:text-indigo-300/80 leading-relaxed">
+                  Nhấn vào các nút bên dưới để chèn định hướng số câu Phần I, II, III, IV và cân bằng điểm tự động theo chuẩn Công văn 7991:
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleInsertSpecStructurePrompt('thcs_18')}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-xs transition-all flex items-center space-x-1 cursor-pointer active:scale-95"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>📐 Chèn cấu trúc 18 câu - 29 ý (Toán 6, 7, 8, 9)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleInsertSpecStructurePrompt('thpt_22')}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-950 dark:text-indigo-200 font-semibold transition-all flex items-center space-x-1 cursor-pointer"
+                  >
+                    <span>⚡ Chèn cấu trúc 22 câu (THPT 2025)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleInsertSpecStructurePrompt('van')}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-950 dark:text-indigo-200 font-semibold transition-all flex items-center space-x-1 cursor-pointer"
+                  >
+                    <span>📖 Chèn cấu trúc Ngữ văn</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Textarea nhập / dán Bảng đặc tả */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-indigo-950 dark:text-indigo-200 flex items-center space-x-1.5">
+                    <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <span>Nội dung chi tiết Bảng đặc tả:</span>
+                    {customSpecContext.trim() && (
+                      <span className="text-[11px] font-normal text-slate-500">
+                        ({customSpecContext.trim().split(/\s+/).length} từ)
+                      </span>
+                    )}
+                  </label>
+                  {(customSpecContext.trim() || customSpecImages.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={(e) => handleClearSpec(e)}
+                      className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 font-semibold flex items-center space-x-1 px-2.5 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                      title="Xóa toàn bộ nội dung bảng đặc tả và ảnh đính kèm"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Xóa Bảng đặc tả</span>
+                    </button>
+                  )}
+                </div>
+                <div
+                  onPaste={handleSpecPaste}
+                  onDragOver={handleSpecDrop}
+                  className="relative"
+                >
+                <textarea
+                  rows={7}
+                  value={customSpecContext}
+                  onChange={(e) => {
+                    setCustomSpecContext(e.target.value);
+                    if (e.target.value.trim() && matrixInputMode !== 'spec') {
+                      setMatrixInputMode('spec');
+                    }
+                  }}
+                  placeholder="Dán (Ctrl+V) bảng đặc tả sao chép từ Word, Excel hoặc nhập văn bản mô tả Bảng đặc tả chi tiết (bao gồm: Mạch kiến thức, Đơn vị kiến thức, Yêu cầu cần đạt YCCĐ, Mức độ nhận thức, Số câu và Điểm số tương ứng)... Có thể chụp màn hình và nhấn Ctrl+V để dán trực tiếp ảnh Bảng đặc tả!"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-indigo-300 dark:border-indigo-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-mono focus:ring-2 focus:ring-indigo-500 outline-none leading-relaxed"
+                />
+                <div className="absolute bottom-3 right-3 flex items-center space-x-2 text-[11px] text-slate-600 dark:text-slate-300 bg-white/95 dark:bg-slate-900/95 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 pointer-events-none">
+                  <span>Dán bảng Word/Excel hoặc nhấn <b>Ctrl+V</b> để dán ảnh Bảng đặc tả</span>
+                </div>
+              </div>
+            </div>
+
+              {/* Nút tải ảnh / tệp Bảng đặc tả */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <div className="flex items-center space-x-2">
+                  <label className="cursor-pointer inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-all active:scale-95">
+                    <UploadCloud className="w-4 h-4" />
+                    <span>Tải ảnh / file Bảng đặc tả lên</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*,.txt,.md,.csv"
+                      onChange={handleSpecFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  <span className="text-[11px] text-slate-600 dark:text-slate-300">
+                    (Hỗ trợ ảnh chụp .png, .jpg hoặc tệp văn bản .txt, .csv)
+                  </span>
+                </div>
+
+                {customSpecImages.length > 0 && (
+                  <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 flex items-center space-x-1">
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>Đã đính kèm {customSpecImages.length} ảnh Bảng đặc tả</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Danh sách ảnh Bảng đặc tả đã tải lên */}
+              {customSpecImages.length > 0 && (
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center space-x-1">
+                      <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Ảnh chụp Bảng đặc tả chi tiết ({customSpecImages.length} ảnh):</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCustomSpecImages([])}
+                      className="text-xs text-red-600 hover:text-red-700 font-medium flex items-center space-x-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Xóa hết ảnh</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                    {customSpecImages.map((imgSrc, idx) => (
+                      <div
+                        key={idx}
+                        className="relative group rounded-xl overflow-hidden border border-indigo-300 dark:border-indigo-800 bg-white dark:bg-slate-900 aspect-square shadow-xs"
+                      >
+                        <img
+                          src={imgSrc}
+                          alt={`Bảng đặc tả ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSpecImage(idx)}
+                            className="p-1.5 rounded-full bg-red-600 text-white hover:bg-red-700 shadow-md transition-transform hover:scale-110 cursor-pointer"
+                            title="Xóa ảnh này"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ==================== VÙNG LÀM VIỆC MỤC B: KHUNG MA TRẬN CÓ SẴN ==================== */}
+          {(matrixInputMode === 'custom' || customMatrixContext.trim() || customMatrixImages.length > 0) && matrixInputMode !== 'spec' && (
+            <div className="space-y-3 pt-1 animate-fade-in border-t border-emerald-200 dark:border-emerald-900/60 pt-4">
               {/* Presets nạp mẫu nhanh */}
               <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 dark:bg-slate-800/70 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -1454,7 +2033,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
                       key={key}
                       type="button"
                       onClick={() => handleApplyTemplate(key)}
-                      className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all ${
+                      className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
                         selectedTemplateKey === key && customMatrixContext.includes(tpl.label.slice(2, 6))
                           ? 'bg-teal-600 text-white shadow-xs font-bold'
                           : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:border-teal-500 hover:text-teal-600 dark:hover:text-teal-300'
@@ -1469,7 +2048,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
                   <button
                     type="button"
                     onClick={handleClearMatrix}
-                    className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 font-semibold flex items-center space-x-1 px-2.5 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors ml-auto"
+                    className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 font-semibold flex items-center space-x-1 px-2.5 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors ml-auto cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Xóa ma trận</span>
@@ -1575,7 +2154,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setCustomMatrixImages([])}
-                      className="text-xs text-red-600 hover:text-red-700 font-medium flex items-center space-x-1"
+                      className="text-xs text-red-600 hover:text-red-700 font-medium flex items-center space-x-1 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Xóa hết ảnh</span>
