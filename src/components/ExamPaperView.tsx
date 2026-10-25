@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { CheckCircle2, Download, Edit2, FileText, Printer, Save } from 'lucide-react';
+import { CheckCircle2, Download, Edit2, FileText, Printer, Save, Sparkles } from 'lucide-react';
 import { ExamPackage, Question, getCognitiveTag, getCognitiveLabel } from '../types';
 import { MathText } from './MathText';
 import { DiagramEngine } from '../services/diagramEngine';
+import { RegenerateQuestionModal } from './RegenerateQuestionModal';
 
 interface ExamPaperViewProps {
   examPackage: ExamPackage | null;
   onExportWord?: () => void;
   onExportPdf?: (code?: string) => void;
   onUpdateQuestion?: (code: string, question: Question) => void;
+  onRegenerateQuestion?: (originalQuestion: Question, newQuestion: Question) => void;
 }
 
 export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
@@ -16,6 +18,7 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
   onExportWord,
   onExportPdf,
   onUpdateQuestion,
+  onRegenerateQuestion,
 }) => {
   if (!examPackage) {
     return (
@@ -38,6 +41,7 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
   const [showAnswersInPaper, setShowAnswersInPaper] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [editQuestionContent, setEditQuestionContent] = useState('');
+  const [selectedQuestionForRegen, setSelectedQuestionForRegen] = useState<Question | null>(null);
 
   const handleStartEdit = (q: Question) => {
     setEditingQuestionId(q.id);
@@ -244,8 +248,16 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                         {tag} - {levelLabel}
                       </span>
                       <button
+                        type="button"
+                        onClick={() => setSelectedQuestionForRegen(q)}
+                        className="p-1 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 transition-colors cursor-pointer"
+                        title="Yêu cầu AI tạo lại riêng câu hỏi này"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                      </button>
+                      <button
                         onClick={() => handleStartEdit(q)}
-                        className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500"
+                        className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 cursor-pointer"
                         title="Sửa nội dung câu hỏi"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
@@ -370,6 +382,24 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
           --- HẾT MÃ ĐỀ {currentExam.code} (Cán bộ coi thi không giải thích gì thêm) ---
         </div>
       </div>
+
+      {/* Modal Yêu cầu AI Tạo lại riêng câu hỏi này */}
+      {selectedQuestionForRegen && (
+        <RegenerateQuestionModal
+          isOpen={Boolean(selectedQuestionForRegen)}
+          onClose={() => setSelectedQuestionForRegen(null)}
+          question={selectedQuestionForRegen}
+          examCode={currentExam.code}
+          totalCodes={exams.length}
+          metadata={metadata}
+          allQuestionsInExam={currentExam.questions}
+          onApplyNewQuestion={(origQ, newQ) => {
+            if (onRegenerateQuestion) {
+              onRegenerateQuestion(origQ, newQ);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

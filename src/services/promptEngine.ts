@@ -522,5 +522,93 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
 3. Với tập hợp số, dùng '\\mathbb{N}', '\\mathbb{Z}', '\\mathbb{Q}', '\\mathbb{R}'. Toàn bộ tên tập hợp và biểu thức tập hợp PHẢI bọc trong dấu $, ví dụ: $A = \\{x \\in \\mathbb{N} \\mid 8 < x \\le 14\\}$.
 `;
   }
+
+  /**
+   * Tạo prompt yêu cầu AI tạo lại riêng 1 câu hỏi cụ thể theo yêu cầu của giáo viên
+   */
+  static buildRegenerateQuestionPrompt(
+    originalQuestion: import('../types').Question,
+    metadata: ExamMetadata,
+    teacherPrompt?: string,
+    existingQuestions: import('../types').Question[] = []
+  ): string {
+    const avoidQuestions = existingQuestions
+      .filter((q) => q.id !== originalQuestion.id)
+      .slice(0, 8)
+      .map((q) => (q.content ? q.content.slice(0, 120) : ''))
+      .filter(Boolean);
+
+    let partDesc = '';
+    if (originalQuestion.partType === 'PART1') {
+      partDesc = `Phần I: Trắc nghiệm 4 lựa chọn (A, B, C, D). Bắt buộc cung cấp trường "options" gồm đúng 4 phần tử với key: 'A', 'B', 'C', 'D' và trường "correctOption" ('A'|'B'|'C'|'D').`;
+    } else if (originalQuestion.partType === 'PART2') {
+      partDesc = `Phần II: Trắc nghiệm Đúng/Sai. Bắt buộc cung cấp 1 lệnh hỏi chính trong "content" và trường "trueFalseStatements" gồm đúng 4 ý 'a', 'b', 'c', 'd' kèm "isCorrect" (true/false) cho từng ý.`;
+    } else if (originalQuestion.partType === 'PART3') {
+      partDesc = `Phần III: Trắc nghiệm Trả lời ngắn. Bắt buộc cung cấp trường "shortAnswer" chứa kết quả ngắn gọn (số hoặc cụm từ ngắn).`;
+    } else {
+      partDesc = `Phần IV: Tự luận. Bắt buộc cung cấp trường "essayAnswerGuide" (lời giải chi tiết) và mảng "rubric" (thang điểm chi tiết từng bước, tổng điểm bằng ${originalQuestion.points || 1.0}).`;
+    }
+
+    const entropySeed = Math.random().toString(36).substring(2, 8).toUpperCase() + '_' + Date.now();
+
+    return `YÊU CẦU: BẠN LÀ CHUYÊN GIA GIÁO DỤC GDPT 2018. HÃY TẠO LẠI RIÊNG 1 CÂU HỎI THAY THẾ CHO CÂU HỎI HIỆN TẠI (Entropy: ${entropySeed}).
+
+1. THÔNG TIN BỘ MÔN & KỲ THI:
+- Môn học: ${metadata.subject} (${metadata.grade})
+- Bộ sách: ${metadata.curriculum}
+- Chủ đề / Mạch kiến thức: ${metadata.chapterTitle}
+${metadata.customSpecContext ? `- Bảng đặc tả / YCCĐ của tổ bộ môn:\n${metadata.customSpecContext.slice(0, 800)}` : ''}
+
+2. YÊU CẦU ĐẶC TẢ KỸ THUẬT CỦA CÂU HỎI CẦN TẠO:
+- Hình thức câu hỏi: ${partDesc}
+- Mức độ nhận thức (BẮT BUỘC): ${originalQuestion.cognitiveLevel} (${originalQuestion.cognitiveLevel === 'REMEMBER' ? 'Nhận biết' : originalQuestion.cognitiveLevel === 'UNDERSTAND' ? 'Thông hiểu' : originalQuestion.cognitiveLevel === 'APPLY' ? 'Vận dụng' : 'Vận dụng cao'})
+- Điểm số: ${originalQuestion.points || 0.25} điểm
+- Đơn vị kiến thức / Mạch bài: ${originalQuestion.topic || metadata.chapterTitle}
+
+3. NỘI DUNG CÂU HỎI CŨ CẦN THAY THẾ (TUYỆT ĐỐI KHÔNG LẶP LẠI NỘI DUNG NÀY):
+"${originalQuestion.content}"
+
+${avoidQuestions.length > 0 ? `4. CÁC CÂU HỎI KHÁC TRONG ĐỀ (TRÁNH TRÙNG LẶP Ý TƯỞNG):\n- ${avoidQuestions.join('\n- ')}\n` : ''}
+
+${teacherPrompt && teacherPrompt.trim() ? `5. YÊU CẦU ĐẶC BIỆT / GỢI Ý CỦA GIÁO VIÊN:
+👉 "${teacherPrompt.trim()}"
+(Hãy ưu tiên đáp ứng chính xác nguyện vọng/yêu cầu này của giáo viên!)` : '5. Hãy tạo câu hỏi mới chất lượng cao, thực tế, hay và sáng tạo hơn câu cũ.'}
+
+6. QUY TẮC CÔNG THỨC TOÁN / HÓA & LATEX:
+- Bọc toàn bộ ký hiệu và công thức toán/hóa trong $...$. Không bọc chữ tiếng Việt trong $.
+- Trả về đúng 1 JSON Object duy nhất đại diện cho câu hỏi (không bọc trong mảng, không có text dẫn ngoài JSON).
+
+Định dạng JSON Object trả về:
+{
+  "content": "Nội dung câu hỏi mới hoàn chỉnh...",
+  "partType": "${originalQuestion.partType}",
+  "cognitiveLevel": "${originalQuestion.cognitiveLevel}",
+  "points": ${originalQuestion.points || 0.25},
+  "topic": "${originalQuestion.topic || metadata.chapterTitle}",
+  "competency": "Năng lực đặc thù tương ứng...",
+  "competencyCode": "NL...",
+  ${originalQuestion.partType === 'PART1' ? `"options": [
+    { "key": "A", "content": "..." },
+    { "key": "B", "content": "..." },
+    { "key": "C", "content": "..." },
+    { "key": "D", "content": "..." }
+  ],
+  "correctOption": "A",` : ''}
+  ${originalQuestion.partType === 'PART2' ? `"trueFalseStatements": [
+    { "key": "a", "content": "...", "isCorrect": true },
+    { "key": "b", "content": "...", "isCorrect": false },
+    { "key": "c", "content": "...", "isCorrect": true },
+    { "key": "d", "content": "...", "isCorrect": false }
+  ],` : ''}
+  ${originalQuestion.partType === 'PART3' ? `"shortAnswer": "...",` : ''}
+  ${originalQuestion.partType === 'PART4' ? `"essayAnswerGuide": "...",
+  "rubric": [
+    { "criteria": "...", "points": ${Math.round((originalQuestion.points || 1.0) * 0.5 * 10) / 10}, "description": "..." },
+    { "criteria": "...", "points": ${Math.round((originalQuestion.points || 1.0) * 0.5 * 10) / 10}, "description": "..." }
+  ],` : ''}
+  "explanation": "Lời giải hoặc giải thích chi tiết...",
+  "svgDiagram": ""
+}`;
+  }
 }
 

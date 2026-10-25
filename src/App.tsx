@@ -16,6 +16,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppSettings, ExamMetadata, ExamPackage, MatrixRow, Question, QuestionBankItem, SpecRow } from './types';
 import { StorageEngine } from './services/storageEngine';
 import { GeminiService } from './services/geminiService';
+import { ShuffleEngine } from './services/shuffleEngine';
 import { ExportDocx } from './services/exportDocx';
 import { ExportExcel } from './services/exportExcel';
 import { ExportPdf } from './services/exportPdf';
@@ -170,6 +171,24 @@ export default function App() {
     };
     StorageEngine.saveExamPackage(updated);
     setCurrentExamPackage(updated);
+  };
+
+  const handleRegenerateQuestion = (originalQuestion: Question, newQuestion: Question) => {
+    if (!currentExamPackage) return;
+    const updated = ShuffleEngine.updateRegeneratedQuestionInExamPackage(
+      currentExamPackage,
+      originalQuestion,
+      newQuestion
+    );
+    StorageEngine.saveExamPackage(updated);
+    setCurrentExamPackage(updated);
+    setExportToast({
+      message: `Đã cập nhật câu hỏi mới đồng thời cho toàn bộ ${updated.exams.length} mã đề đảo và làm mới bảng đáp án!`,
+      type: 'success',
+    });
+    setTimeout(() => {
+      setExportToast(null);
+    }, 4000);
   };
 
   // Export Handlers
@@ -374,6 +393,7 @@ export default function App() {
                 onExportWord={() => handleExportWord()}
                 onExportPdf={(code) => handleExportPdf(code)}
                 onExportExcel={() => handleExportExcel()}
+                onRegenerateQuestion={handleRegenerateQuestion}
               />
             )}
 

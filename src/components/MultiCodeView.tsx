@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { Copy, Download, FileSpreadsheet, Eye, Printer, CheckCircle2, Lightbulb } from 'lucide-react';
-import { ExamPackage } from '../types';
+import { Copy, Download, FileSpreadsheet, Eye, Printer, CheckCircle2, Lightbulb, Sparkles } from 'lucide-react';
+import { ExamPackage, Question } from '../types';
 import { QuestionDetailCard } from './QuestionDetailCard';
 import { MathText } from './MathText';
+import { RegenerateQuestionModal } from './RegenerateQuestionModal';
 
 interface MultiCodeViewProps {
   examPackage: ExamPackage | null;
   onExportWord?: () => void;
   onExportPdf?: (code?: string) => void;
   onExportExcel?: () => void;
+  onRegenerateQuestion?: (originalQuestion: Question, newQuestion: Question) => void;
 }
 
 export const MultiCodeView: React.FC<MultiCodeViewProps> = ({
@@ -16,6 +18,7 @@ export const MultiCodeView: React.FC<MultiCodeViewProps> = ({
   onExportWord,
   onExportPdf,
   onExportExcel,
+  onRegenerateQuestion,
 }) => {
   if (!examPackage) {
     return (
@@ -41,6 +44,9 @@ export const MultiCodeView: React.FC<MultiCodeViewProps> = ({
   // Preview toggles for viewing details & answers
   const [showAnswersInPreview, setShowAnswersInPreview] = useState(true);
   const [showExplanationsInPreview, setShowExplanationsInPreview] = useState(true);
+
+  // State quản lý việc tạo lại riêng câu hỏi bằng AI
+  const [selectedQuestionForRegen, setSelectedQuestionForRegen] = useState<Question | null>(null);
 
   const selectedExam = exams.find((e) => e.code === activeCodeTab) || exams[0];
   const selectedAK = answerKeys.find((ak) => ak.code === activeCodeTab) || answerKeys[0];
@@ -168,6 +174,7 @@ export const MultiCodeView: React.FC<MultiCodeViewProps> = ({
                 showAnswers={showAnswersInPreview}
                 showExplanation={showExplanationsInPreview}
                 defaultExpandedExplanation={showExplanationsInPreview}
+                onRegenerate={(targetQ) => setSelectedQuestionForRegen(targetQ)}
               />
             ))}
           </div>
@@ -248,6 +255,24 @@ export const MultiCodeView: React.FC<MultiCodeViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Modal Yêu cầu AI Tạo lại riêng câu hỏi này */}
+      {selectedQuestionForRegen && (
+        <RegenerateQuestionModal
+          isOpen={Boolean(selectedQuestionForRegen)}
+          onClose={() => setSelectedQuestionForRegen(null)}
+          question={selectedQuestionForRegen}
+          examCode={selectedExam.code}
+          totalCodes={exams.length}
+          metadata={metadata}
+          allQuestionsInExam={selectedExam.questions}
+          onApplyNewQuestion={(origQ, newQ) => {
+            if (onRegenerateQuestion) {
+              onRegenerateQuestion(origQ, newQ);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

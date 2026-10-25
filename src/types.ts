@@ -206,6 +206,7 @@ export interface RubricItem {
 
 export interface Question {
   id: string;
+  baseQuestionId?: string; // ID gốc liên kết câu hỏi xuyên suốt các mã đề xáo trộn (101, 102, 103...)
   partType: PartType;
   partTitle: string;
   number: number;

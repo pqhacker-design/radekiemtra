@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, CheckCircle2, CheckSquare, ChevronDown, ChevronUp, HelpCircle, Lightbulb, Square, XCircle } from 'lucide-react';
+import { Check, CheckCircle2, CheckSquare, ChevronDown, ChevronUp, HelpCircle, Lightbulb, Sparkles, Square, XCircle } from 'lucide-react';
 import { Question, QuestionBankItem, getCognitiveTag, getCognitiveLabel } from '../types';
 import { MathText } from './MathText';
 
@@ -12,6 +12,7 @@ interface QuestionDetailCardProps {
   selectable?: boolean;
   isSelected?: boolean;
   onToggleSelect?: () => void;
+  onRegenerate?: (q: Question) => void;
   badgeExtra?: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
@@ -27,6 +28,7 @@ export const QuestionDetailCard: React.FC<QuestionDetailCardProps> = ({
   selectable = false,
   isSelected = false,
   onToggleSelect,
+  onRegenerate,
   badgeExtra,
   actions,
   className = '',
@@ -107,7 +109,20 @@ export const QuestionDetailCard: React.FC<QuestionDetailCardProps> = ({
             {badgeExtra}
           </div>
 
-          {actions && <div className="flex items-center space-x-1 shrink-0">{actions}</div>}
+          <div className="flex items-center space-x-1.5 shrink-0">
+            {onRegenerate && (
+              <button
+                type="button"
+                onClick={() => onRegenerate(question as Question)}
+                className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-bold text-amber-800 dark:text-amber-200 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-700 shadow-2xs transition-all cursor-pointer active:scale-95"
+                title="Yêu cầu AI tạo lại riêng câu hỏi này nếu nội dung chưa phù hợp"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                <span>Tạo lại câu này (AI)</span>
+              </button>
+            )}
+            {actions}
+          </div>
         </div>
 
         {/* Question Text Content */}
