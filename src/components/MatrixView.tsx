@@ -1,15 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AlertCircle,
-  AlertTriangle,
   ArrowRight,
   Calculator,
   Check,
-  CheckCircle2,
   CheckSquare,
   ChevronDown,
   ChevronRight,
-  ChevronUp,
   Download,
   Edit3,
   Grid,
@@ -19,8 +16,6 @@ import {
   Plus,
   RotateCcw,
   Save,
-  ShieldAlert,
-  ShieldCheck,
   Sliders,
   Sparkles,
   Square,
@@ -93,7 +88,6 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
   const [selectedRowStts, setSelectedRowStts] = useState<number[]>([]);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isValidationDetailsOpen, setIsValidationDetailsOpen] = useState(false);
 
   // Modal configuration states
   const [bulkScope, setBulkScope] = useState<'selected' | 'all'>('selected');
@@ -505,160 +499,6 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
   const essayRatio = 100 - mcqRatio;
   const totalPercentageSum = editableMatrix.reduce((a, b) => a + (Number(b.percentage) || 0), 0);
 
-  // --- Automated Validation against Ministry Standards (CV 7991/BGDĐT) ---
-  const validationReport = useMemo(() => {
-    const issues: {
-      id: string;
-      type: 'percentage' | 'row_total' | 'points' | 'structure';
-      title: string;
-      detail: string;
-      severity: 'error' | 'warning';
-    }[] = [];
-
-    // 1. Percentage Consistency
-    const totalPct = editableMatrix.reduce((acc, r) => acc + (Number(r.percentage) || 0), 0);
-    if (totalPct !== 100) {
-      issues.push({
-        id: 'percentage-sum',
-        type: 'percentage',
-        title: `Tổng tỉ lệ điểm đạt ${totalPct}% (chưa đạt chuẩn 100%)`,
-        detail: `Công văn 7991/BGDĐT quy định tổng tỷ lệ phần trăm điểm của toàn bài thi phải bằng chính xác 100%. Hiện tại đang lệch ${totalPct > 100 ? '+' : ''}${totalPct - 100}%.`,
-        severity: 'error',
-      });
-    }
-
-    // 2. Individual Row Percentages
-    editableMatrix.forEach((r) => {
-      if (r.percentage === undefined || r.percentage === null || Number(r.percentage) <= 0) {
-        issues.push({
-          id: `row-pct-${r.stt}`,
-          type: 'percentage',
-          title: `Chương ${r.stt} (${r.topic || 'Chưa đặt tên'}): Chưa phân bổ tỉ lệ % điểm`,
-          detail: 'Tỉ lệ điểm đang để trống hoặc bằng 0%. Cần được tính toán theo trọng số điểm câu hỏi.',
-          severity: 'warning',
-        });
-      }
-    });
-
-    // 3. Row Totals vs Cognitive Level Sums
-    editableMatrix.forEach((r) => {
-      const p1_rem = getCellCount(r.part1?.remember);
-      const p1_und = getCellCount(r.part1?.understand);
-      const p1_app = getCellCount(r.part1?.apply) + getCellCount(r.part1?.advanced);
-
-      const p2_rem = getCellCount(r.part2?.remember);
-      const p2_und = getCellCount(r.part2?.understand);
-      const p2_app = getCellCount(r.part2?.apply) + getCellCount(r.part2?.advanced);
-
-      const p3_rem = getCellCount(r.part3?.remember);
-      const p3_und = getCellCount(r.part3?.understand);
-      const p3_app = getCellCount(r.part3?.apply) + getCellCount(r.part3?.advanced);
-
-      const p4_rem = getCellCount(r.part4?.remember);
-      const p4_und = getCellCount(r.part4?.understand);
-      const p4_app = getCellCount(r.part4?.apply) + getCellCount(r.part4?.advanced);
-
-      const expectedRem = p1_rem + p2_rem + p3_rem + p4_rem;
-      const expectedUnd = p1_und + p2_und + p3_und + p4_und;
-      const expectedApp = p1_app + p2_app + p3_app + p4_app;
-      const expectedTotal = expectedRem + expectedUnd + expectedApp;
-
-      const hasRemMismatch = r.totalRemember !== undefined && r.totalRemember !== expectedRem;
-      const hasUndMismatch = r.totalUnderstand !== undefined && r.totalUnderstand !== expectedUnd;
-      const hasAppMismatch = r.totalApply !== undefined && r.totalApply !== expectedApp;
-      const hasTotalMismatch = r.totalQuestions !== undefined && r.totalQuestions !== expectedTotal && r.totalQuestions > 0;
-
-      if (hasRemMismatch || hasUndMismatch || hasAppMismatch || hasTotalMismatch) {
-        issues.push({
-          id: `row-levels-${r.stt}`,
-          type: 'row_total',
-          title: `Chương ${r.stt} (${r.topic}): Tổng câu chưa khớp với Biết/Hiểu/Vận dụng`,
-          detail: `Số câu thực tế: Biết=${expectedRem}, Hiểu=${expectedUnd}, Vận dụng=${expectedApp} (Tổng: ${expectedTotal} câu). Các cột tổng ở hàng này cần được chuẩn hóa.`,
-          severity: 'warning',
-        });
-      }
-    });
-
-    const p1Score = (p1_rem_sum + p1_und_sum + p1_app_sum) * (metadata.questionCounts?.part1_PointsPerQuestion ?? 0.25);
-    const p2Score = (p2_rem_sum + p2_und_sum + p2_app_sum) * 0.25;
-    const p3Score = (p3_rem_sum + p3_und_sum + p3_app_sum) * (metadata.questionCounts?.part3_PointsPerQuestion ?? 0.5);
-    const p4Score = (p4_rem_sum * 1.0) + (p4_und_sum * 1.5) + (p4_app_sum * 1.5);
-    const totalCalcPoints = Math.round((p1Score + p2Score + p3Score + p4Score) * 100) / 100;
-
-    return {
-      isValid: issues.length === 0,
-      discrepancies: issues,
-      totalPercentage: totalPct,
-      totalPoints: totalCalcPoints,
-      mcqPoints: Math.round((p1Score + p2Score + p3Score) * 100) / 100,
-      essayPoints: Math.round(p4Score * 100) / 100,
-    };
-  }, [
-    editableMatrix,
-    p1_rem_sum,
-    p1_und_sum,
-    p1_app_sum,
-    p2_rem_sum,
-    p2_und_sum,
-    p2_app_sum,
-    p3_rem_sum,
-    p3_und_sum,
-    p3_app_sum,
-    p4_rem_sum,
-    p4_und_sum,
-    p4_app_sum,
-    metadata,
-  ]);
-
-  // Automated 'Fix Alignment' (Chuẩn hóa ma trận chuẩn Công văn 7991)
-  const handleFixAlignment = () => {
-    // 1. Recalculate each row's levels, totalQuestions and totalPoints cleanly
-    const recomputedRows = editableMatrix.map((row) => recalculateRow(row));
-
-    // 2. Calculate point sum to distribute 100% percentage accurately
-    const totalPointsSum = recomputedRows.reduce((acc, r) => acc + (r.totalPoints || 0), 0);
-    const rowCount = recomputedRows.length;
-
-    let fixedRows: MatrixRow[] = [];
-
-    if (totalPointsSum > 0 && rowCount > 0) {
-      // Proportional distribution based on real points per row using largest remainder algorithm
-      const exactPcts = recomputedRows.map((r) => ((r.totalPoints || 0) / totalPointsSum) * 100);
-      const floorPcts = exactPcts.map((p) => Math.floor(p));
-      const remainders = exactPcts.map((p, idx) => ({ idx, remainder: p - floorPcts[idx] }));
-
-      let allocatedTotal = floorPcts.reduce((a, b) => a + b, 0);
-      let missingPct = 100 - allocatedTotal;
-
-      // Sort by largest remainder descending
-      remainders.sort((a, b) => b.remainder - a.remainder);
-      for (let i = 0; i < missingPct; i++) {
-        floorPcts[remainders[i % rowCount].idx] += 1;
-      }
-
-      fixedRows = recomputedRows.map((row, idx) => ({
-        ...row,
-        percentage: floorPcts[idx],
-      }));
-    } else if (rowCount > 0) {
-      // Distribute evenly if points sum is 0
-      const basePct = Math.floor(100 / rowCount);
-      const remainder = 100 - basePct * rowCount;
-      fixedRows = recomputedRows.map((row, idx) => ({
-        ...row,
-        percentage: idx < remainder ? basePct + 1 : basePct,
-      }));
-    } else {
-      fixedRows = recomputedRows;
-    }
-
-    setEditableMatrix(fixedRows);
-    if (onUpdateMatrix) {
-      onUpdateMatrix(fixedRows);
-    }
-    showToast('✓ Đã chuẩn hóa căn chỉnh và cân đối chính xác 100% tỉ lệ điểm chuẩn Công văn 7991/BGDĐT!');
-  };
-
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
       {/* Toast Notification */}
@@ -705,18 +545,6 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {/* Nút Fix Alignment nhanh trên Header nếu có lỗi */}
-          {!validationReport.isValid && (
-            <button
-              onClick={handleFixAlignment}
-              className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-sm transition-all animate-pulse"
-              title="Phát hiện điểm chưa khớp chuẩn 7991. Nhấn để tự động căn chỉnh và cân bằng 100% tỉ lệ điểm"
-            >
-              <Wand2 className="w-4 h-4 text-amber-200" />
-              <span>Sửa Căn Chỉnh ({validationReport.discrepancies.length})</span>
-            </button>
-          )}
-
           {/* Nút Kích Hoạt Cập Nhật Hàng Loạt */}
           <button
             onClick={() => {
@@ -790,148 +618,21 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
         </div>
       </div>
 
-      {/* Automated Validation & Fix Alignment Banner for CV 7991 */}
-      {validationReport.isValid ? (
-        <div className="p-3.5 bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-900 dark:text-emerald-200 shadow-2xs">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-7 h-7 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="font-bold flex items-center space-x-1.5">
-                <span>Ma trận đạt chuẩn Công văn 7991/BGDĐT</span>
-                <span className="px-1.5 py-0.2 rounded-md bg-emerald-200/70 dark:bg-emerald-800 text-[10px] font-black uppercase text-emerald-800 dark:text-emerald-100">
-                  Chuẩn 100%
-                </span>
-              </div>
-              <div className="text-[11px] text-emerald-700/90 dark:text-emerald-400 mt-0.5">
-                Đủ 20 cột, tổng 100% tỉ lệ điểm ({editableMatrix.length} chương), số câu khớp chính xác với phân bố mức độ nhận thức (Biết: {sum_rem}, Hiểu: {sum_und}, Vận dụng: {sum_app}).
-              </div>
-            </div>
+      {/* Warning if total % is not 100% */}
+      {totalPercentageSum !== 100 && (
+        <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-300">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              Tổng tỉ lệ điểm hiện tại là <strong>{totalPercentageSum}%</strong> (chưa đạt chuẩn 100%).
+            </span>
           </div>
           <button
-            type="button"
-            onClick={() => setIsValidationDetailsOpen(!isValidationDetailsOpen)}
-            className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-emerald-100/50 dark:hover:bg-slate-700 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 rounded-xl text-xs font-bold transition-all shrink-0 self-start sm:self-auto flex items-center space-x-1"
+            onClick={handleAutoBalancePercentage}
+            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold"
           >
-            <span>{isValidationDetailsOpen ? 'Thu gọn' : 'Xem chi tiết'}</span>
-            {isValidationDetailsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            Tự động cân đối về 100%
           </button>
-        </div>
-      ) : (
-        <div className="p-4 bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/70 rounded-2xl text-xs text-amber-900 dark:text-amber-200 space-y-3 shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-start sm:items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
-                <AlertTriangle className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="font-bold text-amber-900 dark:text-amber-200 text-sm flex items-center space-x-1.5">
-                  <span>Kiểm định Ma trận 7991: Phát hiện {validationReport.discrepancies.length} điểm chưa đồng bộ</span>
-                  <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-100 text-[10px] font-black">
-                    Cần chuẩn hóa
-                  </span>
-                </div>
-                <div className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">
-                  Tổng % điểm hiện tại: <strong>{validationReport.totalPercentage}%</strong> (chuẩn: 100%) • Điểm số tính toán: <strong>{validationReport.totalPoints.toFixed(1).replace('.', ',')}đ</strong>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
-              <button
-                type="button"
-                onClick={() => setIsValidationDetailsOpen(!isValidationDetailsOpen)}
-                className="px-3 py-1.5 bg-amber-100/80 hover:bg-amber-200 dark:bg-amber-900/50 dark:hover:bg-amber-900/80 text-amber-800 dark:text-amber-300 rounded-xl text-xs font-semibold flex items-center space-x-1 transition-all"
-              >
-                <span>{isValidationDetailsOpen ? 'Ẩn chi tiết' : 'Xem chi tiết'}</span>
-                {isValidationDetailsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-
-              {/* Nút Fix Alignment */}
-              <button
-                type="button"
-                onClick={handleFixAlignment}
-                className="px-4 py-2 bg-gradient-to-r from-amber-600 to-emerald-600 hover:from-amber-700 hover:to-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center space-x-1.5 shadow-md shadow-amber-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                title="Tự động sửa lỗi căn chỉnh các mức độ nhận thức, tính lại tổng câu và cân bằng chính xác 100% tỉ lệ điểm"
-              >
-                <Wand2 className="w-4 h-4 text-amber-200" />
-                <span>Sửa lỗi căn chỉnh & % (Fix Alignment)</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Collapsible detail discrepancies list */}
-          {isValidationDetailsOpen && (
-            <div className="pt-2 border-t border-amber-200/80 dark:border-amber-800/50 space-y-2 animate-in fade-in duration-200">
-              <div className="text-[11px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider">
-                Danh sách các điểm chưa khớp chuẩn:
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
-                {validationReport.discrepancies.map((d) => (
-                  <div
-                    key={d.id}
-                    className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-amber-200 dark:border-amber-800/60 text-xs space-y-1 shadow-2xs"
-                  >
-                    <div className="flex items-center space-x-1.5 font-bold text-amber-900 dark:text-amber-200">
-                      <span className={`w-2 h-2 rounded-full ${d.severity === 'error' ? 'bg-red-500' : 'bg-amber-500'} shrink-0`} />
-                      <span className="truncate">{d.title}</span>
-                    </div>
-                    <div className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed pl-3.5">
-                      {d.detail}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-end pt-1">
-                <button
-                  type="button"
-                  onClick={handleFixAlignment}
-                  className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center space-x-1"
-                >
-                  <Wand2 className="w-3.5 h-3.5" />
-                  <span>Áp dụng tự động sửa tất cả các điểm trên ngay lập tức →</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Expanded Details when valid */}
-      {validationReport.isValid && isValidationDetailsOpen && (
-        <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 rounded-2xl text-xs space-y-3 animate-in fade-in duration-200">
-          <div className="font-bold text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
-            <span className="flex items-center space-x-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>Báo cáo đối soát chuẩn Công văn 7991/BGDĐT</span>
-            </span>
-            <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-normal">
-              Định dạng ma trận: {metadata.matrixOutputFormat === 'classic' ? 'Truyền thống' : 'Chuẩn 7991'}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-emerald-100 dark:border-emerald-900">
-              <div className="text-[10px] text-slate-400 font-bold uppercase">Tổng tỉ lệ điểm</div>
-              <div className="text-base font-black text-emerald-700 dark:text-emerald-400 mt-0.5">100%</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Hoàn toàn cân đối</div>
-            </div>
-            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-emerald-100 dark:border-emerald-900">
-              <div className="text-[10px] text-slate-400 font-bold uppercase">Cơ cấu TNKQ / Tự luận</div>
-              <div className="text-base font-black text-teal-700 dark:text-teal-400 mt-0.5">{mcqRatio}% / {essayRatio}%</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">{p1TotalPoints + p2TotalPoints + p3TotalPoints}đ / {p4TotalPoints}đ</div>
-            </div>
-            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-emerald-100 dark:border-emerald-900">
-              <div className="text-[10px] text-slate-400 font-bold uppercase">Phân bố Biết - Hiểu - VD</div>
-              <div className="text-base font-black text-indigo-700 dark:text-indigo-400 mt-0.5">{Math.round((remPoints/10)*100)}% - {Math.round((undPoints/10)*100)}% - {Math.round((appPoints/10)*100)}%</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">{remPoints}đ - {undPoints}đ - {appPoints}đ</div>
-            </div>
-            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-emerald-100 dark:border-emerald-900">
-              <div className="text-[10px] text-slate-400 font-bold uppercase">Căn chỉnh số cột</div>
-              <div className="text-base font-black text-emerald-700 dark:text-emerald-400 mt-0.5">20 / 20 cột</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Khớp hoàn toàn 4 hàng thead</div>
-            </div>
-          </div>
         </div>
       )}
 
