@@ -93,7 +93,6 @@ export default function App() {
     message: '',
   });
   const [pendingMetadata, setPendingMetadata] = useState<ExamMetadata | null>(null);
-  const [generatorInitialMetadata, setGeneratorInitialMetadata] = useState<ExamMetadata | null>(null);
 
   // Export Toast Notification State
   const [exportToast, setExportToast] = useState<{
@@ -355,7 +354,6 @@ export default function App() {
                 isGenerating={isGenerating}
                 progressMessage={progressMessage}
                 onSaveSettings={handleSaveSettings}
-                initialMetadata={generatorInitialMetadata}
               />
             )}
 
@@ -396,10 +394,6 @@ export default function App() {
                 onExportPdf={(code) => handleExportPdf(code)}
                 onExportExcel={() => handleExportExcel()}
                 onRegenerateQuestion={handleRegenerateQuestion}
-                onRecreateExam={(meta) => {
-                  setGeneratorInitialMetadata(meta);
-                  setActiveTab('generator');
-                }}
               />
             )}
 

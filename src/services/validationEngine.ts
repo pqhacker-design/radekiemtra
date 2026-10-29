@@ -1,6 +1,6 @@
 import { ExamMetadata, MatrixRow, Question, SpecRow, calculateExamScores } from '../types';
 import { safeJsonParse } from './jsonRepair';
-import { normalizeNewlines, parseRequirementsByLevel, combineRequirementsByLevel, cleanExplanationAndNotes } from '../utils/textUtils';
+import { normalizeNewlines, parseRequirementsByLevel, combineRequirementsByLevel } from '../utils/textUtils';
 import { inferQuestionCompetency } from '../utils/competencyUtils';
 
 export interface ValidationResult {
@@ -14,7 +14,7 @@ export interface ValidationResult {
 
 export function cleanQuestionText(text: string): string {
   if (!text) return text;
-  let str = cleanExplanationAndNotes(normalizeNewlines(text));
+  let str = normalizeNewlines(text);
 
   // 1. Loại bỏ các nhãn mã mức độ thừa như [NB_TL], [TH_TL], [VD_TL], [VDC_TL], [NB_TN], [NB],...
   str = str.replace(/\s*\[(NB|TH|VD|VDC|REMEMBER|UNDERSTAND|APPLY|ADVANCED)(_(TL|TN|TF|SA))?\]\s*/gi, ' ');
@@ -497,25 +497,18 @@ export class ValidationEngine {
       rawMatrix.some((m: any) => m.subTopic && m.subTopic.trim() !== (rawMatrix[0]?.subTopic || '').trim());
 
     if (hasDifferentiatedMatrix) {
-      processedMatrix = rawMatrix.map((m: any, idx: number) => {
-        const rowPts = typeof m.totalPoints === 'number' ? m.totalPoints : 0;
-        const totalExamPts = metadata.totalPoints || 10.0;
-        const pct = rowPts > 0
-          ? Math.round((rowPts / totalExamPts) * 100 * 10) / 10
-          : (typeof m.percentage === 'number' ? m.percentage : 0);
-        return {
-          stt: m.stt || idx + 1,
-          topic: m.topic || metadata.chapterTitle || 'Chủ đề chính',
-          subTopic: m.subTopic || `Đơn vị kiến thức ${idx + 1}`,
-          part1: m.part1 || { remember: '', understand: '', apply: '', advanced: '' },
-          part2: m.part2 || { remember: '', understand: '', apply: '', advanced: '' },
-          part3: m.part3 || { remember: '', understand: '', apply: '', advanced: '' },
-          part4: m.part4 || { remember: '', understand: '', apply: '', advanced: '' },
-          totalQuestions: typeof m.totalQuestions === 'number' ? m.totalQuestions : 0,
-          totalPoints: rowPts,
-          percentage: pct,
-        };
-      });
+      processedMatrix = rawMatrix.map((m: any, idx: number) => ({
+        stt: m.stt || idx + 1,
+        topic: m.topic || metadata.chapterTitle || 'Chủ đề chính',
+        subTopic: m.subTopic || `Đơn vị kiến thức ${idx + 1}`,
+        part1: m.part1 || { remember: '', understand: '', apply: '', advanced: '' },
+        part2: m.part2 || { remember: '', understand: '', apply: '', advanced: '' },
+        part3: m.part3 || { remember: '', understand: '', apply: '', advanced: '' },
+        part4: m.part4 || { remember: '', understand: '', apply: '', advanced: '' },
+        totalQuestions: typeof m.totalQuestions === 'number' ? m.totalQuestions : 0,
+        totalPoints: typeof m.totalPoints === 'number' ? m.totalPoints : 0,
+        percentage: typeof m.percentage === 'number' ? m.percentage : 0,
+      }));
     } else {
       // Phân tách đơn vị kiến thức tự động dựa trên danh sách câu hỏi thực tế hoặc topic câu hỏi
       const topicGroups = new Map<string, Question[]>();

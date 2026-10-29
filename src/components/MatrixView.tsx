@@ -23,7 +23,7 @@ import {
   Wand2,
   X,
 } from 'lucide-react';
-import { CognitiveBreakdown, ExamPackage, MatrixRow, calculateExamScores } from '../types';
+import { CognitiveBreakdown, ExamPackage, MatrixRow } from '../types';
 import { MathText } from './MathText';
 
 const ensureBreakdown = (cb?: Partial<CognitiveBreakdown>): CognitiveBreakdown => ({
@@ -46,6 +46,9 @@ type BulkUpdateAction =
   | 'set_count'
   | 'adjust_count'
   | 'set_cognitive_level'
+  | 'set_percentage'
+  | 'distribute_percentage'
+  | 'auto_calc_percentage'
   | 'cognitive_preset'
   | 'clear_cells';
 
@@ -105,6 +108,7 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
   const [targetCount, setTargetCount] = useState<number>(1);
   const [adjustDelta, setAdjustDelta] = useState<number>(1);
   const [targetLevel, setTargetLevel] = useState<LevelKey>('remember');
+  const [targetPercentage, setTargetPercentage] = useState<number>(20);
   const [cognitivePreset, setCognitivePreset] = useState<'4_3_3' | '5_3_2' | '3_4_3' | '4_3_2_1'>('4_3_3');
 
   const showToast = (msg: string) => {
@@ -124,36 +128,9 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
     if (!val) return 0;
     const str = String(val).trim();
     if (!str || str === '-') return 0;
-
-    // Tách các mục phân cách bởi dấu phẩy, chấm phẩy hoặc xuống dòng
+    if (/^\d+$/.test(str)) return parseInt(str, 10);
     const tokens = str.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
-    if (tokens.length === 0) return 0;
-
-    let count = 0;
-    for (const token of tokens) {
-      // Nếu có dạng khoảng câu như "1-3", "1 - 3", "1 đến 3"
-      const rangeMatch = token.match(/^(\d+)\s*[-–—đến\s]\s*(\d+)$/i);
-      if (rangeMatch) {
-        const start = parseInt(rangeMatch[1], 10);
-        const end = parseInt(rangeMatch[2], 10);
-        if (end >= start) {
-          count += (end - start + 1);
-          continue;
-        }
-      }
-
-      // Nếu có chữ "câu" hoặc "ý" kèm số, ví dụ "3 câu", "4 ý"
-      const wordMatch = token.match(/^(\d+)\s*(?:câu|ý)/i);
-      if (wordMatch) {
-        count += parseInt(wordMatch[1], 10);
-        continue;
-      }
-
-      // Trong ma trận chuẩn Công văn 7991, mỗi phần tử được liệt kê (ví dụ "1", "3", "4", "1a", "2b", "Câu 3")
-      // chính là MỘT câu hỏi hoặc MỘT lệnh hỏi/ý đánh giá cụ thể
-      count += 1;
-    }
-    return count;
+    return tokens.length > 0 ? tokens.length : 1;
   };
 
   // Helper to recompute row totals and point weights
@@ -178,32 +155,13 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
     const totalUnderstand = p1_und + p2_und + p3_und + p4_und;
     const totalApply = p1_app + p2_app + p3_app + p4_app;
 
-    const p1Pts = metadata.questionCounts?.part1_PointsPerQuestion ?? 0.25;
-    const p2Statements = metadata.questionCounts?.part2_TFStatementsPerQuestion ?? 4;
-    const p2Pts = metadata.questionCounts?.part2_PointsPerQuestion ?? 1.0;
-    const p2ItemPts = p2Statements > 0 ? p2Pts / p2Statements : 0.25;
-    const p3Pts = metadata.questionCounts?.part3_PointsPerQuestion ?? 0.5;
-
-    // Tính điểm tự luận theo câu hỏi thực tế trong đề hoặc cấu hình
-    const examQuestions = examPackage.exams?.[0]?.questions || [];
-    const essayQuestions = examQuestions.filter((q) => q.partType === 'PART4');
-    const examP4Score = essayQuestions.reduce((s, q) => s + (q.points || 0), 0);
-    const configuredScores = calculateExamScores(metadata.questionCounts || ({} as any));
-    const targetPart4Score = examP4Score > 0 ? examP4Score : (configuredScores.part4Score || 3.0);
-    const targetPart4Count = metadata.questionCounts?.part4_Essay || essayQuestions.length || 3;
-    const p4Pts = targetPart4Count > 0 ? Math.round((targetPart4Score / targetPart4Count) * 100) / 100 : 1.0;
-
-    const p1Points = (p1_rem + p1_und + p1_app) * p1Pts;
-    const p2Points = (p2_rem + p2_und + p2_app) * p2ItemPts;
-    const p3Points = (p3_rem + p3_und + p3_app) * p3Pts;
-    const p4Points = (p4_rem + p4_und + p4_app) * p4Pts;
+    const p1Points = (p1_rem + p1_und + p1_app) * (metadata.questionCounts?.part1_PointsPerQuestion ?? 0.25);
+    const p2Points = (p2_rem + p2_und + p2_app) * 0.25; // mỗi ý 0.25đ
+    const p3Points = (p3_rem + p3_und + p3_app) * (metadata.questionCounts?.part3_PointsPerQuestion ?? 0.5);
+    const p4Points = (p4_rem * 1.0) + (p4_und * 1.5) + (p4_app * 1.5);
 
     const totalPoints = Math.round((p1Points + p2Points + p3Points + p4Points) * 100) / 100;
     const totalQuestions = totalRemember + totalUnderstand + totalApply;
-
-    // Tỉ lệ % điểm theo chuẩn Công văn 7991: tính chính xác theo số điểm của dòng trên tổng điểm đề thi (10.0đ)
-    const examTotalPoints = metadata.totalPoints || 10.0;
-    const percentage = Math.round((totalPoints / examTotalPoints) * 1000) / 10;
 
     return {
       ...row,
@@ -212,7 +170,6 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
       totalApply,
       totalQuestions,
       totalPoints,
-      percentage: totalPoints > 0 ? percentage : (row.percentage || 0),
     };
   };
 
@@ -310,6 +267,43 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
     showToast(`Đã xóa số câu hỏi về 0 cho ${selectedRowStts.length} chương đã chọn.`);
   };
 
+  const handleAutoBalancePercentage = () => {
+    const totalChapters = editableMatrix.length;
+    if (totalChapters === 0) return;
+
+    const basePct = Math.floor(100 / totalChapters);
+    const remainder = 100 - basePct * totalChapters;
+
+    setEditableMatrix((prev) =>
+      prev.map((row, idx) => ({
+        ...row,
+        percentage: idx < remainder ? basePct + 1 : basePct,
+      }))
+    );
+
+    showToast(`Đã tự động chia đều 100% tỉ lệ điểm cho toàn bộ ${totalChapters} chương!`);
+  };
+
+  const handleAutoCalcPercentageFromPoints = () => {
+    const totalPts = editableMatrix.reduce((sum, r) => sum + (r.totalPoints || 0), 0);
+    if (totalPts === 0) {
+      handleAutoBalancePercentage();
+      return;
+    }
+
+    setEditableMatrix((prev) =>
+      prev.map((row) => {
+        const rowPts = row.totalPoints || 0;
+        const pct = Math.round((rowPts / totalPts) * 100);
+        return {
+          ...row,
+          percentage: pct,
+        };
+      })
+    );
+
+    showToast('Đã tự động cập nhật tỉ lệ % điểm dựa theo trọng số điểm thực tế của từng chương!');
+  };
 
   // Comprehensive bulk update executor from modal
   const handleApplyBulkUpdate = () => {
@@ -379,6 +373,19 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
           });
         }
 
+        // 4. Set fixed percentage for targeted rows
+        else if (bulkAction === 'set_percentage') {
+          newRow.percentage = targetPercentage;
+          updatedCellsCount++;
+        }
+
+        // 5. Distribute percentage equally among targeted rows
+        else if (bulkAction === 'distribute_percentage') {
+          const totalTarget = effectiveScope.size;
+          const basePct = Math.floor(100 / totalTarget);
+          newRow.percentage = basePct;
+          updatedCellsCount++;
+        }
 
         // 6. Preset cognitive distribution (e.g. 40-30-30)
         else if (bulkAction === 'cognitive_preset') {
@@ -478,70 +485,17 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
     (p1_rem_sum + p1_und_sum + p1_app_sum + (p2_rem_sum + p2_und_sum + p2_app_sum > 0 ? Math.ceil((p2_rem_sum + p2_und_sum + p2_app_sum) / 4) : 0) + (p3_rem_sum + p3_und_sum + p3_app_sum) + (p4_rem_sum + p4_und_sum + p4_app_sum));
 
   // Điểm số các phần
-  const examQuestions = examPackage.exams?.[0]?.questions || [];
-  const examP1Pts = examQuestions.filter((q) => q.partType === 'PART1').reduce((s, q) => s + (q.points || 0), 0);
-  const examP2Pts = examQuestions.filter((q) => q.partType === 'PART2').reduce((s, q) => s + (q.points || 0), 0);
-  const examP3Pts = examQuestions.filter((q) => q.partType === 'PART3').reduce((s, q) => s + (q.points || 0), 0);
-  const examP4Pts = examQuestions.filter((q) => q.partType === 'PART4').reduce((s, q) => s + (q.points || 0), 0);
+  const p1TotalPoints = Math.round((p1_rem_sum + p1_und_sum + p1_app_sum) * (metadata.questionCounts?.part1_PointsPerQuestion ?? 0.25) * 100) / 100 || 3.0;
+  const p2QuestionsCount = Math.max(1, Math.round((p2_rem_sum + p2_und_sum + p2_app_sum) / 4));
+  const p2TotalPoints = Math.round(p2QuestionsCount * (metadata.questionCounts?.part2_PointsPerQuestion ?? 1.0) * 100) / 100 || 2.0;
+  const p3TotalPoints = Math.round((p3_rem_sum + p3_und_sum + p3_app_sum) * (metadata.questionCounts?.part3_PointsPerQuestion ?? 0.5) * 100) / 100 || 2.0;
+  const p4TotalPoints = Math.max(0, Math.round((10.0 - p1TotalPoints - p2TotalPoints - p3TotalPoints) * 100) / 100);
 
-  const configuredScores = calculateExamScores(metadata.questionCounts || ({} as any));
+  const remPoints = Math.round((p1_rem_sum * 0.25 + p2_rem_sum * 0.25 + p3_rem_sum * 0.5 + p4_rem_sum * 1.0) * 100) / 100 || 4.0;
+  const undPoints = Math.round((p1_und_sum * 0.25 + p2_und_sum * 0.25 + p3_und_sum * 0.5 + p4_und_sum * 1.5) * 100) / 100 || 3.0;
+  const appPoints = Math.max(0, Math.round((10.0 - remPoints - undPoints) * 100) / 100);
 
-  const p1PtsPerQ = metadata.questionCounts?.part1_PointsPerQuestion ?? 0.25;
-  const p1TotalPoints =
-    Math.round((p1_rem_sum + p1_und_sum + p1_app_sum) * p1PtsPerQ * 100) / 100 ||
-    examP1Pts ||
-    configuredScores.part1Score ||
-    3.0;
-
-  const p2StatementsPerQ = metadata.questionCounts?.part2_TFStatementsPerQuestion ?? 4;
-  const p2StatementsCount = p2_rem_sum + p2_und_sum + p2_app_sum;
-  const p2QuestionsCount = Math.max(p2StatementsCount > 0 ? 1 : 0, Math.round(p2StatementsCount / p2StatementsPerQ));
-  const p2PtsPerQ = metadata.questionCounts?.part2_PointsPerQuestion ?? 1.0;
-  const p2TotalPoints =
-    Math.round(p2QuestionsCount * p2PtsPerQ * 100) / 100 ||
-    examP2Pts ||
-    configuredScores.part2Score ||
-    2.0;
-
-  const p3TotalQuestionsCount = p3_rem_sum + p3_und_sum + p3_app_sum;
-  const p3PtsPerQ = metadata.questionCounts?.part3_PointsPerQuestion ?? (examP3Pts > 0 && p3TotalQuestionsCount > 0 ? Math.round((examP3Pts / p3TotalQuestionsCount) * 100) / 100 : 0.5);
-  const p3TotalPoints =
-    Math.round(p3TotalQuestionsCount * p3PtsPerQ * 100) / 100 ||
-    (p3TotalQuestionsCount > 0 ? (examP3Pts || configuredScores.part3Score || 2.0) : 0);
-
-  const p4TotalQuestionsCount = p4_rem_sum + p4_und_sum + p4_app_sum;
-  let p4TotalPoints = 0;
-  if (p4TotalQuestionsCount > 0) {
-    if (examP4Pts > 0 && p4TotalQuestionsCount === examQuestions.filter((q) => q.partType === 'PART4').length) {
-      p4TotalPoints = Math.round(examP4Pts * 100) / 100;
-    } else if (configuredScores.part4Score > 0 && p4TotalQuestionsCount === (metadata.questionCounts?.part4_Essay || 0)) {
-      p4TotalPoints = Math.round(configuredScores.part4Score * 100) / 100;
-    } else {
-      p4TotalPoints = Math.max(0, Math.round((10.0 - p1TotalPoints - p2TotalPoints - p3TotalPoints) * 100) / 100);
-    }
-  }
-
-  // Điểm các mức độ nhận thức
-  const examRemPts = examQuestions.filter((q) => q.cognitiveLevel === 'REMEMBER').reduce((s, q) => s + (q.points || 0), 0);
-  const examUndPts = examQuestions.filter((q) => q.cognitiveLevel === 'UNDERSTAND').reduce((s, q) => s + (q.points || 0), 0);
-  const examAppPts = examQuestions.filter((q) => q.cognitiveLevel === 'APPLY' || q.cognitiveLevel === 'ADVANCED').reduce((s, q) => s + (q.points || 0), 0);
-
-  const p4ItemPts = p4TotalQuestionsCount > 0 ? p4TotalPoints / p4TotalQuestionsCount : 1.0;
-  const remPoints =
-    examRemPts > 0
-      ? Math.round(examRemPts * 100) / 100
-      : Math.round((p1_rem_sum * p1PtsPerQ + (p2_rem_sum * p2PtsPerQ / p2StatementsPerQ) + p3_rem_sum * p3PtsPerQ + p4_rem_sum * p4ItemPts) * 100) / 100 || 4.0;
-  const undPoints =
-    examUndPts > 0
-      ? Math.round(examUndPts * 100) / 100
-      : Math.round((p1_und_sum * p1PtsPerQ + (p2_und_sum * p2PtsPerQ / p2StatementsPerQ) + p3_und_sum * p3PtsPerQ + p4_und_sum * p4ItemPts) * 100) / 100 || 3.0;
-  const appPoints =
-    examAppPts > 0
-      ? Math.round(examAppPts * 100) / 100
-      : Math.max(0, Math.round((10.0 - remPoints - undPoints) * 100) / 100);
-
-  const mcqTotalPoints = Math.round((p1TotalPoints + p2TotalPoints + p3TotalPoints) * 100) / 100;
-  const mcqRatio = Math.round((mcqTotalPoints / (metadata.totalPoints || 10.0)) * 100);
+  const mcqRatio = Math.round(((p1TotalPoints + p2TotalPoints + p3TotalPoints) / 10.0) * 100);
   const essayRatio = 100 - mcqRatio;
   const totalPercentageSum = editableMatrix.reduce((a, b) => a + (Number(b.percentage) || 0), 0);
 
@@ -613,6 +567,16 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
             )}
           </button>
 
+          {/* Nút Cân Bằng % Điểm */}
+          <button
+            onClick={handleAutoBalancePercentage}
+            className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all"
+            title="Tự động chia đều 100% tỉ lệ điểm cho các chương"
+          >
+            <Percent className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+            <span>Cân Bằng %</span>
+          </button>
+
           {/* Chế độ Chỉnh sửa trực tiếp */}
           {isEditing ? (
             <div className="flex items-center space-x-1.5">
@@ -653,6 +617,24 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* Warning if total % is not 100% */}
+      {totalPercentageSum !== 100 && (
+        <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-300">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              Tổng tỉ lệ điểm hiện tại là <strong>{totalPercentageSum}%</strong> (chưa đạt chuẩn 100%).
+            </span>
+          </div>
+          <button
+            onClick={handleAutoBalancePercentage}
+            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold"
+          >
+            Tự động cân đối về 100%
+          </button>
+        </div>
+      )}
 
       {/* Ma Trận Table Container - Chuẩn Công văn 7991 */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-xs border border-slate-200 dark:border-slate-800 overflow-x-auto relative">
@@ -1322,11 +1304,13 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
               </label>
 
               {/* Action tabs */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   { id: 'set_count', label: 'Gán số câu cố định', icon: CheckSquare },
                   { id: 'adjust_count', label: 'Tăng / Giảm (+/-)', icon: Plus },
                   { id: 'set_cognitive_level', label: 'Đồng nhất mức độ', icon: Sliders },
+                  { id: 'distribute_percentage', label: 'Chia đều % điểm', icon: Percent },
+                  { id: 'set_percentage', label: 'Gán % điểm', icon: Calculator },
                   { id: 'cognitive_preset', label: 'Mẫu phân bổ chuẩn', icon: Wand2 },
                   { id: 'clear_cells', label: 'Xóa ô về 0', icon: Trash2 },
                 ].map((tab) => {
@@ -1452,6 +1436,36 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                           {lvl.label}
                         </button>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {bulkAction === 'distribute_percentage' && (
+                  <div className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Hệ thống sẽ lấy tổng 100% điểm và tự động chia đều cho các chương được chọn trong phạm vi.
+                    {bulkScope === 'selected' && selectedRowStts.length > 0 && (
+                      <span className="block mt-1 font-bold text-teal-600 dark:text-teal-400">
+                        → Mỗi chương trong {selectedRowStts.length} chương được chọn sẽ nhận: {Math.round(100 / selectedRowStts.length)}% điểm.
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {bulkAction === 'set_percentage' && (
+                  <div className="flex items-center space-x-3">
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold">
+                      Gán tỉ lệ % điểm cho mỗi chương:
+                    </span>
+                    <div className="flex items-center space-x-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={targetPercentage}
+                        onChange={(e) => setTargetPercentage(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                        className="w-20 p-1.5 text-center bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg font-bold text-slate-900 dark:text-white"
+                      />
+                      <span className="font-bold text-slate-500">%</span>
                     </div>
                   </div>
                 )}
