@@ -31,7 +31,9 @@ BẮT BUỘC TUÂN THỦ CÁC NGUYÊN TẮC SAU:
       + Xuống dòng trong câu hỏi, đề bài, các ý 1), 2), a), b), lời giải chi tiết và hướng dẫn chấm tự luận BẮT BUỘC dùng ký tự ngắt dòng '\\n' (xuống dòng thực tế). TUYỆT ĐỐI KHÔNG dùng '\\\\' hoặc '\\' để xuống dòng trong văn bản tiếng Việt thông thường (vì '\\\\' chỉ dùng riêng cho ngắt hàng hệ phương trình bên trong LaTeX).
       + TUYỆT ĐỐI KHÔNG viết dấu gạch chéo ngược '\\' trước từ tiếng Việt hoặc số thứ tự (KHÔNG viết '\\Diện tích', KHÔNG viết '\\Chiều rộng', KHÔNG viết '\\Tính', KHÔNG viết '\\1)', '\\2)'). Toàn bộ từ ngữ tiếng Việt và số thứ tự phải viết chữ bình thường (ví dụ: '1) Tính chu vi...', 'Diện tích mảnh vườn là:', 'Chiều rộng mảnh vườn là:').
 6. TUYỆT ĐỐI KHÔNG chèn các nhãn mã như [NB_TL], [TH_TL], [VD_TL], [VDC_TL], [NB_TN], [TH_TN] vào cuối hoặc trong chuỗi văn bản 'content', 'explanation', 'essayAnswerGuide' của câu hỏi. Mức độ nhận thức CHỈ ĐƯỢC khai báo thông qua trường JSON 'cognitiveLevel' ('REMEMBER', 'UNDERSTAND', 'APPLY', 'ADVANCED').
+   - TUYỆT ĐỐI KHÔNG ĐƯA TIẾNG ANH, LẬP LUẬN NỘI BỘ, SUY NGHĨ HOẶC TỰ SỬA ĐỔI (như '*Self-correction:', 'Revised explanation:', 'Note:', 'Let me check...', 'The problem states...') vào bất kỳ trường nào trong JSON (đặc biệt là 'explanation', 'essayAnswerGuide', 'content'). Toàn bộ lời giải và giải thích trong 'explanation' phải 100% bằng TIẾNG VIỆT chuẩn sư phạm, ngắn gọn, súc tích và đi thẳng vào các bước giải chi tiết từng ý/câu, không giải thích quá trình AI suy nghĩ hay tự đính chính.
 7. TRONG CHUỖI JSON TRẢ VỀ, MỌI DẤU GẠCH CHÉO NGƯỢC '\\' CỦA LATEX BẮT BUỘC PHẢI ĐƯỢC ESCAPE THÀNH '\\\\' (VÍ DỤ VIẾT '\\\\frac', '\\\\sqrt', '\\\\alpha', '\\\\begin', VÀ DẤU XUỐNG DÒNG HỆ PHƯƠNG TRÌNH PHẢI VIẾT LÀ '\\\\\\\\' TRONG JSON CHUẨN) ĐỂ JSON KHÔNG BỊ LỖI CÚ PHÁP.
+   - CÁC HÀM LƯỢNG GIÁC VÀ KÝ HIỆU TOÁN HỌC: Lượng giác tan BẮT BUỘC viết là '\\\\tan' trong JSON (để hiển thị đúng \\tan, tuyệt đối KHÔNG viết thành 'an' hay '\\tan' đơn lẻ làm biến thành tab). Ký hiệu khác (≠) BẮT BUỘC viết là '\\\\ne' hoặc '\\\\neq' trong JSON (để hiển thị đúng \\ne, tuyệt đối KHÔNG để thành 'e' hay '\\ne' đơn lẻ làm biến thành xuống dòng).
 8. Trả về đúng 1 đối tượng JSON duy nhất theo đúng cấu trúc schema được yêu cầu, không có lời mở đầu hay kết luận thừa ngoài JSON.
 9. QUY TẮC ĐẶC THÙ MÔN HỌC CHUẨN GDPT 2018:
    - MÔN NGỮ VĂN:
@@ -525,6 +527,8 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
 1. BẮT BUỘC BỌC TẤT CẢ công thức toán học, tập hợp, biến số, phép tính trong cặp dấu $...$ (ví dụ: $x$, $y$, $A$, $B = \\{x \\in \\mathbb{N} \\mid 15 \\le x < 28\\}$, $x \\vdots 12$, $4^2 \\cdot 5$, $S = 25 \\cdot 74 + 25 \\cdot 26 - 500$). TUYỆT ĐỐI KHÔNG để bất kỳ lệnh LaTeX hay biểu thức toán nào đứng ngoài cặp dấu $.
 2. DÙNG '\\cdot' cho dấu nhân (ví dụ $4^2 \\cdot 5$, $25 \\cdot 74$), DÙNG '\\vdots' cho quan hệ chia hết (ví dụ $x \\vdots 12$ và $x \\vdots 18$), DÙNG '\\mid' cho gạch đứng biểu diễn tập hợp (ví dụ $x \\in \\mathbb{N} \\mid 15 \\le x < 28$), DÙNG '\\le', '\\ge' cho nhỏ hơn/lớn hơn hoặc bằng (ví dụ $8 < x \\le 14$).
 3. Với tập hợp số, dùng '\\mathbb{N}', '\\mathbb{Z}', '\\mathbb{Q}', '\\mathbb{R}'. Toàn bộ tên tập hợp và biểu thức tập hợp PHẢI bọc trong dấu $, ví dụ: $A = \\{x \\in \\mathbb{N} \\mid 8 < x \\le 14\\}$.
+4. Lượng giác tan BẮT BUỘC viết là '\\\\tan' trong JSON (ví dụ $\\\\tan 60^\\\\circ$, $\\\\tan Q$). Ký hiệu khác (≠) BẮT BUỘC viết là '\\\\ne' hoặc '\\\\neq' trong JSON (ví dụ $x - 3 \\\\ne 0 \\\\Leftrightarrow x \\\\ne 3$).
+5. LỜI GIẢI CHI TIẾT ('explanation', 'essayAnswerGuide'): 100% bằng TIẾNG VIỆT sư phạm. TUYỆT ĐỐI KHÔNG xuất các khối tiếng Anh, tự sửa đổi (Self-correction), suy nghĩ nội bộ (Chain-of-thought) hay 'Revised explanation' vào trường 'explanation'.
 `;
   }
 

@@ -22,9 +22,11 @@ export function repairLatexCorruptions(text: string): string {
   str = str.replace(/\x0C(lat|rown|forall)/g, '\\f$1');
   str = str.replace(/\x0C([a-zA-Z]+)/g, '\\f$1');
   str = str.replace(/\x0C/g, '');
-  str = str.replace(/\t(ext|heta|imes|an|au|ilde|riangle)\b/g, '\\$1');
+  str = str.replace(/\t(ext|heta|imes|an|au|ilde|riangle)(?=[^a-z]|$)/gi, '\\$1');
+  str = str.replace(/\tan(?=[A-Z0-9\\({\s]|\^|$)/g, '\\tan ');
   str = str.replace(/\r(ight|ho|eal|ightarrow|ightleftharpoons)\b/g, '\\$1');
   str = str.replace(/\x0A(otin|eq|abla|neq|ni)\b/g, '\\n$1');
+  str = str.replace(/\x0Ae(?=\s*[\d+-]|[a-zA-Z]\b)/g, ' \\ne ');
 
   // 0c. Khôi phục nhiều dấu backslash \\+ thừa trước các lệnh LaTeX phổ biến
   str = str.replace(/\\+(frac|dfrac|text|mathrm|mathbf|tan|sin|cos|cot|sqrt|vec|widehat|alpha|beta|gamma|ne|neq|notin|in|Leftrightarrow|Rightarrow|rightarrow|rightleftharpoons)\b/g, '\\$1');
@@ -89,12 +91,20 @@ export function repairLatexCorruptions(text: string): string {
   str = str.replace(/(\d+)\s*ext(cm|kg|m|km|mm|dm|g|s|h|l|ml)\b/g, '$1 $2');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)ext(cm|kg|m|km|mm|dm|g|s|h|l|ml)\b/g, '\\text{$1}');
 
-  // 6. Phục hồi \tan bị rách thành an:
+  // 6. Phục hồi \tan bị rách thành an (như an60^\circ, anQ, an A, \cdot anQ):
+  // 6a. Dạng an liền kề góc độ hoặc số: an60^\circ, an30, an45
+  str = str.replace(/(?<=[^a-zA-Z\\]|^)an\s*(\d+\s*(?:°|\\circ|\^|\b))/g, '\\tan $1');
+  // 6b. Dạng an liền kề tên đỉnh góc hoa: anQ, anA, anB, anC
+  str = str.replace(/(?<=[^a-zA-Z\\]|^)an([A-Z])\b/g, '\\tan $1');
+  // 6c. Dạng an có khoảng trắng trước tên góc hoặc ký hiệu: an Q, an \alpha, an(60^\circ)
   str = str.replace(/(?<=[^a-zA-Z\\]|^)an\s+([A-Z]\b|\\alpha|\\beta|\\widehat|\()/g, '\\tan $1');
+  // 6d. Dạng đứng sau toán tử: \cdot anQ, = an 60
+  str = str.replace(/([=+\-*/\cdot\s($]|^)an(?=\s*[\d(]|[A-Z]\b|\\alpha|\\beta|\\widehat)/g, '$1\\tan ');
 
-  // 7. Phục hồi \ne và \neq bị biến thành e hoặc eq trong điều kiện / kết quả:
-  str = str.replace(/([a-zA-Z0-9_\'\)\}]|\b[xyz])\s*\be\s*(-?\s*\d+|[a-zA-Z]\b)/g, '$1 \\ne $2');
-  str = str.replace(/([a-zA-Z0-9_\'\)\}]|\b[xyz])\s*\beq\s*(-?\s*\d+|[a-zA-Z]\b)/g, '$1 \\neq $2');
+  // 7. Phục hồi \ne và \neq bị biến thành e hoặc eq trong điều kiện / so sánh / kết quả:
+  // Xử lý cả có backslash (\ e 0, \ e3, \e0) và mất hẳn backslash (x - 3 e0, x e3, 8 e7)
+  str = str.replace(/([a-zA-Z0-9_\'\)\}]|\b[xyz])\s*(?:\\?\s*)e(?:\s*|(?=-?\d))(-?\s*\d+|[a-zA-Z]\b)(?!\s*[a-zA-Z]{2,})/g, '$1 \\ne $2');
+  str = str.replace(/([a-zA-Z0-9_\'\)\}]|\b[xyz])\s*(?:\\?\s*)eq(?:\s*|(?=-?\d))(-?\s*\d+|[a-zA-Z]\b)(?!\s*[a-zA-Z]{2,})/g, '$1 \\neq $2');
 
   // 8. Phục hồi chữ "n " đơn độc ở đầu dòng do \n bị mất dấu gạch chéo:
   str = str.replace(/(^|[\r\n])n\s+([A-ZÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ])/g, '$1$2');
@@ -108,6 +118,44 @@ export function repairLatexCorruptions(text: string): string {
   str = str.replace(/(?<=[^a-zA-Z\\]|^)imes\b/g, '\\times');
 
   return str;
+}
+
+/**
+ * Làm sạch hoàn toàn các ghi chú nội bộ, suy nghĩ CoT (Chain-of-Thought)
+ * và tự sửa chữa (Self-correction, Revised explanation) bằng tiếng Anh bị AI xuất vào lời giải
+ */
+export function cleanExplanationAndNotes(text: string): string {
+  if (!text) return '';
+  let str = text;
+
+  // 1. Xóa các khối *Self-correction: ... Revised ... explanation:*
+  str = str.replace(
+    /\*?\s*Self-correction[\s\S]*?(?:Revised[^\n:]*explanation:\s*|\n\n(?=(?:[a-dA-D0-9][\.\)]|\bThay\b|\bLời giải\b|\bTa có\b|\bXét\b|\bPhương trình\b|\bĐiều kiện\b|\bVì\b|\bDo\b|\bVậy\b|\bÁp dụng\b|\bTheo đề\b))|(?=\n\s*[a-dA-D][\.\)]\s))/gi,
+    ''
+  );
+
+  // 2. Xóa các tiền tố Self-correction đơn độc nếu còn sót
+  str = str.replace(/\*?\s*Self-correction:[\s\S]*?(?:\n\n|\*)/gi, '');
+
+  // 3. Xóa các dòng tiêu đề Revised explanation / Revised Q...
+  str = str.replace(/Revised\s+(?:Q\d+|Part\d+|question)?[^\n:]*explanation:\s*/gi, '');
+
+  // 4. Xóa các khối Chain-of-thought, Internal note, Thought process
+  str = str.replace(/\*?\s*(?:Chain-of-thought|Thought process|Thinking process|Internal note|Reasoning):[\s\S]*?(?:\n\n|\*)/gi, '');
+
+  // 5. Xóa các đoạn mở đầu tiếng Anh bắt đầu bằng *The problem states... hoặc *Let's check...
+  str = str.replace(/^\s*\*?(?:The problem states|Let's check|I need to make sure|To ensure|My original)[\s\S]*?(?:\n\n|(?=\n[a-dA-D0-9][\.\)]|\bThay\b|\bLời giải\b|\bTa có\b))/gi, '');
+
+  // 6. Xóa các dấu sao thừa ở đầu/cuối sau khi đã bóc tách
+  str = str.trim();
+  if (str.startsWith('*') && !str.slice(1).includes('*')) {
+    str = str.replace(/^\*+\s*/, '');
+  }
+  if (str.endsWith('*') && !str.slice(0, -1).includes('*')) {
+    str = str.replace(/\s*\*+$/, '');
+  }
+
+  return str.trim();
 }
 
 /**

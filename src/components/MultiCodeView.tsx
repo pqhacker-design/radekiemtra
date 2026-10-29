@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Copy, Download, FileSpreadsheet, Eye, Printer, CheckCircle2, Lightbulb, Sparkles } from 'lucide-react';
-import { ExamPackage, Question } from '../types';
+import { Copy, Download, FileSpreadsheet, Eye, Printer, CheckCircle2, Lightbulb, Sparkles, RotateCcw } from 'lucide-react';
+import { ExamMetadata, ExamPackage, Question } from '../types';
 import { QuestionDetailCard } from './QuestionDetailCard';
 import { MathText } from './MathText';
 import { RegenerateQuestionModal } from './RegenerateQuestionModal';
@@ -11,6 +11,7 @@ interface MultiCodeViewProps {
   onExportPdf?: (code?: string) => void;
   onExportExcel?: () => void;
   onRegenerateQuestion?: (originalQuestion: Question, newQuestion: Question) => void;
+  onRecreateExam?: (metadata: ExamMetadata) => void;
 }
 
 export const MultiCodeView: React.FC<MultiCodeViewProps> = ({
@@ -19,6 +20,7 @@ export const MultiCodeView: React.FC<MultiCodeViewProps> = ({
   onExportPdf,
   onExportExcel,
   onRegenerateQuestion,
+  onRecreateExam,
 }) => {
   if (!examPackage) {
     return (
@@ -65,6 +67,17 @@ export const MultiCodeView: React.FC<MultiCodeViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {onRecreateExam && metadata && (
+            <button
+              onClick={() => onRecreateExam(metadata)}
+              className="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-teal-600/20 cursor-pointer"
+              title="Khôi phục các thông số của đề này sang giao diện tạo đề để tinh chỉnh hoặc tạo lại"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Tạo lại đề (Dùng cấu hình này)</span>
+            </button>
+          )}
+
           {onExportWord && (
             <button
               onClick={onExportWord}

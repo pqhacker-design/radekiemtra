@@ -1,5 +1,5 @@
-import { AppSettings, ExamPackage, QuestionBankItem } from '../types';
-import { repairLatexCorruptions } from '../utils/textUtils';
+import { AppSettings, ExamMetadata, ExamPackage, QuestionBankItem } from '../types';
+import { cleanExplanationAndNotes, repairLatexCorruptions } from '../utils/textUtils';
 
 function repairQuestionItem<T extends { content?: string; options?: any[]; trueFalseStatements?: any[]; shortAnswer?: string; essayAnswerGuide?: string; explanation?: string; rubric?: any[] }>(q: T): T {
   if (!q) return q;
@@ -7,8 +7,8 @@ function repairQuestionItem<T extends { content?: string; options?: any[]; trueF
     ...q,
     content: q.content ? repairLatexCorruptions(q.content) : q.content,
     shortAnswer: q.shortAnswer ? repairLatexCorruptions(q.shortAnswer) : q.shortAnswer,
-    essayAnswerGuide: q.essayAnswerGuide ? repairLatexCorruptions(q.essayAnswerGuide) : q.essayAnswerGuide,
-    explanation: q.explanation ? repairLatexCorruptions(q.explanation) : q.explanation,
+    essayAnswerGuide: q.essayAnswerGuide ? cleanExplanationAndNotes(repairLatexCorruptions(q.essayAnswerGuide)) : q.essayAnswerGuide,
+    explanation: q.explanation ? cleanExplanationAndNotes(repairLatexCorruptions(q.explanation)) : q.explanation,
     options: q.options?.map((opt: any) => ({
       ...opt,
       content: opt.content ? repairLatexCorruptions(opt.content) : opt.content,
@@ -41,7 +41,7 @@ function repairExamPackageStrings(p: ExamPackage): ExamPackage {
       })),
       part4Answers: ak.part4Answers?.map((a) => ({
         ...a,
-        essayAnswerGuide: a.essayAnswerGuide ? repairLatexCorruptions(a.essayAnswerGuide) : a.essayAnswerGuide,
+        essayAnswerGuide: a.essayAnswerGuide ? cleanExplanationAndNotes(repairLatexCorruptions(a.essayAnswerGuide)) : a.essayAnswerGuide,
         rubric: a.rubric?.map((r: any) => ({
           ...r,
           criteria: r.criteria ? repairLatexCorruptions(r.criteria) : r.criteria,
@@ -56,6 +56,7 @@ const STORAGE_KEYS = {
   SETTINGS: 'aitest_settings_v1',
   EXAM_HISTORY: 'aitest_exam_history_v1',
   QUESTION_BANK: 'aitest_question_bank_v1',
+  LAST_GENERATOR_STATE: 'aitest_last_generator_state_v1',
 };
 
 export const defaultSettings: AppSettings = {
@@ -281,12 +282,42 @@ export class StorageEngine {
     }
   }
 
+  // --- LAST GENERATOR STATE (LƯU & KHÔI PHỤC PHIÊN RA ĐỀ TRƯỚC ĐÓ) ---
+  static getLastGeneratorState(): ExamMetadata | null {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.LAST_GENERATOR_STATE);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  static saveLastGeneratorState(metadata: ExamMetadata): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.LAST_GENERATOR_STATE, JSON.stringify(metadata));
+      this.notifyListeners();
+    } catch (e) {
+      console.error('Lỗi lưu phiên tạo đề gần nhất:', e);
+    }
+  }
+
+  static clearLastGeneratorState(): void {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.LAST_GENERATOR_STATE);
+      this.notifyListeners();
+    } catch (e) {
+      console.error('Lỗi xóa phiên tạo đề gần nhất:', e);
+    }
+  }
+
   // --- RESET ALL LOCAL DATA ---
   static clearAllData(): void {
     try {
       localStorage.removeItem(STORAGE_KEYS.EXAM_HISTORY);
       localStorage.removeItem(STORAGE_KEYS.QUESTION_BANK);
       localStorage.removeItem(STORAGE_KEYS.SETTINGS);
+      localStorage.removeItem(STORAGE_KEYS.LAST_GENERATOR_STATE);
       this.notifyListeners();
     } catch (e) {
       console.error('Lỗi xóa sạch dữ liệu:', e);
