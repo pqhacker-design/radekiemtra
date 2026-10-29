@@ -12,10 +12,20 @@ interface MathTextProps {
 }
 
 function cleanMathForKaTeX(str: string): string {
-  // 1. Phục hồi ngay các từ khóa bị mất \r, \frac, \begin
+  // 1. Phục hồi ngay các từ khóa bị mất \r, \frac, \begin, \cases, \ne, \le, \ge
   let s = repairLatexCorruptions(str);
   s = cleanMathNewlines(s);
   s = s.replace(/\\$/, '');
+
+  // Dọn dẹp các ký tự \n hoặc chuỗi literal \n vô tình lọt vào trong công thức KaTeX
+  s = s.replace(/\\+n(?=\s*[-+*=<>0-9(\\])/g, ' ');
+  s = s.replace(/\\+n(?!\b[a-zA-Z])/g, ' ');
+
+  // Sửa chữa lỗi \mathrel do kết hợp sai ký hiệu quan hệ như \Left \ne hoặc quan hệ liền nhau
+  s = s.replace(/\\Left\s*\\ne/gi, '\\Leftrightarrow');
+  s = s.replace(/\\Left\s*\\le/gi, '\\Leftrightarrow');
+  s = s.replace(/\\Left\s*\\ge/gi, '\\Leftrightarrow');
+  s = s.replace(/\\Left\b/g, '\\Leftarrow');
   
   // 2. Chuẩn hóa ký hiệu độ C và góc độ
   // Mọi biến thể độ C: \circC, ^\circC, ^\circ C, \circ C, °C, ^{\circ}C, ^\circ\text{C} -> ^\circ\text{C}
@@ -113,7 +123,14 @@ export const MathText: React.FC<MathTextProps> = ({ content, text, className = '
         const span = document.createElement('span');
         span.className = 'my-2 block text-center overflow-x-auto py-1 font-sans';
         try {
-          katex.render(mathStr, span, { displayMode: true, throwOnError: false });
+          katex.render(mathStr, span, { displayMode: true, throwOnError: false, strict: false });
+          if (span.querySelector('.katex-error')) {
+            const plain = cleanLatexForDocx(mathStr);
+            if (plain) {
+              span.innerHTML = '';
+              span.textContent = plain;
+            }
+          }
         } catch {
           span.textContent = cleanLatexForDocx(mathStr) || mathStr;
         }
@@ -127,7 +144,14 @@ export const MathText: React.FC<MathTextProps> = ({ content, text, className = '
           ? 'inline-block my-1 align-middle px-1 overflow-x-auto font-sans text-left'
           : 'inline-block px-0.5 align-middle';
         try {
-          katex.render(mathStr, span, { displayMode: isMultiLineEnv, throwOnError: false });
+          katex.render(mathStr, span, { displayMode: isMultiLineEnv, throwOnError: false, strict: false });
+          if (span.querySelector('.katex-error')) {
+            const plain = cleanLatexForDocx(mathStr);
+            if (plain) {
+              span.innerHTML = '';
+              span.textContent = plain;
+            }
+          }
         } catch {
           span.textContent = cleanLatexForDocx(mathStr) || mathStr;
         }

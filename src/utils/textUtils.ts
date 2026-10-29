@@ -12,41 +12,66 @@ export function repairLatexCorruptions(text: string): string {
   if (!text) return '';
   let str = text;
 
+  // 0. KHÔI PHỤC NGAY MÔI TRƯỜNG HỆ PHƯƠNG TRÌNH \begin{cases} và \end{cases}
+  // Bị AI hoặc regex cũ phá vỡ thành \begin{cas \n \n \n \ne s}, \begin{cas \ne s}, \begin{casnes}, {cas \n \n \ne s}
+  str = str.replace(/\\begin\{\s*cas(?:\s|\\+[nNrR]|\\?ne|\\[a-zA-Z]+)*s\s*\}/gi, '\\begin{cases}');
+  str = str.replace(/\\end\{\s*cas(?:\s|\\+[nNrR]|\\?ne|\\[a-zA-Z]+)*s\s*\}/gi, '\\end{cases}');
+  str = str.replace(/(?<!\\)\bbegin\{\s*cas(?:\s|\\+[nNrR]|\\?ne|\\[a-zA-Z]+)*s\s*\}/gi, '\\begin{cases}');
+  str = str.replace(/(?<!\\)\bend\{\s*cas(?:\s|\\+[nNrR]|\\?ne|\\[a-zA-Z]+)*s\s*\}/gi, '\\end{cases}');
+  str = str.replace(/(?<!\\)\b(begin|end)\{cases\}/g, '\\$1{cases}');
+  str = str.replace(/\{\s*cas(?:\s|\\+[nNrR]|\\?ne|\\[a-zA-Z]+)*s\s*\}/gi, '{cases}');
+
   // 0a. Sửa chữa các chuỗi đã bị lỗi lặp \r hoặc \Leftr trước mũi tên (\r\r\r\r\r\rightarrow, \Leftr\r\r\r\r\r \rightarrow)
-  str = str.replace(/\\Left[rR](?:\\[rR]|\s|[\r\n])*(?:\\?rightarrow|→)/gi, '\\Leftrightarrow ');
+  str = str.replace(/\\Left[rR]?(?:\\[rR]|\s|[\r\n]|\\+[nNrR]|\\?ne)*(?:\\?rightarrow|→)/gi, '\\Leftrightarrow ');
+  str = str.replace(/\\Left(?:\s|\\+[nNrR]|\\?ne)+(?:\\?Rightarrow|⇒|\\?Leftrightarrow|⇔)/gi, '\\Leftrightarrow ');
+  str = str.replace(/\\Left\s*\\?ne\b/gi, '\\Leftrightarrow ');
   str = str.replace(/(?:\\[rR]|\r)+(?=\s*\\?(rightarrow|rightleftharpoons|Rightarrow|Leftrightarrow|Leftarrow|to)\b)/gi, '');
   str = str.replace(/(?:\\[rR]){2,}/g, ' ');
 
-  // 0b. Khôi phục các ký tự điều khiển ASCII thô từ JSON.parse lỡ chuyển đổi
+  // 0b. Khôi phục các bất đẳng thức \le và \ge bị rách do regex cũ biến thành \l\n\n\n\n\ne 0, \g\n\n\n\n\ne 4, \l\ne, \g\ne
+  str = str.replace(/\\l(?:\s|\\+[nNrR])*(?:\\?ne|e)(?=\s*[\d+-]|\s*[a-zA-Z]\b|\s*\(|\s*\{|\s*$)/gi, '\\le ');
+  str = str.replace(/\\g(?:\s|\\+[nNrR])*(?:\\?ne|e)(?=\s*[\d+-]|\s*[a-zA-Z]\b|\s*\(|\s*\{|\s*$)/gi, '\\ge ');
+  str = str.replace(/\\l\s*\\?ne\b/gi, '\\le ');
+  str = str.replace(/\\g\s*\\?ne\b/gi, '\\ge ');
+  str = str.replace(/\\l\s*\\?le\b/gi, '\\le ');
+  str = str.replace(/\\g\s*\\?ge\b/gi, '\\ge ');
+
+  // 0c. Khôi phục dấu khác \ne bị rách do lặp \n: \n \n \n \n \ne 3, x\n\n\n\n \ne 1, a\n\n\n\n\ne 0
+  str = str.replace(/(?:\\+[nNrR]\s*){1,}\\?ne\b/gi, ' \\ne ');
+  str = str.replace(/(?:\\+[nNrR]\s*){1,}e(?=\s*[\d+-]|\s*[xyz]\b)/gi, ' \\ne ');
+  str = str.replace(/(?:\\+[nNrR]\s*){1,}≠/g, ' \\ne ');
+
+  // 0d. Khôi phục các ký tự điều khiển ASCII thô từ JSON.parse lỡ chuyển đổi
   str = str.replace(/\x0Crac/g, '\\frac');
   str = str.replace(/\x0C(lat|rown|forall)/g, '\\f$1');
   str = str.replace(/\x0C([a-zA-Z]+)/g, '\\f$1');
   str = str.replace(/\x0C/g, '');
-  str = str.replace(/\t(ext|heta|imes|an|au|ilde|riangle)\b/g, '\\$1');
+  str = str.replace(/\t(ext|heta|imes|an|au|ilde|riangle)(?=[^a-z]|$)/gi, '\\$1');
+  str = str.replace(/\tan(?=[A-Z0-9\\({\s]|\^|$)/g, '\\tan ');
   str = str.replace(/\r(ight|ho|eal|ightarrow|ightleftharpoons)\b/g, '\\$1');
   str = str.replace(/\x0A(otin|eq|abla|neq|ni)\b/g, '\\n$1');
+  str = str.replace(/\x0Ae(?=\s*[\d+-]|\s*[xyz]\b)/g, ' \\ne ');
 
-  // 0c. Khôi phục nhiều dấu backslash \\+ thừa trước các lệnh LaTeX phổ biến
-  str = str.replace(/\\+(frac|dfrac|text|mathrm|mathbf|tan|sin|cos|cot|sqrt|vec|widehat|alpha|beta|gamma|ne|neq|notin|in|Leftrightarrow|Rightarrow|rightarrow|rightleftharpoons)\b/g, '\\$1');
+  // 0e. Khôi phục nhiều dấu backslash \\+ thừa trước các lệnh LaTeX phổ biến
+  str = str.replace(/\\+(frac|dfrac|text|mathrm|mathbf|tan|sin|cos|cot|sqrt|vec|widehat|alpha|beta|gamma|ne|neq|le|leq|ge|geq|notin|in|Leftrightarrow|Rightarrow|rightarrow|rightleftharpoons)\b/g, '\\$1');
 
-  // 0d. Chuẩn hóa nhiệt độ độ C bị lỗi dạng \circC, ^\circC, ^\circ C, \circ C, °C, hỗ trợ cả số âm
+  // 0f. Chuẩn hóa nhiệt độ độ C bị lỗi dạng \circC, ^\circC, ^\circ C, \circ C, °C, hỗ trợ cả số âm
   str = str.replace(/(-?\d+(?:(?:[.,]|\{,\})\d+)?)\s*(?:\\?\^?\{?\\?circ\}?\s*(?:\\text\{C\}|\\mathrm\{C\}|C\b)|\^\s*°\s*C\b|°\s*C\b)/g, (m, num) => {
     const cleanNum = num.replace(/\{,\}/g, ',');
     return `${cleanNum}°C`;
   });
 
-  // 0e. Phục hồi \notin khi bị rách thành otin hoặc mất dấu gạch chéo
+  // 0g. Phục hồi \notin khi bị rách thành otin hoặc mất dấu gạch chéo
   str = str.replace(/\\+otin\b/g, '\\notin');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)otin\b/g, '\\notin');
   str = str.replace(/\bnot\s+in\b/gi, '\\notin');
 
-  // 0f. Loại bỏ dấu backslash thừa giữa các hàng nghìn trong số lớn (e.g. 40\ 000 -> 40 000, 13\ 920\ 000 -> 13 920 000)
+  // 0h. Loại bỏ dấu backslash thừa giữa các hàng nghìn trong số lớn (e.g. 40\ 000 -> 40 000, 13\ 920\ 000 -> 13 920 000)
   while (/(\d+)\\\s+(\d+)/.test(str)) {
     str = str.replace(/(\d+)\\\s+(\d+)/g, '$1 $2');
   }
 
   // 1. Phục hồi mũi tên \rightarrow và \rightleftharpoons khi bị mất backslash hoặc bị rách chữ
-  // Đảm bảo KHÔNG match khi đứng sau bất kỳ chữ cái nào (như 'r' trong \rightarrow hay 't' trong \Leftrightarrow)
   str = str.replace(/\\+[ \t]*ightarrow\b/gi, '\\rightarrow');
   str = str.replace(/\r\s*ightarrow\b/gi, '\\rightarrow');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)ightarrow\b/gi, '\\rightarrow');
@@ -56,18 +81,11 @@ export function repairLatexCorruptions(text: string): string {
   str = str.replace(/(?<=[^a-zA-Z\\]|^)ightleftharpoons\b/gi, '\\rightleftharpoons');
 
   // 2. Phục hồi lệnh \right bị mất '\r' thành ight, \ ight hoặc \\ ight
-  // 2a. Các trường hợp có backslash: \\ ight), \ ight], \\ ight|, v.v.
   str = str.replace(/\\+[ \t]*ight\s*([)\]}|.])/g, '\\right$1');
   str = str.replace(/\\+[ \t]*ight\s*\\([{}])/g, '\\right\\$1');
-
-  // 2b. Các trường hợp không có backslash trước chữ ight (e.g. (-1/2 ight)^2)
   str = str.replace(/(?<=[^a-zA-Z\\]|^)ight\s*([)\]}|.])/g, '\\right$1');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)ight\s*\\([{}])/g, '\\right\\$1');
-
-  // 2c. Loại bỏ dấu ngắt dòng \\ vô tình bị chèn ngay trước \right bên trong cases
   str = str.replace(/\\\\\s*\\right/g, ' \\right');
-
-  // 2d. Xóa bỏ các lệnh \right. thừa dán phía sau \end{cases}
   str = str.replace(/\\end\{cases\}(\s*\\right\.)+/g, '\\end{cases}');
 
   // 3. Phục hồi \frac và \dfrac bị mất backslash hoặc bị rách:
@@ -89,12 +107,18 @@ export function repairLatexCorruptions(text: string): string {
   str = str.replace(/(\d+)\s*ext(cm|kg|m|km|mm|dm|g|s|h|l|ml)\b/g, '$1 $2');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)ext(cm|kg|m|km|mm|dm|g|s|h|l|ml)\b/g, '\\text{$1}');
 
-  // 6. Phục hồi \tan bị rách thành an:
+  // 6. Phục hồi \tan bị rách thành an (như an60^\circ, anQ, an A, \cdot anQ):
+  str = str.replace(/(?<=[^a-zA-Z\\]|^)an\s*(\d+\s*(?:°|\\circ|\^|\b))/g, '\\tan $1');
+  str = str.replace(/(?<=[^a-zA-Z\\]|^)an([A-Z])\b/g, '\\tan $1');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)an\s+([A-Z]\b|\\alpha|\\beta|\\widehat|\()/g, '\\tan $1');
+  str = str.replace(/([=+\-*/\cdot\s($]|^)an(?=\s*[\d(]|[A-Z]\b|\\alpha|\\beta|\\widehat)/g, '$1\\tan ');
 
-  // 7. Phục hồi \ne và \neq bị biến thành e hoặc eq trong điều kiện / kết quả:
-  str = str.replace(/([a-zA-Z0-9_\'\)\}]|\b[xyz])\s*\be\s*(-?\s*\d+|[a-zA-Z]\b)/g, '$1 \\ne $2');
-  str = str.replace(/([a-zA-Z0-9_\'\)\}]|\b[xyz])\s*\beq\s*(-?\s*\d+|[a-zA-Z]\b)/g, '$1 \\neq $2');
+  // 7. Phục hồi \ne và \neq khi bị biến thành chữ 'e' đơn lẻ trong ngữ cảnh so sánh / điều kiện
+  // QUAN TRỌNG: Phải có khoảng trắng rõ ràng hoặc đứng sau biến số để TUYỆT ĐỐI KHÔNG làm rách 'cases', '\le', '\ge'
+  str = str.replace(/(?<=\b[xyz]\s+|\d\s+|[)\}]\s+|[a-zA-Z0-9_\']\s+)e(?=\s+-?\d+|\s+[xyz]\b)/g, '\\ne');
+  str = str.replace(/(?<=\b[xyz]\s+|\d\s+|[)\}]\s+|[a-zA-Z0-9_\']\s+)eq(?=\s+-?\d+|\s+[xyz]\b)/g, '\\ne');
+  str = str.replace(/([xyz])\s*e\s*(-?\d+|[a-zA-Z]\b)/g, '$1 \\ne $2');
+  str = str.replace(/([xyz])\s*eq\s*(-?\d+|[a-zA-Z]\b)/g, '$1 \\ne $2');
 
   // 8. Phục hồi chữ "n " đơn độc ở đầu dòng do \n bị mất dấu gạch chéo:
   str = str.replace(/(^|[\r\n])n\s+([A-ZÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ])/g, '$1$2');
@@ -108,6 +132,44 @@ export function repairLatexCorruptions(text: string): string {
   str = str.replace(/(?<=[^a-zA-Z\\]|^)imes\b/g, '\\times');
 
   return str;
+}
+
+/**
+ * Làm sạch hoàn toàn các ghi chú nội bộ, suy nghĩ CoT (Chain-of-Thought)
+ * và tự sửa chữa (Self-correction, Revised explanation) bằng tiếng Anh bị AI xuất vào lời giải
+ */
+export function cleanExplanationAndNotes(text: string): string {
+  if (!text) return '';
+  let str = text;
+
+  // 1. Xóa các khối *Self-correction: ... Revised ... explanation:*
+  str = str.replace(
+    /\*?\s*Self-correction[\s\S]*?(?:Revised[^\n:]*explanation:\s*|\n\n(?=(?:[a-dA-D0-9][\.\)]|\bThay\b|\bLời giải\b|\bTa có\b|\bXét\b|\bPhương trình\b|\bĐiều kiện\b|\bVì\b|\bDo\b|\bVậy\b|\bÁp dụng\b|\bTheo đề\b))|(?=\n\s*[a-dA-D][\.\)]\s))/gi,
+    ''
+  );
+
+  // 2. Xóa các tiền tố Self-correction đơn độc nếu còn sót
+  str = str.replace(/\*?\s*Self-correction:[\s\S]*?(?:\n\n|\*)/gi, '');
+
+  // 3. Xóa các dòng tiêu đề Revised explanation / Revised Q...
+  str = str.replace(/Revised\s+(?:Q\d+|Part\d+|question)?[^\n:]*explanation:\s*/gi, '');
+
+  // 4. Xóa các khối Chain-of-thought, Internal note, Thought process
+  str = str.replace(/\*?\s*(?:Chain-of-thought|Thought process|Thinking process|Internal note|Reasoning):[\s\S]*?(?:\n\n|\*)/gi, '');
+
+  // 5. Xóa các đoạn mở đầu tiếng Anh bắt đầu bằng *The problem states... hoặc *Let's check...
+  str = str.replace(/^\s*\*?(?:The problem states|Let's check|I need to make sure|To ensure|My original)[\s\S]*?(?:\n\n|(?=\n[a-dA-D0-9][\.\)]|\bThay\b|\bLời giải\b|\bTa có\b))/gi, '');
+
+  // 6. Xóa các dấu sao thừa ở đầu/cuối sau khi đã bóc tách
+  str = str.trim();
+  if (str.startsWith('*') && !str.slice(1).includes('*')) {
+    str = str.replace(/^\*+\s*/, '');
+  }
+  if (str.endsWith('*') && !str.slice(0, -1).includes('*')) {
+    str = str.replace(/\s*\*+$/, '');
+  }
+
+  return str.trim();
 }
 
 /**
@@ -133,20 +195,20 @@ export function normalizeNewlines(text: string): string {
   str = str.replace(/(^|[\r\n]|[:;?!.])\s*n([a-dA-D][.)])/g, '$1\n$2 ');
   str = str.replace(/(\d+|[a-zA-Z\)\}\]])\s*n([a-dA-D][.)])/g, '$1\n$2 ');
 
-  // 3. Chuyển chuỗi literal "\n" thành '\n' CHỈ KHI không phải là lệnh LaTeX hợp lệ
-  // Các lệnh LaTeX hợp lệ bắt đầu bằng \n: \neq, \notin, \nabla, \ni, \not, \nexists, \ngtr, \nless, \ngeq, \nleq, \natural, \nearrow
-  str = str.replace(
-    /\\+n(?!(?:eq|notin|nabla|ni|not|nexists|ngtr|nless|ngeq|nleq|natural|nearrow|Leftarrow|Leftrightarrow|Rightarrow)\b)/g,
-    '\n'
-  );
-
-  // 4. Tách text theo các khối toán ($...$, $$...$$, hoặc môi trường \begin{...}...\end{...})
+  // 3. Tách text theo các khối toán ($...$, $$...$$, hoặc môi trường \begin{...}...\end{...})
   const mathBlockRegex = /(\$\$[\s\S]*?\$\$|\$[^\$]+?\$|\\begin\{(?:cases|aligned|array|matrix|pmatrix|bmatrix)\}[\s\S]*?\\end\{(?:cases|aligned|array|matrix|pmatrix|bmatrix)\})/g;
 
   const parts = str.split(mathBlockRegex);
   for (let i = 0; i < parts.length; i += 2) {
     if (!parts[i]) continue;
     let plain = parts[i];
+
+    // Chuyển chuỗi literal "\n" thành '\n' CHỈ KHI không phải là lệnh LaTeX hợp lệ
+    // Các lệnh LaTeX hợp lệ bắt đầu bằng \n: \ne, \neq, \notin, \nabla, \ni, \not, \nexists, \ngtr, \nless, \ngeq, \nleq, \natural, \nearrow, \nu
+    plain = plain.replace(
+      /\\+n(?!(?:ne|neq|notin|nabla|ni|not|nexists|ngtr|nless|ngeq|nleq|natural|nearrow|nu|Leftarrow|Leftrightarrow|Rightarrow)\b)/g,
+      '\n'
+    );
 
     // Khắc phục triệt để lỗi dấu phẩy thập phân LaTeX {,} hoặc \{,\} bị lộ trong văn bản thường
     plain = plain.replace(/\\?\{\s*,\s*\\?\}/g, ',');

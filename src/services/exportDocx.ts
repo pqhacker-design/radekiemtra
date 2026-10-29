@@ -1289,7 +1289,7 @@ function processPlainPart(plain: string): string {
 
   // 8b. Nhận diện và bọc $...$ cho các công thức chứa lệnh LaTeX: \frac, \sqrt, \vec, \Delta, \alpha, v.v.
   const validMathCommands =
-    '(?:d?frac\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}|sqrt(?:\\[[^\\]]*\\])?\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}|(?:vec|overrightarrow|widehat|overline|underline|mathbb|mathbf|mathrm|text|ce)\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}|(?:alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|varpi|rho|varrho|sigma|varsigma|tau|upsilon|phi|varphi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|sin|cos|tan|cot|ln|log|exp|lim|sum|prod|int|iint|iiint|oint|pm|mp|times|div|cdot|ast|star|circ|bullet|cap|cup|subset|supset|subseteq|supseteq|in|notin|ni|le|ge|leq|geq|neq|approx|equiv|sim|cong|propto|perp|parallel|angle|triangle|degree|infty|partial|nabla|forall|exists|emptyset|varnothing|to|gets|dots|cdots|vdots|ddots|rightarrow|leftarrow|Rightarrow|Leftarrow|Leftrightarrow|leftrightarrow|mapsto)\\b(?![àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]))';
+    '(?:d?frac\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}|sqrt(?:\\[[^\\]]*\\])?\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}|(?:vec|overrightarrow|widehat|overline|underline|mathbb|mathbf|mathrm|text|ce)\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}|(?:alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|varpi|rho|varrho|sigma|varsigma|tau|upsilon|phi|varphi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|sin|cos|tan|cot|ln|log|exp|lim|sum|prod|int|iint|iiint|oint|pm|mp|times|div|cdot|ast|star|circ|bullet|cap|cup|subset|supset|subseteq|supseteq|in|notin|ni|le|ge|leq|geq|ne|neq|approx|equiv|sim|cong|propto|perp|parallel|angle|triangle|degree|infty|partial|nabla|forall|exists|emptyset|varnothing|to|gets|dots|cdots|vdots|ddots|rightarrow|leftarrow|Rightarrow|Leftarrow|Leftrightarrow|leftrightarrow|mapsto)\\b(?![àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]))';
 
   const cmdRegex = new RegExp(
     '(?:(?<=\\s|^|[([{:;])([a-zA-Z](?:\'|\\d+|\\([a-zA-Z0-9]+\\))?\\s*[\\=\\<\\>\\le\\ge\\neq\\approx\\in]\\s*))?(\\\\' +
@@ -1350,8 +1350,8 @@ export function sanitizeLatexControlChars(text: string): string {
   // 3. Sửa các môi trường LaTeX bị mất dấu \ phía trước
   str = str.replace(/(^|[^\\])\b(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '$1\\$2{$3}');
 
-  // 4. Sửa các lệnh LaTeX phổ biến bị mất dấu \ phía trước (bao gồm \right và \left)
-  str = str.replace(/(^|[^\\a-zA-Z])\b(right|left|mathbb|sqrt|d?frac|widehat|overline|vec|Delta|alpha|beta|gamma|delta|epsilon|theta|lambda|pi|sigma|phi|omega|Omega|angle|triangle|cong|equiv|approx|degree|Leftrightarrow|Rightarrow|rightarrow|forall|exists|notin|xrightleftharpoons|xrightarrow|xleftarrow|rightleftharpoons|uparrow|downarrow)\b/g, '$1\\$2');
+  // 4. Sửa các lệnh LaTeX phổ biến bị mất dấu \ phía trước (bao gồm \right, \left, \ne, \le, \ge)
+  str = str.replace(/(^|[^\\a-zA-Z])\b(right|left|ne|neq|le|ge|leq|geq|mathbb|sqrt|d?frac|widehat|overline|vec|Delta|alpha|beta|gamma|delta|epsilon|theta|lambda|pi|sigma|phi|omega|Omega|angle|triangle|cong|equiv|approx|degree|Leftrightarrow|Rightarrow|rightarrow|forall|exists|notin|xrightleftharpoons|xrightarrow|xleftarrow|rightleftharpoons|uparrow|downarrow)\b/g, '$1\\$2');
 
   return str;
 }
@@ -1868,9 +1868,26 @@ export function buildMatrixDocxTable(matrix: MatrixRow[], metadata?: ExamMetadat
 
   const countQuestionsInCell = (val: string): number => {
     if (!val || val === '-') return 0;
-    if (!isNaN(Number(val))) return Number(val);
-    const items = val.split(',').map((s) => s.trim()).filter(Boolean);
-    return items.length;
+    const tokens = val.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
+    let count = 0;
+    for (const token of tokens) {
+      const rangeMatch = token.match(/^(\d+)\s*[-–—đến\s]\s*(\d+)$/i);
+      if (rangeMatch) {
+        const start = parseInt(rangeMatch[1], 10);
+        const end = parseInt(rangeMatch[2], 10);
+        if (end >= start) {
+          count += (end - start + 1);
+          continue;
+        }
+      }
+      const wordMatch = token.match(/^(\d+)\s*(?:câu|ý)/i);
+      if (wordMatch) {
+        count += parseInt(wordMatch[1], 10);
+        continue;
+      }
+      count += 1;
+    }
+    return count;
   };
 
   const headerFontSize = 15;
