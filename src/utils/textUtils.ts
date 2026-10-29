@@ -1,3 +1,5 @@
+import { LatexPostProcessingValidator } from '../services/latexValidator';
+
 /**
  * Phục hồi các từ khóa LaTeX bị AI hoặc JSON parser làm rách chữ:
  * - ightarrow -> \rightarrow
@@ -10,7 +12,8 @@
  */
 export function repairLatexCorruptions(text: string): string {
   if (!text) return '';
-  let str = text;
+  let str = LatexPostProcessingValidator.correctString(text);
+
 
   // 0. KHÔI PHỤC NGAY MÔI TRƯỜNG HỆ PHƯƠNG TRÌNH \begin{cases} và \end{cases}
   // Bị AI hoặc regex cũ phá vỡ thành \begin{cas \n \n \n \ne s}, \begin{cas \ne s}, \begin{casnes}, {cas \n \n \ne s}
@@ -37,8 +40,8 @@ export function repairLatexCorruptions(text: string): string {
   str = str.replace(/\\g\s*\\?ge\b/gi, '\\ge ');
 
   // 0c. Khôi phục dấu khác \ne bị rách do lặp \n: \n \n \n \n \ne 3, x\n\n\n\n \ne 1, a\n\n\n\n\ne 0
-  str = str.replace(/(?:\\+[nNrR]\s*){1,}\\?ne\b/gi, ' \\ne ');
-  str = str.replace(/(?:\\+[nNrR]\s*){1,}e(?=\s*[\d+-]|\s*[xyz]\b)/gi, ' \\ne ');
+  str = str.replace(/(?:\\+[nNrR]\s+)+\\?ne\b|(?:\\+[nNrR]\s*){2,}\\?ne\b/gi, ' \\ne ');
+  str = str.replace(/(?:\\+[nNrR]\s+)+\\?e(?=\s*[\d+-]|\s*[xyz]\b)|(?:\\+[nNrR]\s*){2,}e(?=\s*[\d+-]|\s*[xyz]\b)/gi, ' \\ne ');
   str = str.replace(/(?:\\+[nNrR]\s*){1,}≠/g, ' \\ne ');
 
   // 0d. Khôi phục các ký tự điều khiển ASCII thô từ JSON.parse lỡ chuyển đổi
@@ -107,31 +110,80 @@ export function repairLatexCorruptions(text: string): string {
   str = str.replace(/(\d+)\s*ext(cm|kg|m|km|mm|dm|g|s|h|l|ml)\b/g, '$1 $2');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)ext(cm|kg|m|km|mm|dm|g|s|h|l|ml)\b/g, '\\text{$1}');
 
-  // 6. Phục hồi \tan bị rách thành an (như an60^\circ, anQ, an A, \cdot anQ):
+  // 6. Phục hồi ký hiệu góc \beta bị biến thành eta do mất \b hoặc ASCII 0x08:
+  str = str.replace(/\x08eta\b/gi, '\\beta');
+  str = str.replace(/\\+eta\b/gi, (m, offset) => {
+    // Nếu trong ngữ cảnh góc nhọn / phụ nhau / đi liền với \alpha thì luôn là \beta
+    const before = str.substring(Math.max(0, offset - 40), offset);
+    const after = str.substring(offset, Math.min(str.length, offset + 40));
+    if (/alpha|phụ|bù|tam giác|sin|cos|tan|cot|góc/i.test(before) || /phụ|bù|90|180|45|cos|sin/i.test(after)) {
+      return '\\beta';
+    }
+    return m;
+  });
+  // Khắc phục chữ "eta" thường trong ngữ cảnh toán học / góc:
+  str = str.replace(/(?<=\\alpha[^\w\\]*(?:và|va|hoặc|hoac|,|\+|-|\*|\/|=)\s*)eta\b/gi, '\\beta');
+  str = str.replace(/(?<=(?:sin|cos|tan|cot|\\sin|\\cos|\\tan|\\cot)\s*)eta\b/gi, '\\beta');
+  str = str.replace(/\b(sin|cos|tan|cot)\s*eta\b/gi, '\\$1 \\beta');
+  str = str.replace(/(?<=[=+\-*/(\s,]|^)eta(?=\s*=\s*(?:90|180|45|30|60|\d+))/gi, '\\beta');
+  str = str.replace(/(?<=[=+\-*/(\s,]|^)eta(?=\s*phụ\s+nhau|\s*=\s*90^\circ)/gi, '\\beta');
+  str = str.replace(/\\alpha\s*\+\s*eta\b/gi, '\\alpha + \\beta');
+  str = str.replace(/\\alpha\s*=\s*eta\b/gi, '\\alpha = \\beta');
+  str = str.replace(/([A-Za-z])\s*=\s*eta\b/g, '$1 = \\beta');
+
+  // 7. Phục hồi \tan bị rách thành an (như an\alpha, an\beta, an eta, an60^\circ, anQ, an A):
+  str = str.replace(/\tan\b/g, '\\tan');
+  str = str.replace(/(?<=[^a-zA-Z\\]|^)an\\alpha\b/g, '\\tan \\alpha');
+  str = str.replace(/(?<=[^a-zA-Z\\]|^)an\\beta\b/g, '\\tan \\beta');
+  str = str.replace(/(?<=[^a-zA-Z\\]|^)an\s*eta\b/g, '\\tan \\beta');
+  str = str.replace(/(?<=[^a-zA-Z\\]|^)an\s*an\s*(?:eta|\\beta)\b/g, '\\tan \\beta');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)an\s*(\d+\s*(?:°|\\circ|\^|\b))/g, '\\tan $1');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)an([A-Z])\b/g, '\\tan $1');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)an\s+([A-Z]\b|\\alpha|\\beta|\\widehat|\()/g, '\\tan $1');
-  str = str.replace(/([=+\-*/\cdot\s($]|^)an(?=\s*[\d(]|[A-Z]\b|\\alpha|\\beta|\\widehat)/g, '$1\\tan ');
+  str = str.replace(/([=+\-*/\cdot\s($]|^)an(?=\s*[\d(]|[A-Za-z]\b|\\alpha|\\beta|\\widehat)/g, '$1\\tan ');
 
-  // 7. Phục hồi \ne và \neq khi bị biến thành chữ 'e' đơn lẻ trong ngữ cảnh so sánh / điều kiện
-  // QUAN TRỌNG: Phải có khoảng trắng rõ ràng hoặc đứng sau biến số để TUYỆT ĐỐI KHÔNG làm rách 'cases', '\le', '\ge'
-  str = str.replace(/(?<=\b[xyz]\s+|\d\s+|[)\}]\s+|[a-zA-Z0-9_\']\s+)e(?=\s+-?\d+|\s+[xyz]\b)/g, '\\ne');
-  str = str.replace(/(?<=\b[xyz]\s+|\d\s+|[)\}]\s+|[a-zA-Z0-9_\']\s+)eq(?=\s+-?\d+|\s+[xyz]\b)/g, '\\ne');
-  str = str.replace(/([xyz])\s*e\s*(-?\d+|[a-zA-Z]\b)/g, '$1 \\ne $2');
-  str = str.replace(/([xyz])\s*eq\s*(-?\d+|[a-zA-Z]\b)/g, '$1 \\ne $2');
+  // Khử ngắt dòng vô lý giữa toán tử và toán hạng trong công thức bị gãy từ AI:
+  str = str.replace(/(\\alpha\s*[\+\-\*\/\=])\s*[\r\n]+\s*(\\?beta|eta)\b/gi, '$1 \\beta');
+  str = str.replace(/(\\sin\s*\\alpha\s*=\s*\\cos)\s*[\r\n]+\s*(\\?beta|eta)\b/gi, '$1 \\beta');
+  str = str.replace(/(\\cos\s*\\alpha\s*=\s*\\sin)\s*[\r\n]+\s*(\\?beta|eta)\b/gi, '$1 \\beta');
+  str = str.replace(/(\\tan\s*\\alpha\s*=\s*\\cot)\s*[\r\n]+\s*(\\?beta|eta)\b/gi, '$1 \\beta');
+  str = str.replace(/(\\tan\s*\\alpha\s*=)\s*[\r\n]+\s*(?:\\tan|an)\s*[\r\n]+\s*(\\?beta|eta)\b/gi, '$1 \\tan \\beta');
+  str = str.replace(/(\\alpha\s*=)\s*[\r\n]+\s*(\\?beta|eta)\s*=\s*45/gi, '$1 \\beta = 45');
 
-  // 8. Phục hồi chữ "n " đơn độc ở đầu dòng do \n bị mất dấu gạch chéo:
+  // 8. Phục hồi \ne và \neq khi bị biến thành chữ 'e' / 'eq' đơn lẻ trong ngữ cảnh điều kiện xác định / so sánh
+  // Bắt mọi trường hợp: x e4, x e - 1, x - 4 e0, x + 1 e0, x e \frac{5}{2}, xe1, xe4, xe0, v.v.
+  str = str.replace(/(\b[xyzabcmkntuvpqrXYZABCMKNTUVPQR](?:\s*[+\-–—−]\s*\d+)?|[)\\}])\s*(?:\\?e|\\?eq)\s*([–—−\-]?\s*(?:\\(?:d?frac|frac)\{[^{}]+\}\{[^{}]+\}|\d+(?:[.,]\d+)?|[xyzabcmkntuvpqrXYZABCMKNTUVPQR]\b|\\sqrt\{[^{}]+\}))/g, (m, lhs, val) => {
+    const cleanVal = val.replace(/^[–—−]/, '-').replace(/\s+/g, '');
+    return `${lhs.trim()} \\ne ${cleanVal}`;
+  });
+
+  str = str.replace(/(?<=\s|[;,(])(?:\\?e|\\?eq)\s*([–—−\-]?\s*(?:\\(?:d?frac|frac)\{[^{}]+\}\{[^{}]+\}|\d+(?:[.,]\d+)?|[xyzabcmkntuvpqrXYZABCMKNTUVPQR]\b|\\sqrt\{[^{}]+\}))(?=\s|[,;.!?)(\$\]]|$)/g, (m, val) => {
+    const cleanVal = val.replace(/^[–—−]/, '-').replace(/\s+/g, '');
+    return `\\ne ${cleanVal}`;
+  });
+
+  str = str.replace(/\b([xyzabcmkntuvpqrXYZABCMKNTUVPQR])\s*e\s*(?=[xyzabcmkntuvpqrXYZABCMKNTUVPQR]\b)/g, '$1 \\ne ');
+
+  // Sửa trường hợp AI xuống dòng giữa biến/biểu thức và e: "x\n e4", "x - 4\n e0"
+  str = str.replace(/([xyzabcmkntuvpqrXYZABCMKNTUVPQR](?:\s*[\+\-]\s*\d+)?)\s*[\r\n]+\s*(?:\\ne|e)\s*([–—−\-]?\s*(?:\\(?:d?frac|frac)\{[^{}]+\}\{[^{}]+\}|\d+(?:[.,]\d+)?|[xyzabcmkntuvpqrXYZABCMKNTUVPQR]\b))/g, (m, v, val) => {
+    const cleanVal = val.replace(/^[–—−]/, '-').replace(/\s+/g, '');
+    return `${v} \\ne ${cleanVal}`;
+  });
+
+  // 9. Phục hồi chữ "n " đơn độc ở đầu dòng do \n bị mất dấu gạch chéo:
   str = str.replace(/(^|[\r\n])n\s+([A-ZÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ])/g, '$1$2');
   str = str.replace(/(\([0-9a-zA-Z]+\))n\s+([A-ZÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ])/g, '$1\n$2');
   str = str.replace(/([.?!:;])\s*n\s+([A-ZÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ])/g, '$1\n$2');
 
-  // 9. Phục hồi \begin bị mất \b: egin{ -> \begin{
+  // 10. Phục hồi \begin bị mất \b: egin{ -> \begin{
+  str = str.replace(/\x08egin\{/g, '\\begin{');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)egin\{/g, '\\begin{');
 
-  // 10. Phục hồi \times bị mất \t: imes -> \times
+  // 11. Phục hồi \times bị mất \t: imes -> \times
+  str = str.replace(/\times\b/g, '\\times');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)imes\b/g, '\\times');
 
-  return str;
+  return LatexPostProcessingValidator.correctString(str);
 }
 
 /**

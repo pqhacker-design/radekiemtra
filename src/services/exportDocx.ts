@@ -1275,6 +1275,46 @@ function processPlainPart(plain: string): string {
   str = str.replace(/(?<=[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ\s])\\Rightarrow(?=[\sàáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ])/g, '⇒');
   str = str.replace(/(?<=[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ\s])\\Leftrightarrow(?=[\sàáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ])/g, '⇔');
 
+  // 7d. Tự động nhận diện và bọc $...$ cho các hệ thức lượng giác và góc chưa bọc $:
+  // Ví dụ: "\sin \alpha = \cos \beta", "\tan \alpha = \cot \beta", "\tan \alpha = \tan \beta"
+  // 7d. Tự động nhận diện và bọc $...$ cho các hệ thức lượng giác và góc chưa bọc $:
+  // Ví dụ: "\sin \alpha = \cos \beta", "\tan \alpha = \cot \beta", "\tan \alpha = \tan \beta"
+  str = str.replace(
+    /(^|[^\$])\\?(sin|cos|tan|cot)\s*\\?(alpha|beta|gamma|theta|[A-Z])\s*=\s*\\?(sin|cos|tan|cot)\s*\\?(alpha|beta|gamma|theta|[A-Z])([^\$]|$)/gi,
+    (m, p1, f1, a1, f2, a2, p2) => `${p1} $\\${f1.toLowerCase()} \\${a1.toLowerCase()} = \\${f2.toLowerCase()} \\${a2.toLowerCase()}$ ${p2}`
+  );
+
+  // Ví dụ: "\alpha + \beta = 90^\circ", "\alpha = \beta = 45^\circ"
+  str = str.replace(
+    /(^|[^\$])\\?(alpha|beta)\s*([\+\-])\s*\\?(alpha|beta)\s*=\s*(\d+(?:\^\s*\\?circ|°))([^\$]|$)/gi,
+    (m, p1, a1, op, a2, deg, p2) => `${p1} $\\${a1.toLowerCase()} ${op} \\${a2.toLowerCase()} = ${deg}$ ${p2}`
+  );
+  str = str.replace(
+    /(^|[^\$])\\?(alpha|beta)\s*=\s*\\?(alpha|beta)\s*=\s*(\d+(?:\^\s*\\?circ|°))([^\$]|$)/gi,
+    (m, p1, a1, a2, deg, p2) => `${p1} $\\${a1.toLowerCase()} = \\${a2.toLowerCase()} = ${deg}$ ${p2}`
+  );
+
+  // 7e. Hàm lượng giác với đỉnh tam giác: "\tan P", "\sin A", "\cos B", "\cot C"
+  str = str.replace(
+    /(^|[^\$])(\\(?:sin|cos|tan|cot)\s+[A-Z]\b)([^\$]|$)/g,
+    (m, p1, trig, p2) => `${p1} $${trig.trim()}$ ${p2}`
+  );
+
+  // 7f. Điều kiện xác định: "x \ne 4", "x \ne -1", "x \ne -4", "x \ne \frac{5}{2}", "x - 4 \ne 0", "x + 1 \ne 0", "2x - 1 \ne 0"
+  str = str.replace(
+    /(^|[^\$])(\b[xyzabcmkntuvpqrXYZABCMKNTUVPQR](?:\s*[\+\-–—−]\s*\d+)?)\s*\\ne\s*([–—−\-]?\s*(?:\\(?:d?frac|frac)\{[^{}]+\}\{[^{}]+\}|\d+(?:[.,]\d+)?|[xyzabcmkntuvpqrXYZABCMKNTUVPQR]\b|\\sqrt\{[^{}]+\}))([^\$]|$)/g,
+    (m, p1, lhs, rhs, p2) => {
+      const cleanRhs = rhs.replace(/^[–—−]/, '-').replace(/\s+/g, '');
+      return `${p1} $${lhs.trim()} \\ne ${cleanRhs}$ ${p2}`;
+    }
+  );
+
+  // Standalone \ne value: e.g. "\ne 4", "\ne -4", "\ne \frac{5}{2}"
+  str = str.replace(
+    /(^|[^\$])(\\ne\s*([–—−\-]?\s*(?:\\(?:d?frac|frac)\{[^{}]+\}\{[^{}]+\}|\d+(?:[.,]\d+)?|[xyzabcmkntuvpqrXYZABCMKNTUVPQR]\b|\\sqrt\{[^{}]+\})))([^\$]|$)/g,
+    (m, p1, expr, val, p2) => `${p1} $${expr.trim()}$ ${p2}`
+  );
+
   // 8. Tự động bọc $...$ cho các phương trình hóa học, công thức và biểu thức toán/hóa học chưa bọc $...$
   // 8a. Phương trình hóa học chứa mũi tên phản ứng (chỉ bọc khi không chứa từ ngữ tiếng Việt)
   str = str.replace(
@@ -1294,13 +1334,18 @@ function processPlainPart(plain: string): string {
   const cmdRegex = new RegExp(
     '(?:(?<=\\s|^|[([{:;])([a-zA-Z](?:\'|\\d+|\\([a-zA-Z0-9]+\\))?\\s*[\\=\\<\\>\\le\\ge\\neq\\approx\\in]\\s*))?(\\\\' +
       validMathCommands +
-      '(?:\\s+(?:[A-Z]\\b|[a-z]\\b|\\d+|\\([A-Za-z0-9_\\^\\+\\-]+\\)))?' +
-      ')((?:\\s*[\\+\\-\\*/\\=\\<\\>\\le\\ge\\neq\\approx]\\s*(?:\\\\(?:d?frac\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}|sqrt(?:\\[[^\\]]*\\])?\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}|[a-zA-Z]+(?:\\{[^{}]*\\})*)|[a-zA-Z0-9_\'\\.\\^]+|\\d+(?:\\,\\d+)?))*)',
+      ')((?:\\s*[\\+\\-\\*/\\=\\<\\>\\le\\ge\\neq\\approx]\\s*(?:\\\\(?:d?frac\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}|sqrt(?:\\[[^\\]]*\\])?\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}|[a-zA-Z]+(?:\\{[^{}]*\\})*|[a-zA-Z0-9_\'\\.\\^]+|\\d+(?:\\,\\d+)?)))*)',
     'g'
   );
 
-  str = str.replace(cmdRegex, (match, lhs, cmd, rhs) => {
+  str = str.replace(cmdRegex, (match, lhs, cmd, rhs, offset, fullStr) => {
     if (/^\\(begin|end|n|t|r)$/.test(cmd)) return match;
+    // Kiểm tra chẵn lẻ dấu $: nếu đang nằm bên trong khối $...$ thì giữ nguyên 100%, không bọc thêm!
+    const prefix = fullStr.substring(0, offset);
+    const dollarsBefore = (prefix.match(/\$/g) || []).length;
+    if (dollarsBefore % 2 === 1) {
+      return match;
+    }
     const strippedTextMacros = match.replace(/\\(text|mathrm|mathbf|mathit|ce)\{[^{}]*\}/g, '');
     if (/[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i.test(strippedTextMacros)) {
       return match;
@@ -1322,6 +1367,10 @@ function processPlainPart(plain: string): string {
   // 8c. Tự động bọc $...$ cho các lệnh \ce{...} chưa bọc $
   str = str.replace(/(^|[^\$])\\ce\{([^{}]+)\}([^\$]|$)/g, '$1 $\\ce{$2}$ $3');
 
+  // 9. Dọn dẹp triệt để các dấu $ bị lồng hoặc phân mảnh
+  str = str.replace(/\$([^\$]+)\$\s*\\ne\s*([^\$]+)\$/g, (_, p1, p2) => ` $${p1.trim()} \\ne ${p2.trim()}$ `);
+  str = str.replace(/\$([^\$]+)\$\s*\$([^\$]+)\$/g, (_, p1, p2) => ` $${p1.trim()} ${p2.trim()}$ `);
+
   return str;
 }
 
@@ -1333,16 +1382,40 @@ export function sanitizeLatexControlChars(text: string): string {
   let str = repairLatexCorruptions(text);
 
   // 1. Khôi phục các ký tự điều khiển ASCII do JSON.parse lỡ chuyển đổi từ \b, \f, \t, \r
-  str = str.replace(/\x08(egin|ar|eta|ox|ullet|inom|old|box)/g, '\\$1');
-  str = str.replace(/\x08([a-zA-Z]+)/g, '\\$1');
+  // Khôi phục các lệnh bắt đầu bằng 'b' bị mất 'b' do \b (Backspace 0x08):
+  str = str.replace(/\x08eta\b/g, '\\beta');
+  str = str.replace(/\x08egin\b/g, '\\begin');
+  str = str.replace(/\x08ar\b/g, '\\bar');
+  str = str.replace(/\x08inom\b/g, '\\binom');
+  str = str.replace(/\x08ullet\b/g, '\\bullet');
+  str = str.replace(/\x08old\b/g, '\\mathbf');
+  str = str.replace(/\x08ox\b/g, '\\mbox');
+  str = str.replace(/\x08([a-zA-Z]+)/g, '\\b$1');
   str = str.replace(/\x08/g, ' ');
 
-  str = str.replace(/\x0C(rac|lat|rown|forall)/g, '\\$1');
-  str = str.replace(/\x0C([a-zA-Z]+)/g, '\\$1');
+  // Khôi phục các lệnh bắt đầu bằng 'f' bị mất 'f' do \f (FormFeed 0x0C):
+  str = str.replace(/\x0Crac\b/g, '\\frac');
+  str = str.replace(/\x0Corall\b/g, '\\forall');
+  str = str.replace(/\x0Clat\b/g, '\\flat');
+  str = str.replace(/\x0C([a-zA-Z]+)/g, '\\f$1');
   str = str.replace(/\x0C/g, '');
 
-  str = str.replace(/\t(ext|heta|imes|an|au|ilde|riangle)\b/g, '\\$1');
-  str = str.replace(/\r(ight|ho|eal|ightarrow)\b/g, '\\$1');
+  // Khôi phục các lệnh bắt đầu bằng 't' bị mất 't' do \t (Tab 0x09):
+  str = str.replace(/\tan\b/g, '\\tan');
+  str = str.replace(/\text\b/g, '\\text');
+  str = str.replace(/\theta\b/g, '\\theta');
+  str = str.replace(/\times\b/g, '\\times');
+  str = str.replace(/\tau\b/g, '\\tau');
+  str = str.replace(/\tilde\b/g, '\\tilde');
+  str = str.replace(/\triangle\b/g, '\\triangle');
+  str = str.replace(/\t([a-zA-Z]+)/g, '\\t$1');
+
+  // Khôi phục các lệnh bắt đầu bằng 'r' bị mất 'r' do \r (Carriage Return 0x0D):
+  str = str.replace(/\right\b/g, '\\right');
+  str = str.replace(/\rightarrow\b/g, '\\rightarrow');
+  str = str.replace(/\rightleftharpoons\b/g, '\\rightleftharpoons');
+  str = str.replace(/\rho\b/g, '\\rho');
+  str = str.replace(/\r([a-zA-Z]+)/g, '\\r$1');
 
   // 2. Làm sạch TeX accent và chuyển đổi sang Unicode tiếng Việt chuẩn
   str = cleanTexVietnameseAccents(str);
@@ -1370,7 +1443,7 @@ export function fixCasesLatex(rawText: string): string {
     const hasEq = /=|>|<|\\le|\\ge|\\neq/.test(trimmed);
     if (!hasEq) return m;
 
-    if (/;|\\\\|\n/.test(trimmed) || (trimmed.split('=').length - 1 >= 2 && /,/.test(trimmed))) {
+    if (/;|\\\\|\n/.test(trimmed) || (trimmed.split('=').length - 1 >= 2)) {
       let cleanedInner = trimmed;
       cleanedInner = cleanedInner.replace(/\\\\/g, ' \\\\ ');
       cleanedInner = cleanedInner.replace(/[\n\r]+/g, ' \\\\ ');
@@ -1378,11 +1451,19 @@ export function fixCasesLatex(rawText: string): string {
       if (!cleanedInner.includes('\\\\') && /,/.test(cleanedInner)) {
         cleanedInner = cleanedInner.replace(/,/g, ' \\\\ ');
       }
+      if (!cleanedInner.includes('\\\\')) {
+        cleanedInner = cleanedInner.replace(/(=\s*[^={}\s]+)\s+([a-zA-Z0-9_\-][^={}]*=)/g, (m, g1, g2) => `${g1} \\\\ ${g2}`);
+      }
       return `\\begin{cases} ${cleanedInner} \\end{cases}`;
     }
 
     return m;
   });
+
+  // 1b. Khôi phục hệ phương trình chỉ có ngoặc mở \{ mà thiếu ngoặc đóng \}
+  str = str.replace(/(?:^|[^\\])\\\{\s*([a-zA-Z0-9_\^\+\-\*/\(\)\s]+?=\s*[^={}\s]+)\s+(?=[a-zA-Z0-9_\-][^={}]*=)([a-zA-Z0-9_\^\+\-\*/\(\)\s]+?=\s*[^={}\s]+)(?=$|[\r\n.])/g,
+    (m, eq1, eq2) => ` \\begin{cases} ${eq1.trim()} \\\\ ${eq2.trim()} \\end{cases} `
+  );
 
   // 2. Chuẩn hóa môi trường \begin{cases} ... \end{cases}
   str = str.replace(/\\begin\{cases\}([\s\S]*?)\\end\{cases\}/g, (match, inner) => {
@@ -1432,7 +1513,7 @@ export function autoWrapUnwrappedLatex(text: string): string {
           /[\=\<\>\+\-\*\/\\_\^∈∉⊂⊃∩∪]/.test(optContent) &&
           !/[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i.test(optContent));
       if (isContentMath && !optContent.startsWith('$')) {
-        return `${optLabel}$${optContent}$`;
+        return `${optLabel}$${optContent.replace(/[ \t]{2,}/g, ' ')}$`;
       }
     } else {
       const isStandaloneLatex =
@@ -1442,7 +1523,7 @@ export function autoWrapUnwrappedLatex(text: string): string {
           !/[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i.test(trimmed));
 
       if (isStandaloneLatex) {
-        return `$${trimmed}$`;
+        return `$${trimmed.replace(/[ \t]{2,}/g, ' ')}$`;
       }
     }
   }
@@ -1467,7 +1548,10 @@ export function autoWrapUnwrappedLatex(text: string): string {
     parts.push(processPlainPart(cleanedText.substring(lastIdx)));
   }
 
-  return parts.join('');
+  let result = parts.join('');
+  result = result.replace(/\$([^\$]+)\$/g, (m, inner) => `$${inner.replace(/[ \t]{2,}/g, ' ').trim()}$`);
+  result = result.replace(/\$\$([^\$]+)\$\$/g, (m, inner) => `$$${inner.replace(/[ \t]{2,}/g, ' ').trim()}$$`);
+  return result;
 }
 
 /**

@@ -17,6 +17,11 @@ function cleanMathForKaTeX(str: string): string {
   s = cleanMathNewlines(s);
   s = s.replace(/\\$/, '');
 
+  // Chuẩn hóa ngắt dòng trong cases/aligned/matrix: tránh lặp \\ thừa
+  s = s.replace(/(\\\\\s*){2,}/g, ' \\\\ ');
+  // Đảm bảo giữa hai phương trình trong cases có \\\\ nếu lỡ bị mất
+  s = s.replace(/(\\begin\{cases\}\s*[^{}]+?=\s*[^={}\s]+)\s+(?=[a-zA-Z0-9_\-][^={}]*=)([^{}]+?=\s*[^={}\s]+)/g, '$1 \\\\ $2');
+
   // Dọn dẹp các ký tự \n hoặc chuỗi literal \n vô tình lọt vào trong công thức KaTeX
   s = s.replace(/\\+n(?=\s*[-+*=<>0-9(\\])/g, ' ');
   s = s.replace(/\\+n(?!\b[a-zA-Z])/g, ' ');
@@ -26,6 +31,9 @@ function cleanMathForKaTeX(str: string): string {
   s = s.replace(/\\Left\s*\\le/gi, '\\Leftrightarrow');
   s = s.replace(/\\Left\s*\\ge/gi, '\\Leftrightarrow');
   s = s.replace(/\\Left\b/g, '\\Leftarrow');
+
+  // Chuẩn hóa \sin, \cos, \tan, \cot đứng trước góc hoặc biến
+  s = s.replace(/(?<!\\)\b(sin|cos|tan|cot)\s*(\\alpha|\\beta|\\gamma|\\theta|[A-Z]\b)/g, (m, fn, ang) => `\\${fn} ${ang}`);
   
   // 2. Chuẩn hóa ký hiệu độ C và góc độ
   // Mọi biến thể độ C: \circC, ^\circC, ^\circ C, \circ C, °C, ^{\circ}C, ^\circ\text{C} -> ^\circ\text{C}

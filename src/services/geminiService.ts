@@ -5,6 +5,7 @@ import { ValidationEngine, cleanQuestionText } from './validationEngine';
 import { StorageEngine } from './storageEngine';
 import { callGeminiApi } from './geminiClient';
 import { safeJsonParse } from './jsonRepair';
+import { LatexPostProcessingValidator } from './latexValidator';
 
 export class GeminiService {
   /**
@@ -95,7 +96,8 @@ export class GeminiService {
       answerKeys,
     };
 
-    return examPackage;
+    const validatedPackageResult = LatexPostProcessingValidator.validateAndCorrectExamPackage(examPackage);
+    return validatedPackageResult.examPackage;
   }
 
   static async generateExam(
@@ -216,7 +218,8 @@ export class GeminiService {
 
     if (onProgress) onProgress('Đã hoàn tất tạo câu hỏi mới!');
 
-    return q;
+    const validatedQ = LatexPostProcessingValidator.validateAndCorrectQuestion(q).question;
+    return validatedQ;
   }
 }
 

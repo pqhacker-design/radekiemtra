@@ -1,5 +1,6 @@
 import { AppSettings, ExamMetadata, ExamPackage, QuestionBankItem } from '../types';
 import { cleanExplanationAndNotes, repairLatexCorruptions } from '../utils/textUtils';
+import { LatexPostProcessingValidator } from './latexValidator';
 
 function repairQuestionItem<T extends { content?: string; options?: any[]; trueFalseStatements?: any[]; shortAnswer?: string; essayAnswerGuide?: string; explanation?: string; rubric?: any[] }>(q: T): T {
   if (!q) return q;
@@ -27,13 +28,14 @@ function repairQuestionItem<T extends { content?: string; options?: any[]; trueF
 
 function repairExamPackageStrings(p: ExamPackage): ExamPackage {
   if (!p) return p;
+  const validated = LatexPostProcessingValidator.validateAndCorrectExamPackage(p).examPackage;
   return {
-    ...p,
-    exams: p.exams?.map((e) => ({
+    ...validated,
+    exams: validated.exams?.map((e) => ({
       ...e,
       questions: e.questions?.map((q) => repairQuestionItem(q)),
     })),
-    answerKeys: p.answerKeys?.map((ak) => ({
+    answerKeys: validated.answerKeys?.map((ak) => ({
       ...ak,
       part3Answers: ak.part3Answers?.map((a) => ({
         ...a,
@@ -143,15 +145,17 @@ export class StorageEngine {
 
   static saveExamPackage(examPackage: ExamPackage): void {
     try {
+      // Tự động kiểm tra và sửa toàn bộ lỗi ký hiệu LaTeX (như anQ -> tan Q, eta -> beta, xe4 -> x \ne 4) trước khi lưu
+      const validatedPackage = LatexPostProcessingValidator.validateAndCorrectExamPackage(examPackage).examPackage;
       const current = this.getExamHistory();
-      const filtered = current.filter((item) => item.id !== examPackage.id);
-      const updated = [examPackage, ...filtered];
+      const filtered = current.filter((item) => item.id !== validatedPackage.id);
+      const updated = [validatedPackage, ...filtered];
       localStorage.setItem(STORAGE_KEYS.EXAM_HISTORY, JSON.stringify(updated));
 
       // Tự động lưu câu hỏi vào Ngân hàng câu hỏi nếu cài đặt bật
       const settings = this.getSettings();
-      if (settings.autoSaveToBank !== false && examPackage.exams?.[0]?.questions) {
-        this.addQuestionsToBankFromExam(examPackage);
+      if (settings.autoSaveToBank !== false && validatedPackage.exams?.[0]?.questions) {
+        this.addQuestionsToBankFromExam(validatedPackage);
       }
 
       this.notifyListeners();

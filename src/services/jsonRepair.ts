@@ -131,7 +131,51 @@ export function escapeRawControlCharactersInStrings(str: string): string {
       } else if (c === '\r') {
         // bỏ qua carriage return
       } else if (c === '\t') {
-        result += '\\t';
+        // Nếu \t theo sau là an (thành \tan):
+        if (str.substring(i + 1, i + 3) === 'an') {
+          result += '\\\\tan';
+          i += 2;
+        } else if (str.substring(i + 1, i + 5) === 'imes') {
+          result += '\\\\times';
+          i += 4;
+        } else if (str.substring(i + 1, i + 5) === 'heta') {
+          result += '\\\\theta';
+          i += 4;
+        } else if (str.substring(i + 1, i + 4) === 'ext') {
+          result += '\\\\text';
+          i += 3;
+        } else {
+          result += '\\t';
+        }
+      } else if (c.charCodeAt(0) === 8) { // ASCII 0x08 (Backspace - do \b trong JSON)
+        if (str.substring(i + 1, i + 4) === 'eta') {
+          result += '\\\\beta';
+          i += 3;
+        } else if (str.substring(i + 1, i + 5) === 'egin') {
+          result += '\\\\begin';
+          i += 4;
+        } else if (str.substring(i + 1, i + 3) === 'ar') {
+          result += '\\\\bar';
+          i += 2;
+        } else if (str.substring(i + 1, i + 5) === 'inom') {
+          result += '\\\\binom';
+          i += 4;
+        } else if (str.substring(i + 1, i + 7) === 'ullet') {
+          result += '\\\\bullet';
+          i += 6;
+        } else {
+          result += ' ';
+        }
+      } else if (c.charCodeAt(0) === 12) { // ASCII 0x0C (FormFeed - do \f trong JSON)
+        if (str.substring(i + 1, i + 4) === 'rac') {
+          result += '\\\\frac';
+          i += 3;
+        } else if (str.substring(i + 1, i + 7) === 'orall') {
+          result += '\\\\forall';
+          i += 6;
+        } else {
+          result += ' ';
+        }
       } else if (c.charCodeAt(0) < 32) {
         // Ký tự điều khiển ASCII không hợp lệ khác
         result += ' ';
@@ -187,7 +231,9 @@ export function repairJsonString(rawText: string): string {
 
   const extracted = cleanMarkdownAndExtractJson(rawText);
 
-  const hasUnescapedLatex = /(?<!\\)\\(frac|dfrac|text|mathrm|mathbf|mathit|tan|sin|cos|cot|sqrt|vec|widehat|alpha|beta|gamma|delta|ne|neq|notin|begin|end|right|rightarrow|times|theta|triangle)\b/.test(extracted);
+  const hasUnescapedLatex =
+    /[\x08\x0c]|\tan\b/.test(extracted) ||
+    /(?<!\\)\\(?:frac|dfrac|text|mathrm|mathbf|mathit|tan|sin|cos|cot|sqrt|vec|widehat|alpha|beta|gamma|delta|ne|neq|notin|begin|end|right|rightarrow|times|theta|triangle)(?:\b|(?=\d|\s*-\s*\d))/i.test(extracted);
 
   // Thử parse trực tiếp nếu đã hợp lệ và không chứa lệnh LaTeX với single backslash
   if (!hasUnescapedLatex) {
@@ -394,7 +440,9 @@ export function safeJsonParse<T = any>(rawText: string): T {
 
   // Kiểm tra xem chuỗi có chứa các lệnh LaTeX dùng dấu gạch chéo ngược đơn (\frac, \text, \tan, \ne, \right...)
   // Nếu có, KHÔNG parse trực tiếp vì JSON.parse sẽ biến \frac thành FormFeed, \text thành Tab, \ne thành Newline
-  const hasUnescapedLatex = /(?<!\\)\\(frac|dfrac|text|mathrm|mathbf|mathit|tan|sin|cos|cot|sqrt|vec|widehat|alpha|beta|gamma|delta|ne|neq|notin|begin|end|right|rightarrow|times|theta|triangle)\b/.test(cleaned);
+  const hasUnescapedLatex =
+    /[\x08\x0c]|\tan\b/.test(cleaned) ||
+    /(?<!\\)\\(?:frac|dfrac|text|mathrm|mathbf|mathit|tan|sin|cos|cot|sqrt|vec|widehat|alpha|beta|gamma|delta|ne|neq|notin|begin|end|right|rightarrow|times|theta|triangle)(?:\b|(?=\d|\s*-\s*\d))/i.test(cleaned);
 
   // Pass 1: Parse trực tiếp nếu chuỗi đã là JSON chuẩn và không chứa lệnh LaTeX với single backslash
   if (!hasUnescapedLatex) {

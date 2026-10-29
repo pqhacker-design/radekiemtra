@@ -2,6 +2,7 @@ import { ExamMetadata, MatrixRow, Question, SpecRow, calculateExamScores } from 
 import { safeJsonParse } from './jsonRepair';
 import { normalizeNewlines, parseRequirementsByLevel, combineRequirementsByLevel, cleanExplanationAndNotes } from '../utils/textUtils';
 import { inferQuestionCompetency } from '../utils/competencyUtils';
+import { LatexPostProcessingValidator } from './latexValidator';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -14,7 +15,8 @@ export interface ValidationResult {
 
 export function cleanQuestionText(text: string): string {
   if (!text) return text;
-  let str = cleanExplanationAndNotes(normalizeNewlines(text));
+  let str = LatexPostProcessingValidator.correctString(cleanExplanationAndNotes(normalizeNewlines(text)));
+
 
   // 1. Loại bỏ các nhãn mã mức độ thừa như [NB_TL], [TH_TL], [VD_TL], [VDC_TL], [NB_TN], [NB],...
   str = str.replace(/\s*\[(NB|TH|VD|VDC|REMEMBER|UNDERSTAND|APPLY|ADVANCED)(_(TL|TN|TF|SA))?\]\s*/gi, ' ');
@@ -84,7 +86,7 @@ export function cleanQuestionText(text: string): string {
   }
   str = parts.join('');
 
-  return str.trim();
+  return LatexPostProcessingValidator.correctString(str).trim();
 }
 
 export class ValidationEngine {
@@ -645,13 +647,15 @@ export class ValidationEngine {
       };
     });
 
+    const validatedQuestions = LatexPostProcessingValidator.validateAndCorrectQuestions(repairedQuestions).questions;
+
     return {
       isValid: errors.length === 0,
       errors,
       warnings,
       matrix: processedMatrix,
       specification: processedSpec,
-      questions: repairedQuestions,
+      questions: validatedQuestions,
     };
   }
 }
