@@ -497,18 +497,25 @@ export class ValidationEngine {
       rawMatrix.some((m: any) => m.subTopic && m.subTopic.trim() !== (rawMatrix[0]?.subTopic || '').trim());
 
     if (hasDifferentiatedMatrix) {
-      processedMatrix = rawMatrix.map((m: any, idx: number) => ({
-        stt: m.stt || idx + 1,
-        topic: m.topic || metadata.chapterTitle || 'Chủ đề chính',
-        subTopic: m.subTopic || `Đơn vị kiến thức ${idx + 1}`,
-        part1: m.part1 || { remember: '', understand: '', apply: '', advanced: '' },
-        part2: m.part2 || { remember: '', understand: '', apply: '', advanced: '' },
-        part3: m.part3 || { remember: '', understand: '', apply: '', advanced: '' },
-        part4: m.part4 || { remember: '', understand: '', apply: '', advanced: '' },
-        totalQuestions: typeof m.totalQuestions === 'number' ? m.totalQuestions : 0,
-        totalPoints: typeof m.totalPoints === 'number' ? m.totalPoints : 0,
-        percentage: typeof m.percentage === 'number' ? m.percentage : 0,
-      }));
+      processedMatrix = rawMatrix.map((m: any, idx: number) => {
+        const rowPts = typeof m.totalPoints === 'number' ? m.totalPoints : 0;
+        const totalExamPts = metadata.totalPoints || 10.0;
+        const pct = rowPts > 0
+          ? Math.round((rowPts / totalExamPts) * 100 * 10) / 10
+          : (typeof m.percentage === 'number' ? m.percentage : 0);
+        return {
+          stt: m.stt || idx + 1,
+          topic: m.topic || metadata.chapterTitle || 'Chủ đề chính',
+          subTopic: m.subTopic || `Đơn vị kiến thức ${idx + 1}`,
+          part1: m.part1 || { remember: '', understand: '', apply: '', advanced: '' },
+          part2: m.part2 || { remember: '', understand: '', apply: '', advanced: '' },
+          part3: m.part3 || { remember: '', understand: '', apply: '', advanced: '' },
+          part4: m.part4 || { remember: '', understand: '', apply: '', advanced: '' },
+          totalQuestions: typeof m.totalQuestions === 'number' ? m.totalQuestions : 0,
+          totalPoints: rowPts,
+          percentage: pct,
+        };
+      });
     } else {
       // Phân tách đơn vị kiến thức tự động dựa trên danh sách câu hỏi thực tế hoặc topic câu hỏi
       const topicGroups = new Map<string, Question[]>();

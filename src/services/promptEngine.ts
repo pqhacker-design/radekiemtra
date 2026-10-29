@@ -376,6 +376,11 @@ ${existingQuestionsToAvoid.slice(0, 15).map((q, idx) => `  [${idx + 1}] ${q}`).j
      "- Hiểu: [Yêu cầu cần đạt mức Thông hiểu cụ thể với các động từ hành vi: Hiểu được..., Giải thích được..., Phân biệt được..., Mô tả được...]"
      "- Vận dụng: [Yêu cầu cần đạt mức Vận dụng / Vận dụng cao với các động từ hành vi: Vận dụng được để tính toán..., Giải quyết được bài toán..., Thiết lập được..., Vận dụng giải quyết vấn đề thực tiễn...]"
    - Không được bỏ trống các mức độ nhận thức có câu hỏi trong đơn vị kiến thức đó.
+3. PHÂN BỔ ĐÚNG SỐ CÂU, SỐ ĐIỂM VÀ TỈ LỆ MỨC ĐỘ NHẬN THỨC THEO YÊU CẦU:
+   - Ma trận Công văn 7991 BẮT BUỘC phân bố đúng tuyệt đối theo số câu, số điểm của từng phần và tỉ lệ mức độ nhận thức mà người dùng yêu cầu (Nhận biết: ${cognitiveRatio.remember}%, Thông hiểu: ${cognitiveRatio.understand}%, Vận dụng: ${cognitiveRatio.apply}%, Vận dụng cao: ${cognitiveRatio.advanced}%).
+   - Điểm số "totalPoints" của mỗi dòng phải bằng đúng tổng điểm của các câu hỏi thuộc đơn vị kiến thức đó.
+   - Trường "percentage" (% điểm) của MỖI dòng BẮT BUỘC được tính trực tiếp từ điểm số thực tế: percentage = (totalPoints / ${totalPoints || 10.0}) * 100. TUYỆT ĐỐI KHÔNG chia đều phần trăm tùy tiện nếu điểm số giữa các đơn vị kiến thức khác nhau.
+   - Tổng "totalPoints" toàn bài phải bằng đúng ${totalPoints || 10.0} điểm và tổng "percentage" toàn bài phải bằng đúng 100%.
 
 YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
 {
