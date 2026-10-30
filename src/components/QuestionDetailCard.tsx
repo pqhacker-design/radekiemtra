@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, CheckCircle2, CheckSquare, ChevronDown, ChevronUp, HelpCircle, Lightbulb, Sparkles, Square, XCircle } from 'lucide-react';
+import { Check, CheckCircle2, CheckSquare, ChevronDown, ChevronUp, Edit3, HelpCircle, Lightbulb, Sparkles, Square, XCircle } from 'lucide-react';
 import { Question, QuestionBankItem, getCognitiveTag, getCognitiveLabel } from '../types';
 import { MathText } from './MathText';
 
@@ -13,6 +13,7 @@ interface QuestionDetailCardProps {
   isSelected?: boolean;
   onToggleSelect?: () => void;
   onRegenerate?: (q: Question) => void;
+  onEdit?: (q: Question) => void;
   badgeExtra?: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
@@ -29,6 +30,7 @@ export const QuestionDetailCard: React.FC<QuestionDetailCardProps> = ({
   isSelected = false,
   onToggleSelect,
   onRegenerate,
+  onEdit,
   badgeExtra,
   actions,
   className = '',
@@ -110,6 +112,17 @@ export const QuestionDetailCard: React.FC<QuestionDetailCardProps> = ({
           </div>
 
           <div className="flex items-center space-x-1.5 shrink-0">
+            {onEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit(question as Question)}
+                className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-bold text-teal-800 dark:text-teal-200 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 border border-teal-300 dark:border-teal-700 shadow-2xs transition-all cursor-pointer active:scale-95"
+                title="Tự tay chỉnh sửa trực tiếp nội dung, đáp án và lời giải của câu hỏi này"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                <span>Sửa thủ công</span>
+              </button>
+            )}
             {onRegenerate && (
               <button
                 type="button"
@@ -118,7 +131,7 @@ export const QuestionDetailCard: React.FC<QuestionDetailCardProps> = ({
                 title="Yêu cầu AI tạo lại riêng câu hỏi này nếu nội dung chưa phù hợp"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
-                <span>Tạo lại câu này (AI)</span>
+                <span>Sửa bằng AI</span>
               </button>
             )}
             {actions}

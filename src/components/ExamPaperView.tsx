@@ -4,6 +4,7 @@ import { ExamPackage, Question, getCognitiveTag, getCognitiveLabel } from '../ty
 import { MathText } from './MathText';
 import { DiagramEngine } from '../services/diagramEngine';
 import { RegenerateQuestionModal } from './RegenerateQuestionModal';
+import { EditQuestionModal } from './EditQuestionModal';
 
 interface ExamPaperViewProps {
   examPackage: ExamPackage | null;
@@ -42,6 +43,7 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [editQuestionContent, setEditQuestionContent] = useState('');
   const [selectedQuestionForRegen, setSelectedQuestionForRegen] = useState<Question | null>(null);
+  const [selectedQuestionForManualEdit, setSelectedQuestionForManualEdit] = useState<Question | null>(null);
 
   const handleStartEdit = (q: Question) => {
     setEditingQuestionId(q.id);
@@ -256,9 +258,10 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                         <Sparkles className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => handleStartEdit(q)}
-                        className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 cursor-pointer"
-                        title="Sửa nội dung câu hỏi"
+                        type="button"
+                        onClick={() => setSelectedQuestionForManualEdit(q)}
+                        className="p-1 rounded-lg hover:bg-teal-100 dark:hover:bg-teal-950/60 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800/60 transition-colors cursor-pointer"
+                        title="Chỉnh sửa thủ công nội dung & đáp án"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -382,6 +385,22 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
           --- HẾT MÃ ĐỀ {currentExam.code} (Cán bộ coi thi không giải thích gì thêm) ---
         </div>
       </div>
+
+      {/* Modal Chỉnh sửa thủ công câu hỏi */}
+      {selectedQuestionForManualEdit && (
+        <EditQuestionModal
+          isOpen={Boolean(selectedQuestionForManualEdit)}
+          onClose={() => setSelectedQuestionForManualEdit(null)}
+          question={selectedQuestionForManualEdit}
+          examCode={currentExam.code}
+          totalCodes={exams.length}
+          onSave={(origQ, newQ) => {
+            if (onRegenerateQuestion) {
+              onRegenerateQuestion(origQ, newQ);
+            }
+          }}
+        />
+      )}
 
       {/* Modal Yêu cầu AI Tạo lại riêng câu hỏi này */}
       {selectedQuestionForRegen && (

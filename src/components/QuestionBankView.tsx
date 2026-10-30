@@ -17,10 +17,19 @@ import {
   BookmarkCheck,
   Clock,
   Calendar,
+  Edit3,
+  Save,
+  RotateCcw,
+  Eye,
+  EyeOff,
+  Calculator,
+  CheckCircle2,
 } from 'lucide-react';
-import { ExamPackage, QuestionBankItem, SubjectType } from '../types';
+import { ExamPackage, QuestionBankItem, SubjectType, CognitiveLevel, PartType, MCQOption, TrueFalseStatement } from '../types';
 import { MathText } from './MathText';
 import { QuestionDetailCard } from './QuestionDetailCard';
+import { EditQuestionModal } from './EditQuestionModal';
+import { StorageEngine } from '../services/storageEngine';
 
 // Helper function to format date time in Vietnamese format
 const formatDateTime = (dateStr?: string): string => {
@@ -43,6 +52,8 @@ interface QuestionBankViewProps {
   questionBank: QuestionBankItem[];
   examHistory?: ExamPackage[];
   onAddQuestion: (item: QuestionBankItem) => void;
+  onUpdateQuestion?: (item: QuestionBankItem) => void;
+  onUpdateMultipleQuestions?: (items: QuestionBankItem[]) => void;
   onDeleteQuestion: (id: string) => void;
   onDeleteMultipleQuestions?: (ids: string[]) => void;
   onClearQuestionBank?: () => void;
@@ -53,6 +64,8 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
   questionBank,
   examHistory = [],
   onAddQuestion,
+  onUpdateQuestion,
+  onUpdateMultipleQuestions,
   onDeleteQuestion,
   onDeleteMultipleQuestions,
   onClearQuestionBank,
@@ -64,6 +77,85 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
   const [selectedSubject, setSelectedSubject] = useState<string>('ALL');
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
   const [selectedCognitive, setSelectedCognitive] = useState<string>('ALL');
+
+  // Bulk Manual Edit Mode State
+  const [isBulkEditMode, setIsBulkEditMode] = useState(false);
+  const [editedItems, setEditedItems] = useState<Record<string, QuestionBankItem>>({});
+  const [showAllPreviews, setShowAllPreviews] = useState(false);
+  const [individualPreviews, setIndividualPreviews] = useState<Record<string, boolean>>({});
+  const [selectedQuestionForModalEdit, setSelectedQuestionForModalEdit] = useState<QuestionBankItem | null>(null);
+
+  const getDraftItem = (item: QuestionBankItem): QuestionBankItem => {
+    return editedItems[item.id] || item;
+  };
+
+  const updateDraftItem = (id: string, updater: (prev: QuestionBankItem) => QuestionBankItem) => {
+    setEditedItems((prev) => {
+      const current = prev[id] || questionBank.find((q) => q.id === id);
+      if (!current) return prev;
+      return {
+        ...prev,
+        [id]: updater(current),
+      };
+    });
+  };
+
+  const dirtyItemIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const [id, edited] of Object.entries(editedItems)) {
+      const original = questionBank.find((q) => q.id === id);
+      if (!original) continue;
+      if (JSON.stringify(edited) !== JSON.stringify(original)) {
+        ids.push(id);
+      }
+    }
+    return ids;
+  }, [editedItems, questionBank]);
+
+  const handleSaveAllBulk = () => {
+    const modifiedQuestions = dirtyItemIds.map((id) => editedItems[id]).filter(Boolean);
+    if (modifiedQuestions.length === 0) return;
+    if (onUpdateMultipleQuestions) {
+      onUpdateMultipleQuestions(modifiedQuestions);
+    } else {
+      StorageEngine.updateMultipleQuestionsInBank(modifiedQuestions);
+    }
+    setEditedItems({});
+  };
+
+  const handleSaveSingleBulk = (id: string) => {
+    const edited = editedItems[id];
+    if (!edited) return;
+    if (onUpdateQuestion) {
+      onUpdateQuestion(edited);
+    } else {
+      StorageEngine.updateQuestionInBank(edited);
+    }
+    setEditedItems((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const handleDiscardSingleBulk = (id: string) => {
+    setEditedItems((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const handleDiscardAll = () => {
+    setEditedItems({});
+  };
+
+  const toggleCardPreview = (id: string) => {
+    setIndividualPreviews((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   // Bulk Delete Modal state
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
@@ -383,6 +475,24 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
           </button>
 
           <button
+            onClick={() => setIsBulkEditMode(!isBulkEditMode)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer shadow-sm ${
+              isBulkEditMode
+                ? 'bg-amber-500 hover:bg-amber-600 text-white ring-2 ring-amber-300 dark:ring-amber-700 shadow-amber-500/30'
+                : 'bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
+            }`}
+            title="Bật/Tắt chế độ chỉnh sửa trực tiếp hàng loạt câu hỏi trong ngân hàng"
+          >
+            <Edit3 className="w-4 h-4" />
+            <span>{isBulkEditMode ? 'Thoát Sửa Hàng Loạt' : 'Sửa Hàng Loạt'}</span>
+            {dirtyItemIds.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-rose-500 text-white animate-pulse">
+                {dirtyItemIds.length}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => {
               if (examOptions.length > 0 && !targetExamKey) {
                 setTargetExamKey(examOptions[0].key);
@@ -498,6 +608,77 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
         </div>
       )}
 
+      {/* Sticky Bulk Edit Bar */}
+      {isBulkEditMode && (
+        <div className="sticky top-2 z-30 p-3 sm:p-4 bg-amber-50/95 dark:bg-amber-950/90 border border-amber-300 dark:border-amber-800/80 rounded-2xl shadow-lg backdrop-blur-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-sm shrink-0">
+              <Edit3 className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="font-extrabold text-amber-950 dark:text-amber-100 text-sm">
+                  Chế Độ Sửa Hàng Loạt (Bulk Manual Edit)
+                </h3>
+                {dirtyItemIds.length > 0 ? (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-black bg-rose-500 text-white shadow-xs">
+                    {dirtyItemIds.length} câu đã sửa chưa lưu
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-200/80 dark:bg-amber-900/80 text-amber-800 dark:text-amber-200">
+                    Chưa có thay đổi
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                Cho phép sửa trực tiếp nội dung, đáp án và lời giải của nhiều câu hỏi cùng lúc mà không cần mở từng cửa sổ.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowAllPreviews(!showAllPreviews)}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-slate-700 transition-colors flex items-center space-x-1 cursor-pointer"
+            >
+              {showAllPreviews ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              <span>{showAllPreviews ? 'Ẩn KaTeX' : 'Hiện KaTeX Tất Cả'}</span>
+            </button>
+
+            {dirtyItemIds.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleDiscardAll}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center space-x-1 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Hủy Tất Cả ({dirtyItemIds.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveAllBulk}
+                  className="px-4 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/30 transition-all flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Lưu Tất Cả ({dirtyItemIds.length})</span>
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsBulkEditMode(false)}
+              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-200 dark:bg-amber-900/60 hover:bg-amber-300 text-amber-900 dark:text-amber-100 transition-colors cursor-pointer"
+            >
+              Thoát
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Question Cards Grid */}
       {filteredList.length === 0 ? (
         <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
@@ -508,46 +689,466 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredList.map((item, idx) => (
-            <QuestionDetailCard
-              key={item.id}
-              question={item}
-              questionNumber={idx + 1}
-              showAnswers={true}
-              showExplanation={true}
-              defaultExpandedExplanation={false}
-              badgeExtra={
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                    {item.subject} - {item.grade} {item.chapter ? `(${item.chapter})` : ''}
-                  </span>
-                  {(item.sourceExamTitle || item.examTitle) && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 border border-teal-200/70 dark:border-teal-800/70 flex items-center space-x-1">
-                      <FileText className="w-3 h-3 text-teal-600 dark:text-teal-400 shrink-0" />
-                      <span className="truncate max-w-[200px]" title={item.sourceExamTitle || item.examTitle}>
-                        Đề: {item.sourceExamTitle || item.examTitle}
-                      </span>
-                    </span>
-                  )}
-                  {item.createdDate && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/60 flex items-center space-x-1">
-                      <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                      <span>{formatDateTime(item.createdDate)}</span>
-                    </span>
-                  )}
-                </div>
-              }
-              actions={
-                <button
-                  onClick={() => setDeletingQuestionId(item.id)}
-                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors cursor-pointer"
-                  title="Xóa câu hỏi khỏi ngân hàng"
+          {filteredList.map((item, idx) => {
+            const draft = getDraftItem(item);
+            const isDirty = dirtyItemIds.includes(item.id);
+            const showPreview = showAllPreviews || !!individualPreviews[item.id];
+
+            // Math snippets list
+            const mathSnippets = [
+              { label: '{ Hệ PT', snippet: '$\\begin{cases} 2x - y = 3 \\\\ x + 3y = 5 \\end{cases}$ ' },
+              { label: 'a/b Phân số', snippet: '$\\frac{a}{b}$ ' },
+              { label: '√ Căn thức', snippet: '$\\sqrt{x}$ ' },
+              { label: 'x² Mũ', snippet: '$x^2$ ' },
+              { label: '±', snippet: '$\\pm$ ' },
+              { label: '°', snippet: '^\\circ ' },
+              { label: '→ Vectơ', snippet: '$\\vec{u}$ ' },
+              { label: '∈', snippet: '$\\in$ ' },
+              { label: 'Δ', snippet: '$\\Delta$ ' },
+              { label: 'π', snippet: '$\\pi$ ' },
+            ];
+
+            if (isBulkEditMode) {
+              return (
+                <div
+                  key={item.id}
+                  className={`p-4 sm:p-5 rounded-2xl border transition-all space-y-4 ${
+                    isDirty
+                      ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-400 dark:border-amber-700/80 shadow-md ring-1 ring-amber-300/60 dark:ring-amber-700/60'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xs'
+                  }`}
                 >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              }
-            />
-          ))}
+                  {/* Card Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200/80 dark:border-slate-800">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="w-7 h-7 rounded-lg bg-teal-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                        {idx + 1}
+                      </span>
+                      <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        {draft.partType === 'PART1'
+                          ? 'Phần I: TN 4 lựa chọn'
+                          : draft.partType === 'PART2'
+                          ? 'Phần II: Đúng / Sai'
+                          : draft.partType === 'PART3'
+                          ? 'Phần III: Trả lời ngắn'
+                          : 'Phần IV: Tự luận'}
+                      </span>
+                      <span className="text-xs text-slate-500 font-medium">
+                        {draft.subject} - {draft.grade}
+                      </span>
+
+                      {/* Cognitive Level Selector */}
+                      <select
+                        value={draft.cognitiveLevel}
+                        onChange={(e) =>
+                          updateDraftItem(item.id, (q) => ({
+                            ...q,
+                            cognitiveLevel: e.target.value as CognitiveLevel,
+                          }))
+                        }
+                        className="text-xs font-bold py-1 px-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200"
+                      >
+                        <option value="REMEMBER">Nhận biết</option>
+                        <option value="UNDERSTAND">Thông hiểu</option>
+                        <option value="APPLY">Vận dụng</option>
+                        <option value="ADVANCED">Vận dụng cao</option>
+                      </select>
+
+                      {/* Points Input */}
+                      <div className="flex items-center space-x-1">
+                        <span className="text-xs text-slate-500 font-medium">Điểm:</span>
+                        <input
+                          type="number"
+                          step="0.25"
+                          min="0"
+                          value={draft.points ?? 0.25}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            updateDraftItem(item.id, (q) => ({ ...q, points: val }));
+                          }}
+                          className="w-16 text-xs font-bold py-1 px-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-center"
+                        />
+                      </div>
+
+                      {isDirty && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-200 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 flex items-center space-x-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-ping"></span>
+                          <span>Đã chỉnh sửa</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center space-x-1.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleCardPreview(item.id)}
+                        className={`p-1.5 rounded-lg border text-xs font-medium flex items-center space-x-1 transition-colors cursor-pointer ${
+                          showPreview
+                            ? 'bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-800'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                        }`}
+                        title="Bật/Tắt xem trước công thức KaTeX cho câu này"
+                      >
+                        {showPreview ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        <span className="text-[11px]">{showPreview ? 'Ẩn KaTeX' : 'Xem KaTeX'}</span>
+                      </button>
+
+                      {isDirty && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleDiscardSingleBulk(item.id)}
+                            className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                            title="Hoàn tác câu này"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveSingleBulk(item.id)}
+                            className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center space-x-1 shadow-sm transition-colors cursor-pointer"
+                            title="Lưu câu này"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Lưu</span>
+                          </button>
+                        </>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setDeletingQuestionId(item.id)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors cursor-pointer"
+                        title="Xóa câu hỏi khỏi ngân hàng"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Question Content Editor */}
+                  <div className="space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-1">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Nội dung câu hỏi:
+                      </label>
+                      {/* Math Quick Toolbar */}
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="text-[10px] text-slate-400 mr-1 flex items-center">
+                          <Calculator className="w-3 h-3 mr-0.5" /> Chèn nhanh:
+                        </span>
+                        {mathSnippets.map((snip, sIdx) => (
+                          <button
+                            key={sIdx}
+                            type="button"
+                            onClick={() =>
+                              updateDraftItem(item.id, (q) => ({
+                                ...q,
+                                content: (q.content ? q.content + ' ' : '') + snip.snippet,
+                              }))
+                            }
+                            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-teal-100 dark:hover:bg-teal-900/60 hover:text-teal-800 transition-colors cursor-pointer"
+                          >
+                            {snip.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <textarea
+                      rows={3}
+                      value={draft.content}
+                      onChange={(e) =>
+                        updateDraftItem(item.id, (q) => ({ ...q, content: e.target.value }))
+                      }
+                      placeholder="Nhập nội dung câu hỏi (sử dụng $...$ hoặc $$...$$ cho công thức toán, \\begin{cases}...\\end{cases} cho hệ phương trình)..."
+                      className="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-teal-500 outline-none leading-relaxed"
+                    />
+
+                    {/* Live Preview of content */}
+                    {showPreview && draft.content && (
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200">
+                        <span className="text-[10px] font-bold text-slate-400 block mb-1">
+                          Xem trước công thức KaTeX câu hỏi:
+                        </span>
+                        <MathText text={draft.content} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Part-Specific Input Fields */}
+                  {/* PART 1: 4 Options */}
+                  {(!draft.partType || draft.partType === 'PART1') && (
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          Các lựa chọn A, B, C, D (chọn chữ cái để đánh dấu đáp án đúng):
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {(['A', 'B', 'C', 'D'] as const).map((optKey) => {
+                          const curOpts = draft.options || [];
+                          const optObj = curOpts.find((o) => o.key === optKey) || { key: optKey, content: '' };
+                          const isCorrect = draft.correctOption === optKey;
+
+                          return (
+                            <div
+                              key={optKey}
+                              className={`p-2 rounded-xl border flex items-center space-x-2 transition-colors ${
+                                isCorrect
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700'
+                                  : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateDraftItem(item.id, (q) => ({ ...q, correctOption: optKey }))
+                                }
+                                className={`w-6 h-6 rounded-lg font-black text-xs flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
+                                  isCorrect
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-200'
+                                }`}
+                                title={`Đánh dấu đáp án ${optKey} là đúng`}
+                              >
+                                {optKey}
+                              </button>
+                              <input
+                                type="text"
+                                value={optObj.content}
+                                onChange={(e) => {
+                                  const text = e.target.value;
+                                  updateDraftItem(item.id, (q) => {
+                                    const nextOpts: MCQOption[] = q.options && q.options.length > 0 ? [...q.options] : [
+                                      { key: 'A', content: '' },
+                                      { key: 'B', content: '' },
+                                      { key: 'C', content: '' },
+                                      { key: 'D', content: '' },
+                                    ];
+                                    const targetIdx = nextOpts.findIndex((o) => o.key === optKey);
+                                    if (targetIdx >= 0) {
+                                      nextOpts[targetIdx] = { ...nextOpts[targetIdx], content: text };
+                                    } else {
+                                      nextOpts.push({ key: optKey, content: text });
+                                    }
+                                    return { ...q, options: nextOpts };
+                                  });
+                                }}
+                                placeholder={`Nội dung lựa chọn ${optKey}...`}
+                                className="flex-1 py-1 px-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-teal-500 outline-none"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* PART 2: True/False Statements */}
+                  {draft.partType === 'PART2' && (
+                    <div className="space-y-2 pt-1">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        4 ý Đúng / Sai (a, b, c, d):
+                      </span>
+                      <div className="space-y-1.5">
+                        {(['a', 'b', 'c', 'd'] as const).map((sKey) => {
+                          const curStmts = draft.trueFalseStatements || [];
+                          const stmtObj = curStmts.find((s) => s.key === sKey) || {
+                            key: sKey,
+                            content: '',
+                            isCorrect: true,
+                          };
+
+                          return (
+                            <div
+                              key={sKey}
+                              className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 flex items-center space-x-2"
+                            >
+                              <span className="w-5 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase">
+                                {sKey})
+                              </span>
+                              <input
+                                type="text"
+                                value={stmtObj.content}
+                                onChange={(e) => {
+                                  const text = e.target.value;
+                                  updateDraftItem(item.id, (q) => {
+                                    const nextStmts: TrueFalseStatement[] = q.trueFalseStatements ? [...q.trueFalseStatements] : [];
+                                    const idx = nextStmts.findIndex((s) => s.key === sKey);
+                                    if (idx >= 0) {
+                                      nextStmts[idx] = { ...nextStmts[idx], content: text };
+                                    } else {
+                                      nextStmts.push({ key: sKey, content: text, isCorrect: true });
+                                    }
+                                    return { ...q, trueFalseStatements: nextStmts };
+                                  });
+                                }}
+                                placeholder={`Nội dung mệnh đề ${sKey}...`}
+                                className="flex-1 py-1 px-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-teal-500 outline-none"
+                              />
+                              <div className="flex items-center space-x-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateDraftItem(item.id, (q) => {
+                                      const nextStmts: TrueFalseStatement[] = q.trueFalseStatements ? [...q.trueFalseStatements] : [];
+                                      const idx = nextStmts.findIndex((s) => s.key === sKey);
+                                      if (idx >= 0) {
+                                        nextStmts[idx] = { ...nextStmts[idx], isCorrect: true };
+                                      } else {
+                                        nextStmts.push({ key: sKey, content: stmtObj.content, isCorrect: true });
+                                      }
+                                      return { ...q, trueFalseStatements: nextStmts };
+                                    });
+                                  }}
+                                  className={`px-2 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
+                                    stmtObj.isCorrect
+                                      ? 'bg-emerald-600 text-white shadow-xs'
+                                      : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                                  }`}
+                                >
+                                  Đúng
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateDraftItem(item.id, (q) => {
+                                      const nextStmts: TrueFalseStatement[] = q.trueFalseStatements ? [...q.trueFalseStatements] : [];
+                                      const idx = nextStmts.findIndex((s) => s.key === sKey);
+                                      if (idx >= 0) {
+                                        nextStmts[idx] = { ...nextStmts[idx], isCorrect: false };
+                                      } else {
+                                        nextStmts.push({ key: sKey, content: stmtObj.content, isCorrect: false });
+                                      }
+                                      return { ...q, trueFalseStatements: nextStmts };
+                                    });
+                                  }}
+                                  className={`px-2 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer ${
+                                    !stmtObj.isCorrect
+                                      ? 'bg-rose-600 text-white shadow-xs'
+                                      : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                                  }`}
+                                >
+                                  Sai
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* PART 3: Short Answer */}
+                  {draft.partType === 'PART3' && (
+                    <div className="space-y-1.5 pt-1">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Đáp số ngắn / Kết quả chính xác:
+                      </label>
+                      <input
+                        type="text"
+                        value={draft.shortAnswer || ''}
+                        onChange={(e) =>
+                          updateDraftItem(item.id, (q) => ({ ...q, shortAnswer: e.target.value }))
+                        }
+                        placeholder="Ví dụ: 12, -3.5, 4/5..."
+                        className="w-full sm:w-1/2 py-1.5 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white font-bold focus:ring-1 focus:ring-teal-500 outline-none"
+                      />
+                    </div>
+                  )}
+
+                  {/* PART 4: Essay Answer */}
+                  {draft.partType === 'PART4' && (
+                    <div className="space-y-1.5 pt-1">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Biểu điểm / Hướng dẫn chấm tự luận:
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={draft.essayAnswerGuide || ''}
+                        onChange={(e) =>
+                          updateDraftItem(item.id, (q) => ({
+                            ...q,
+                            essayAnswerGuide: e.target.value,
+                          }))
+                        }
+                        placeholder="Nội dung hướng dẫn chấm từng bước..."
+                        className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-teal-500 outline-none"
+                      />
+                    </div>
+                  )}
+
+                  {/* Explanation Field */}
+                  <div className="space-y-1.5 pt-1">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Lời giải chi tiết:
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={draft.explanation || ''}
+                      onChange={(e) =>
+                        updateDraftItem(item.id, (q) => ({ ...q, explanation: e.target.value }))
+                      }
+                      placeholder="Nhập lời giải chi tiết (hỗ trợ công thức toán)..."
+                      className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white font-medium focus:ring-1 focus:ring-teal-500 outline-none"
+                    />
+                    {showPreview && draft.explanation && (
+                      <div className="p-2.5 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-900 dark:text-emerald-200">
+                        <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 block mb-0.5">
+                          Xem trước lời giải:
+                        </span>
+                        <MathText text={draft.explanation} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            // Normal Mode: render QuestionDetailCard with onEdit handler
+            return (
+              <QuestionDetailCard
+                key={item.id}
+                question={item}
+                questionNumber={idx + 1}
+                showAnswers={true}
+                showExplanation={true}
+                defaultExpandedExplanation={false}
+                onEdit={(q) => setSelectedQuestionForModalEdit(q as QuestionBankItem)}
+                badgeExtra={
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                      {item.subject} - {item.grade} {item.chapter ? `(${item.chapter})` : ''}
+                    </span>
+                    {(item.sourceExamTitle || item.examTitle) && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 border border-teal-200/70 dark:border-teal-800/70 flex items-center space-x-1">
+                        <FileText className="w-3 h-3 text-teal-600 dark:text-teal-400 shrink-0" />
+                        <span className="truncate max-w-[200px]" title={item.sourceExamTitle || item.examTitle}>
+                          Đề: {item.sourceExamTitle || item.examTitle}
+                        </span>
+                      </span>
+                    )}
+                    {item.createdDate && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/60 flex items-center space-x-1">
+                        <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                        <span>{formatDateTime(item.createdDate)}</span>
+                      </span>
+                    )}
+                  </div>
+                }
+                actions={
+                  <button
+                    onClick={() => setDeletingQuestionId(item.id)}
+                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors cursor-pointer"
+                    title="Xóa câu hỏi khỏi ngân hàng"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                }
+              />
+            );
+          })}
         </div>
       )}
 
@@ -1130,6 +1731,24 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Manual Edit Single Question Modal */}
+      {selectedQuestionForModalEdit && (
+        <EditQuestionModal
+          isOpen={true}
+          question={selectedQuestionForModalEdit}
+          onClose={() => setSelectedQuestionForModalEdit(null)}
+          onSave={(updatedQ) => {
+            const asBankItem = updatedQ as QuestionBankItem;
+            if (onUpdateQuestion) {
+              onUpdateQuestion(asBankItem);
+            } else {
+              StorageEngine.updateQuestionInBank(asBankItem);
+            }
+            setSelectedQuestionForModalEdit(null);
+          }}
+        />
       )}
     </div>
   );

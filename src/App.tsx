@@ -280,6 +280,21 @@ export default function App() {
     StorageEngine.deleteQuestionFromBank(id);
   };
 
+  const handleUpdateQBItem = (item: QuestionBankItem) => {
+    StorageEngine.updateQuestionInBank(item);
+  };
+
+  const handleUpdateMultipleQBItems = (items: QuestionBankItem[]) => {
+    StorageEngine.updateMultipleQuestionsInBank(items);
+    setExportToast({
+      message: `Đã lưu thành công các thay đổi cho ${items.length} câu hỏi!`,
+      type: 'success',
+    });
+    setTimeout(() => {
+      setExportToast(null);
+    }, 4000);
+  };
+
   const handleDeleteMultipleQBItems = (ids: string[]) => {
     StorageEngine.deleteMultipleQuestionsFromBank(ids);
   };
@@ -382,6 +397,8 @@ export default function App() {
                 questionBank={questionBank}
                 examHistory={examHistory}
                 onAddQuestion={handleAddQBItem}
+                onUpdateQuestion={handleUpdateQBItem}
+                onUpdateMultipleQuestions={handleUpdateMultipleQBItems}
                 onDeleteQuestion={handleDeleteQBItem}
                 onDeleteMultipleQuestions={handleDeleteMultipleQBItems}
                 onClearQuestionBank={handleClearQB}

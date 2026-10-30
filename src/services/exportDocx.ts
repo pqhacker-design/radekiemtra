@@ -406,7 +406,7 @@ class MathCases extends XmlComponent {
   constructor(linesChildren: any[][]) {
     super('m:d');
 
-    // 1. Delimiter properties m:dPr với begChr = '{' và endChr = ''
+    // 1. Delimiter properties m:dPr với begChr = '{', endChr = '' và grow = 1 (kéo dài ngoặc ôm trọn các dòng)
     const dPr = new BuilderElement({
       name: 'm:dPr',
       children: [
@@ -417,6 +417,10 @@ class MathCases extends XmlComponent {
         new BuilderElement({
           name: 'm:endChr',
           attributes: { character: { key: 'm:val', value: '' } },
+        }),
+        new BuilderElement({
+          name: 'm:grow',
+          attributes: { character: { key: 'm:val', value: '1' } },
         }),
       ],
     });
@@ -571,8 +575,8 @@ export function parseMathChildren(
   str = str.replace(/\\+rac\{/g, '\\frac{');
   str = str.replace(/\\*notin\b/g, '\\notin');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)otin\b/g, '\\notin');
-  while (/(\d+)\\\s+(\d+)/.test(str)) {
-    str = str.replace(/(\d+)\\\s+(\d+)/g, '$1 $2');
+  while (/(?<!\\)(\d+)\\\s+(\d+)/.test(str)) {
+    str = str.replace(/(?<!\\)(\d+)\\\s+(\d+)/g, '$1 $2');
   }
   const elements: any[] = [];
 
@@ -663,7 +667,7 @@ export function parseMathChildren(
     [/\\sim(?![a-zA-Z])/g, '∼'], [/\\perp(?![a-zA-Z])/g, '⊥'], [/\\parallel(?![a-zA-Z])/g, '∥'], [/\\%/g, '%'],
     [/\\quad/g, '  '], [/\\qquad/g, '    '],
     [/\\(sin|cos|tan|cot|arcsin|arccos|arctan|arccot|ln|log|lg|exp|lim|max|min|det|gcd)(?![a-zA-Z])/g, '$1'],
-    [/\\\s+/g, ' '], [/\\\,/g, ' '], [/\\;/g, ' '], [/\\:/g, ' '], [/\\!/g, '']
+    [/(?<!\\)\\\s+/g, ' '], [/\\\,/g, ' '], [/\\;/g, ' '], [/\\:/g, ' '], [/\\!/g, '']
   ];
 
   for (const [pattern, val] of symbolMap) {
@@ -692,13 +696,16 @@ export function parseMathChildren(
         const endIdx = str.indexOf(endTag, i + startLen);
         if (endIdx !== -1) {
           const innerBody = str.substring(i + startLen, endIdx);
-          const lines = innerBody.split(/\\\\|\\cr/);
+          let splitLines = innerBody.split(/\\\\|\\cr|[\r\n]+/);
+          if (splitLines.length <= 1 && /;/.test(innerBody)) {
+            splitLines = innerBody.split(/;/);
+          }
           const linesChildren: any[][] = [];
 
-          lines.forEach((line) => {
+          splitLines.forEach((line) => {
             let cleanLine = line;
             cleanLine = cleanLine.replace(/&/g, ' ');
-            cleanLine = cleanLine.replace(/\\\s+/g, ' ');
+            cleanLine = cleanLine.replace(/(?<!\\)\\\s+/g, ' ');
             cleanLine = cleanLine.replace(/\\\(|\\\)/g, '');
             cleanLine = cleanLine.replace(/\\(text|mathrm|mathbf|mathit)\{([^{}]+)\}/g, '$2');
 
@@ -708,7 +715,7 @@ export function parseMathChildren(
             }
           });
 
-          if (envType === 'cases') {
+          if (envType === 'cases' || (linesChildren.length > 1 && (envType === 'aligned' || envType === 'array'))) {
             elements.push(new MathCases(linesChildren.length > 0 ? linesChildren : [[new MathRun('')]]));
           } else if (envType === 'pmatrix') {
             const flatChildren = linesChildren.flat();
@@ -1433,6 +1440,17 @@ export function fixCasesLatex(rawText: string): string {
   if (!rawText) return rawText;
   let str = sanitizeLatexControlChars(rawText);
 
+  // 0. Chuẩn hóa các môi trường array / aligned / matrix có ngoặc nhọn mở bên trái thành \begin{cases} ... \end{cases}
+  str = str.replace(/\\left\\\{\s*\\begin\{(?:cases|aligned|array|matrix)\}(?:\{[^{}]*\})?([\s\S]*?)\\end\{(?:cases|aligned|array|matrix)\}\s*(?:\\right(?:\.|\b)?)?/g, (_, inner) => {
+    return `\\begin{cases} ${inner.trim()} \\end{cases}`;
+  });
+  str = str.replace(/\\left\\\{\s*([^{}]+?)\s*\\right\./g, (m, inner) => {
+    if (/=|>|<|\\le|\\ge|\\neq/.test(inner)) {
+      return `\\begin{cases} ${inner.trim()} \\end{cases}`;
+    }
+    return m;
+  });
+
   // 1. Chuyển các ký hiệu hệ phương trình gõ dạng { eq1 ; eq2 } hoặc \{ eq1 ; eq2 \} hoặc { eq1 \\ eq2 } thành \begin{cases} eq1 \\ eq2 \end{cases}
   str = str.replace(/\\?\{\s*([^{}]+?)\s*\\?\}/g, (m, inner) => {
     const trimmed = inner.trim();
@@ -1452,7 +1470,10 @@ export function fixCasesLatex(rawText: string): string {
         cleanedInner = cleanedInner.replace(/,/g, ' \\\\ ');
       }
       if (!cleanedInner.includes('\\\\')) {
-        cleanedInner = cleanedInner.replace(/(=\s*[^={}\s]+)\s+([a-zA-Z0-9_\-][^={}]*=)/g, (m, g1, g2) => `${g1} \\\\ ${g2}`);
+        cleanedInner = cleanedInner.replace(/(=\s*[^={}\n\r;]+?)(?=\s+(?:[+\-]?\s*\d*\.?\d*\s*[a-zA-Z]|\\?[a-zA-Z])[^={}]*=)/g, '$1 \\\\');
+        if (!cleanedInner.includes('\\\\')) {
+          cleanedInner = cleanedInner.replace(/(=\s*[^={}\s]+)\s+([a-zA-Z0-9_\-][^={}]*=)/g, (m, g1, g2) => `${g1} \\\\ ${g2}`);
+        }
       }
       return `\\begin{cases} ${cleanedInner} \\end{cases}`;
     }
@@ -1468,12 +1489,15 @@ export function fixCasesLatex(rawText: string): string {
   // 2. Chuẩn hóa môi trường \begin{cases} ... \end{cases}
   str = str.replace(/\\begin\{cases\}([\s\S]*?)\\end\{cases\}/g, (match, inner) => {
     let cleanedInner = inner.trim();
+    cleanedInner = cleanedInner.replace(/[\n\r]+/g, ' \\\\ ');
+    cleanedInner = cleanedInner.replace(/;/g, ' \\\\ ');
     if (!cleanedInner.includes('\\\\')) {
-      if (/;/.test(cleanedInner)) {
-        cleanedInner = cleanedInner.replace(/;\s*/g, ' \\\\ ');
+      cleanedInner = cleanedInner.replace(/(=\s*[^={}\n\r;]+?)(?=\s+(?:[+\-]?\s*\d*\.?\d*\s*[a-zA-Z]|\\?[a-zA-Z])[^={}]*=)/g, '$1 \\\\');
+      if (!cleanedInner.includes('\\\\')) {
+        cleanedInner = cleanedInner.replace(/(=\s*[^={}\s]+)\s+([a-zA-Z0-9_\-][^={}]*=)/g, (m, g1, g2) => `${g1} \\\\ ${g2}`);
       }
     }
-    const lines = cleanedInner.split(/\\\\/).map((s) => s.trim()).filter(Boolean);
+    const lines = cleanedInner.split(/\\\\|\\cr/).map((s) => s.trim()).filter(Boolean);
     return `\\begin{cases} ${lines.join(' \\\\ ')} \\end{cases}`;
   });
 
@@ -1620,6 +1644,8 @@ export function createDocxInlineRuns(text: string, baseOptions: any = {}): (Text
   let cleanInput = normalizeNewlines(text);
   // Khử triệt để dấu phẩy số thập phân {,} hoặc \{,\}
   cleanInput = cleanInput.replace(/\\?\{\s*,\s*\\?\}/g, ',');
+  // Chuẩn hóa hệ phương trình trước khi dọn dẹp \r\n để không làm mất phân tách dòng của hệ
+  cleanInput = fixCasesLatex(cleanInput);
   cleanInput = cleanInput.replace(/\$([^$]+)\$/g, (m, p1) => '$' + p1.replace(/[\r\n]+/g, ' ').trim() + '$');
   cleanInput = cleanInput.replace(/\$\$([^$]+)\$\$/g, (m, p1) => '$$' + p1.replace(/[\r\n]+/g, ' ').trim() + '$$');
 

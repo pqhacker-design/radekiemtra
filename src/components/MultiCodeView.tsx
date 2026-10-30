@@ -4,6 +4,7 @@ import { ExamMetadata, ExamPackage, Question } from '../types';
 import { QuestionDetailCard } from './QuestionDetailCard';
 import { MathText } from './MathText';
 import { RegenerateQuestionModal } from './RegenerateQuestionModal';
+import { EditQuestionModal } from './EditQuestionModal';
 
 interface MultiCodeViewProps {
   examPackage: ExamPackage | null;
@@ -49,6 +50,8 @@ export const MultiCodeView: React.FC<MultiCodeViewProps> = ({
 
   // State quản lý việc tạo lại riêng câu hỏi bằng AI
   const [selectedQuestionForRegen, setSelectedQuestionForRegen] = useState<Question | null>(null);
+  // State quản lý việc chỉnh sửa thủ công câu hỏi
+  const [selectedQuestionForManualEdit, setSelectedQuestionForManualEdit] = useState<Question | null>(null);
 
   const selectedExam = exams.find((e) => e.code === activeCodeTab) || exams[0];
   const selectedAK = answerKeys.find((ak) => ak.code === activeCodeTab) || answerKeys[0];
@@ -188,6 +191,7 @@ export const MultiCodeView: React.FC<MultiCodeViewProps> = ({
                 showExplanation={showExplanationsInPreview}
                 defaultExpandedExplanation={showExplanationsInPreview}
                 onRegenerate={(targetQ) => setSelectedQuestionForRegen(targetQ)}
+                onEdit={(targetQ) => setSelectedQuestionForManualEdit(targetQ)}
               />
             ))}
           </div>
@@ -268,6 +272,22 @@ export const MultiCodeView: React.FC<MultiCodeViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Modal Chỉnh sửa thủ công câu hỏi */}
+      {selectedQuestionForManualEdit && (
+        <EditQuestionModal
+          isOpen={Boolean(selectedQuestionForManualEdit)}
+          onClose={() => setSelectedQuestionForManualEdit(null)}
+          question={selectedQuestionForManualEdit}
+          examCode={selectedExam.code}
+          totalCodes={exams.length}
+          onSave={(origQ, newQ) => {
+            if (onRegenerateQuestion) {
+              onRegenerateQuestion(origQ, newQ);
+            }
+          }}
+        />
+      )}
 
       {/* Modal Yêu cầu AI Tạo lại riêng câu hỏi này */}
       {selectedQuestionForRegen && (

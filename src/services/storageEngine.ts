@@ -219,6 +219,27 @@ export class StorageEngine {
     }
   }
 
+  static updateQuestionInBank(question: QuestionBankItem): void {
+    try {
+      const current = this.getQuestionBank();
+      const updated = current.map((q) => (q.id === question.id ? question : q));
+      this.saveQuestionBank(updated);
+    } catch (e) {
+      console.error('Lỗi cập nhật câu hỏi trong ngân hàng:', e);
+    }
+  }
+
+  static updateMultipleQuestionsInBank(updatedQuestions: QuestionBankItem[]): void {
+    try {
+      const current = this.getQuestionBank();
+      const updateMap = new Map(updatedQuestions.map((q) => [q.id, q]));
+      const updated = current.map((q) => updateMap.get(q.id) || q);
+      this.saveQuestionBank(updated);
+    } catch (e) {
+      console.error('Lỗi cập nhật danh sách câu hỏi trong ngân hàng:', e);
+    }
+  }
+
   static deleteQuestionFromBank(id: string): void {
     try {
       const current = this.getQuestionBank();
