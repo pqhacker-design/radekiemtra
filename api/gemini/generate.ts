@@ -20,8 +20,6 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Nội dung Yêu cầu (prompt) không được để trống.' });
     }
 
-    const selectedModel = typeof model === 'string' && model.trim().length > 0 ? model.trim() : 'gemini-2.5-flash';
-
     const apiKey = (typeof customApiKey === 'string' && customApiKey.trim().length > 0)
       ? customApiKey.trim()
       : ((req.headers['x-custom-api-key'] as string || '').trim() || process.env.GEMINI_API_KEY || '');
@@ -30,6 +28,16 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({
         error: '[NO_API_KEY] Chưa cấu hình API Key. Vui lòng cấu hình GEMINI_API_KEY hoặc nhập Gemini API Key trong phần Cài Đặt.',
       });
+    }
+
+    let requestedModel = typeof model === 'string' && model.trim().length > 0 ? model.trim() : 'gemini-3.1-flash-lite';
+    if (
+      requestedModel.includes('2.5') ||
+      requestedModel.includes('2.0') ||
+      requestedModel.includes('1.5') ||
+      requestedModel.includes('gemini-pro')
+    ) {
+      requestedModel = 'gemini-3.1-flash-lite';
     }
 
     const ai = new GoogleGenAI({
@@ -41,7 +49,9 @@ export default async function handler(req: any, res: any) {
       },
     });
 
-    const config: any = {};
+    const config: any = {
+      maxOutputTokens: 32768,
+    };
     if (systemInstruction) config.systemInstruction = systemInstruction;
     if (responseMimeType) config.responseMimeType = responseMimeType;
     if (responseSchema) config.responseSchema = responseSchema;
@@ -66,9 +76,8 @@ export default async function handler(req: any, res: any) {
       contents = parts;
     }
 
-    // Danh sách mô hình tối ưu theo thứ tự ưu tiên (Tự động fallback nếu model được chọn bị lỗi / không tồn tại)
     const candidateModels = Array.from(
-      new Set([selectedModel, 'gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview'])
+      new Set([requestedModel, 'gemini-3.1-flash-lite', 'gemini-3.8-flash'])
     );
 
     let lastError: any = null;
@@ -86,13 +95,14 @@ export default async function handler(req: any, res: any) {
         }
       } catch (err: any) {
         lastError = err;
-        console.warn(`Lỗi khi gọi model ${currentModel} trên Vercel:`, err.message || err);
         const errMsg = String(err.message || err);
-        // Nếu lỗi là API key sai (401/403), ngắt ngay lập tức
+        console.warn(`Lỗi khi gọi model ${currentModel}:`, errMsg.slice(0, 150));
         if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('401') || errMsg.includes('API key not valid')) {
-          throw err;
+          return res.status(403).json({
+            error: '[INVALID_API_KEY] Gemini API Key không hợp lệ. Vui lòng kiểm tra lại trong phần Cài Đặt.',
+          });
         }
-        // Đối với lỗi model không tồn tại (404 như 3.6-flash) hoặc quá tải (503/429), tiếp tục thử model dự phòng
+        // If 429 or 404, loop will try next candidate model
       }
     }
 

@@ -2,7 +2,7 @@ import express, { type Request, type Response } from 'express';
 import { GoogleGenAI } from '@google/genai';
 
 export function registerExamRoutes(app: express.Express) {
-  // 1. Gemini AI Generation Proxy Endpoint with Randomness & Temperature support
+  // 1. Gemini AI Generation Proxy Endpoint
   app.post('/api/gemini/generate', async (req: Request, res: Response) => {
     try {
       const {
@@ -13,9 +13,15 @@ export function registerExamRoutes(app: express.Express) {
         customApiKey,
         model,
         images,
-        temperature = 0.85,
+        temperature = 0.45,
         topP = 0.95,
       } = req.body;
+
+      if (!prompt) {
+        return res.status(400).json({
+          error: 'Nội dung yêu cầu (prompt) không được để trống.',
+        });
+      }
 
       const apiKey =
         (customApiKey || '').trim() ||
@@ -28,18 +34,23 @@ export function registerExamRoutes(app: express.Express) {
         });
       }
 
-      const selectedModel =
-        typeof model === 'string' && model.trim().length > 0
-          ? model.trim()
-          : 'gemini-3.8-flash';
+      // Sanitize model selection: filter out deprecated models
+      let requestedModel = typeof model === 'string' && model.trim().length > 0 ? model.trim() : 'gemini-3.1-flash-lite';
+      if (
+        requestedModel.includes('2.5') ||
+        requestedModel.includes('2.0') ||
+        requestedModel.includes('1.5') ||
+        requestedModel.includes('gemini-pro')
+      ) {
+        requestedModel = 'gemini-3.1-flash-lite';
+      }
 
+      // Order candidates: requested model, then gemini-3.1-flash-lite (high availability & quota), then gemini-3.8-flash
       const candidateModels = Array.from(
         new Set([
-          selectedModel,
-          'gemini-3.8-flash',
+          requestedModel,
           'gemini-3.1-flash-lite',
-          'gemini-2.5-flash',
-          'gemini-3.1-pro-preview',
+          'gemini-3.8-flash',
         ])
       );
 
@@ -48,7 +59,9 @@ export function registerExamRoutes(app: express.Express) {
       for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
         const currentModel = candidateModels[mIdx];
 
-        for (let attempt = 1; attempt <= 3; attempt++) {
+        // Transient retry attempts (only for 503/UNAVAILABLE)
+        const maxAttempts = 2;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           try {
             const ai = new GoogleGenAI({
               apiKey,
@@ -60,10 +73,14 @@ export function registerExamRoutes(app: express.Express) {
             });
 
             const config: any = {
-              temperature: typeof temperature === 'number' ? temperature : 0.45,
-              topP: typeof topP === 'number' ? topP : 0.95,
               maxOutputTokens: 32768,
             };
+
+            // Temperature & topP are supported on gemini-3.1-flash-lite; avoid deprecated params on gemini-3.8-flash
+            if (currentModel.includes('3.1-flash-lite')) {
+              if (typeof temperature === 'number') config.temperature = temperature;
+              if (typeof topP === 'number') config.topP = topP;
+            }
 
             if (systemInstruction) config.systemInstruction = systemInstruction;
             if (responseMimeType) config.responseMimeType = responseMimeType;
@@ -95,19 +112,47 @@ export function registerExamRoutes(app: express.Express) {
               config,
             });
 
-            return res.json({ text: response.text });
+            const responseText = response.text || '';
+            return res.json({ text: responseText, modelUsed: currentModel });
           } catch (err: any) {
             lastError = err;
-            const errStr = (err?.message || '') + (err?.status || '');
-            const isRetryable =
+            const errStr = String(err?.message || err?.status || err || '');
+            console.warn(`[Gemini Proxy] Lỗi với model ${currentModel} (lần ${attempt}):`, errStr.slice(0, 150));
+
+            // If API key is invalid, terminate immediately
+            if (
+              errStr.includes('API_KEY_INVALID') ||
+              errStr.includes('API key not valid') ||
+              errStr.includes('401') ||
+              errStr.includes('403')
+            ) {
+              return res.status(403).json({
+                error: '[INVALID_API_KEY] Gemini API Key không hợp lệ hoặc đã bị khóa. Vui lòng kiểm tra lại trong phần Cài Đặt.',
+              });
+            }
+
+            // If quota exhausted (429) or model not found (404), do not retry the same model; switch to next candidate immediately!
+            if (
+              errStr.includes('429') ||
+              errStr.includes('RESOURCE_EXHAUSTED') ||
+              errStr.includes('Quota exceeded') ||
+              errStr.includes('404') ||
+              errStr.includes('NOT_FOUND') ||
+              errStr.includes('no longer available')
+            ) {
+              break;
+            }
+
+            // Retry for transient 503 / UNAVAILABLE
+            const isTransient =
               errStr.includes('503') ||
               errStr.includes('UNAVAILABLE') ||
               errStr.includes('high demand') ||
-              errStr.includes('RESOURCE_EXHAUSTED') ||
-              errStr.includes('429');
+              errStr.includes('timeout') ||
+              errStr.includes('ECONNRESET');
 
-            if (isRetryable && attempt < 3) {
-              await new Promise((r) => setTimeout(r, 1500 * attempt));
+            if (isTransient && attempt < maxAttempts) {
+              await new Promise((r) => setTimeout(r, 1000));
               continue;
             }
             break;
@@ -115,7 +160,19 @@ export function registerExamRoutes(app: express.Express) {
         }
       }
 
-      console.error('Gemini API Proxy Error:', lastError);
+      console.error('[Gemini Proxy] Tất cả các mô hình dự phòng đều thất bại:', lastError?.message || lastError);
+
+      const finalErrStr = String(lastError?.message || lastError || '');
+      if (
+        finalErrStr.includes('429') ||
+        finalErrStr.includes('RESOURCE_EXHAUSTED') ||
+        finalErrStr.includes('Quota exceeded')
+      ) {
+        return res.status(429).json({
+          error: '[QUOTA_EXHAUSTED] Hạn ngạch yêu cầu miễn phí trong ngày của Gemini API đã đạt giới hạn. Bạn có thể nhập thêm Gemini API Key riêng trong mục Cài Đặt để tiếp tục sử dụng ngay.',
+        });
+      }
+
       return res.status(500).json({
         error: lastError?.message || 'Không thể kết nối tới mô hình AI. Vui lòng thử lại.',
       });
