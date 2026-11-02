@@ -1,5 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
-
 export interface GeminiApiOptions {
   prompt: string;
   systemInstruction?: string;
@@ -13,22 +11,30 @@ export interface GeminiApiOptions {
   onStatusUpdate?: (msg: string) => void;
 }
 
+/**
+ * Gửi yêu cầu sinh nội dung AI thông qua Server Proxy (/api/gemini/generate).
+ * Toàn bộ xử lý gọi Google GenAI SDK được thực hiện an toàn ở phía Backend,
+ * loại bỏ hoàn toàn lỗi PROXY_GENERATION_DISABLED trên trình duyệt client.
+ */
 export async function callGeminiApi({
   prompt,
   systemInstruction,
   responseMimeType,
   responseSchema,
   customApiKey,
-  model = 'gemini-3.8-flash',
+  model = 'gemini-3.1-flash-lite',
   images = [],
-  temperature = 0.85,
+  temperature = 0.45,
   topP = 0.95,
   onStatusUpdate,
 }: GeminiApiOptions): Promise<string> {
   const apiKey = customApiKey?.trim() || '';
-  const selectedModel = typeof model === 'string' && model.trim().length > 0 ? model.trim() : 'gemini-3.8-flash';
+  const selectedModel = typeof model === 'string' && model.trim().length > 0 ? model.trim() : 'gemini-3.1-flash-lite';
 
-  // 1. Gọi qua Backend Server (/api/gemini/generate)
+  if (onStatusUpdate) {
+    onStatusUpdate(`Đang kết nối tới máy chủ AI (${selectedModel})...`);
+  }
+
   try {
     const response = await fetch('/api/gemini/generate', {
       method: 'POST',
@@ -53,7 +59,9 @@ export async function callGeminiApi({
     let data: any = null;
     try {
       data = JSON.parse(responseText);
-    } catch {}
+    } catch {
+      data = { error: responseText };
+    }
 
     if (response.ok && data && typeof data.text === 'string') {
       return data.text;
@@ -61,118 +69,24 @@ export async function callGeminiApi({
 
     if (data && data.error) {
       const errMsg = String(data.error);
-      if (
-        !errMsg.includes('404') &&
-        !errMsg.includes('Cannot POST') &&
-        !errMsg.includes('Unexpected token') &&
-        !errMsg.includes('Failed to fetch')
-      ) {
-        throw new Error(data.error);
-      }
+      throw new Error(errMsg);
     }
+
+    throw new Error(`Máy chủ phản hồi với mã lỗi HTTP ${response.status}`);
   } catch (err: any) {
-    if (
-      err.message &&
-      (err.message.includes('Máy chủ AI') ||
-        err.message.includes('API Key') ||
-        err.message.includes('NO_API_KEY') ||
-        err.message.includes('INVALID_API_KEY') ||
-        err.message.includes('QUOTA_EXHAUSTED') ||
-        err.message.includes('quá tải'))
-    ) {
-      throw err;
+    const message = String(err?.message || err || '');
+
+    // Phân loại các thông báo lỗi trực quan cho người dùng
+    if (message.includes('NO_API_KEY')) {
+      throw new Error('[NO_API_KEY] Chưa cấu hình Gemini API Key. Vui lòng nhập API Key trong phần Cài Đặt.');
     }
-    if (!apiKey) {
-      throw new Error(err.message || 'Không thể kết nối tới máy chủ tạo đề thi AI.');
+    if (message.includes('INVALID_API_KEY') || message.includes('API_KEY_INVALID') || message.includes('403') || message.includes('401')) {
+      throw new Error('[INVALID_API_KEY] API Key của bạn không hợp lệ hoặc đã bị khóa. Vui lòng kiểm tra lại trong phần Cài Đặt.');
     }
+    if (message.includes('QUOTA_EXHAUSTED') || message.includes('RESOURCE_EXHAUSTED') || message.includes('429')) {
+      throw new Error('[QUOTA_EXHAUSTED] Hạn ngạch miễn phí của Gemini API hôm nay đã tạm hết. Bạn có thể nhập API Key riêng trong mục Cài Đặt để tiếp tục sử dụng ngay.');
+    }
+
+    throw new Error(message || 'Không thể tạo dữ liệu từ mô hình AI. Vui lòng thử lại sau.');
   }
-
-  if (!apiKey) {
-    throw new Error('[NO_API_KEY] Chưa cấu hình Gemini API Key. Vui lòng nhập API Key để tiếp tục.');
-  }
-
-  // 2. Client-side fallback: Gọi trực tiếp GoogleGenAI SDK
-  const candidateModels = Array.from(
-    new Set([selectedModel, 'gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-3.1-pro-preview'])
-  );
-
-  let lastError: any = null;
-
-  for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
-    const currentModel = candidateModels[mIdx];
-    if (mIdx > 0 && onStatusUpdate) {
-      onStatusUpdate(`Đang chuyển sang mô hình dự phòng: ${currentModel}...`);
-    }
-
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        const ai = new GoogleGenAI({
-          apiKey,
-          httpOptions: {
-            headers: {
-              'User-Agent': 'aistudio-build',
-            },
-          },
-        });
-
-        const config: any = {
-          temperature: typeof temperature === 'number' ? temperature : 0.45,
-          topP: typeof topP === 'number' ? topP : 0.95,
-          maxOutputTokens: 32768,
-        };
-
-        if (systemInstruction) config.systemInstruction = systemInstruction;
-        if (responseMimeType) config.responseMimeType = responseMimeType;
-        if (responseSchema) config.responseSchema = responseSchema;
-
-        let contents: any = prompt;
-        if (Array.isArray(images) && images.length > 0) {
-          const parts: any[] = [];
-          for (const imgUrl of images) {
-            if (typeof imgUrl === 'string' && imgUrl.startsWith('data:')) {
-              const match = imgUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
-              if (match) {
-                parts.push({
-                  inlineData: {
-                    mimeType: match[1],
-                    data: match[2],
-                  },
-                });
-              }
-            }
-          }
-          parts.push({ text: prompt });
-          contents = parts;
-        }
-
-        const response = await ai.models.generateContent({
-          model: currentModel,
-          contents,
-          config,
-        });
-
-        if (response && response.text) {
-          return response.text;
-        }
-      } catch (err: any) {
-        lastError = err;
-        const errStr = (err?.message || '') + (err?.status || '');
-        const isRetryable =
-          errStr.includes('503') ||
-          errStr.includes('UNAVAILABLE') ||
-          errStr.includes('high demand') ||
-          errStr.includes('RESOURCE_EXHAUSTED') ||
-          errStr.includes('429');
-
-        if (isRetryable && attempt < 3) {
-          if (onStatusUpdate) onStatusUpdate(`Hệ thống đang bận, tự động thử lại lần ${attempt + 1}...`);
-          await new Promise((r) => setTimeout(r, 1500 * attempt));
-          continue;
-        }
-        break;
-      }
-    }
-  }
-
-  throw new Error(lastError?.message || 'Không thể tạo đề thi với AI. Vui lòng thử lại sau.');
 }

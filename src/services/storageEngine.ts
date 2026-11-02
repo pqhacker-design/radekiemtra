@@ -65,7 +65,7 @@ export const defaultSettings: AppSettings = {
   defaultSchoolName: 'Trường THCS / THPT',
   defaultDepartmentName: 'Sở Giáo dục và Đào tạo',
   defaultTeacherName: 'Giáo viên',
-  selectedModel: 'gemini-3.8-flash',
+  selectedModel: 'gemini-3.1-flash-lite',
   theme: 'light',
   saveExamHistory: true,
   autoSaveToBank: true,

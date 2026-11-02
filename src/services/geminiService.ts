@@ -39,7 +39,10 @@ export class GeminiService {
     const prompt = PromptEngine.buildGenerationPrompt(metadata, existingQuestionsToAvoid);
     const settings = StorageEngine.getSettings();
     const customApiKey = settings.customApiKey?.trim() || '';
-    const selectedModel = settings.selectedModel || 'gemini-3.8-flash';
+    const rawModel = settings.selectedModel || 'gemini-3.1-flash-lite';
+    const selectedModel = rawModel.includes('2.5') || rawModel.includes('2.0') || rawModel.includes('1.5')
+      ? 'gemini-3.1-flash-lite'
+      : rawModel;
 
     if (onProgress) onProgress(`Đang gửi yêu cầu tới Gemini AI (${selectedModel})...`);
 
@@ -131,7 +134,10 @@ export class GeminiService {
 
     const settings = StorageEngine.getSettings();
     const customApiKey = settings.customApiKey?.trim() || '';
-    const selectedModel = settings.selectedModel || 'gemini-3.8-flash';
+    const rawModel = settings.selectedModel || 'gemini-3.1-flash-lite';
+    const selectedModel = rawModel.includes('2.5') || rawModel.includes('2.0') || rawModel.includes('1.5')
+      ? 'gemini-3.1-flash-lite'
+      : rawModel;
 
     if (onProgress) onProgress(`Đang gửi yêu cầu tới AI (${selectedModel})...`);
 

@@ -25,18 +25,25 @@ interface SettingsViewProps {
 
 const GEMINI_MODELS = [
   {
+    id: 'gemini-3.1-flash-lite',
+    name: 'Gemini 3.1 Flash Lite (3.1 Lite)',
+    badge: 'Khuyên Dùng - Siêu Tốc & Quota Ổn Định',
+    badgeClass: 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800',
+    description: 'Phản hồi cực nhanh, lượng token nhẹ, hoạt động mượt mà với hạn ngạch riêng và tiết kiệm tài nguyên.',
+  },
+  {
     id: 'gemini-3.8-flash',
     name: 'Gemini 3.8 Flash',
-    badge: 'Khuyên Dùng - Tốc Độ & Thông Minh Vượt Trội',
-    badgeClass: 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800',
+    badge: 'Mô Hình Thông Minh Thế Hệ 3',
+    badgeClass: 'bg-cyan-100 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-800',
     description: 'Mô hình thế hệ 3 mới nhất, suy luận logic sâu sắc, sinh đề chuẩn xác theo CV 7991/BGDĐT và xử lý LaTeX xuất sắc.',
   },
   {
-    id: 'gemini-3.1-flash-lite',
-    name: 'Gemini 3.1 Flash Lite (3.1 Lite)',
-    badge: 'Siêu Tốc - Tiết Kiệm Quota',
-    badgeClass: 'bg-cyan-100 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-800',
-    description: 'Phản hồi siêu tốc, lượng token nhẹ, thích hợp khi cần sinh đề nhanh chóng với API key miễn phí.',
+    id: 'gemini-flash-latest',
+    name: 'Gemini Flash Latest',
+    badge: 'Bản Cập Nhật Mới',
+    badgeClass: 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800',
+    description: 'Phiên bản Flash cập nhật liên tục với hiệu năng và độ ổn định cao.',
   },
   {
     id: 'gemini-3.1-pro-preview',
@@ -44,13 +51,6 @@ const GEMINI_MODELS = [
     badge: 'Chuyên Sâu - Đề Phân Hóa Cao',
     badgeClass: 'bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800',
     description: 'Mô hình chuyên sâu cho các bài toán phân hóa Vận dụng cao (VDC), bồi dưỡng học sinh giỏi và đề thi chuyên.',
-  },
-  {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    badge: 'Ổn Định',
-    badgeClass: 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700',
-    description: 'Mô hình 2.5 với khả năng tương thích cao và thời gian phản hồi ổn định.',
   },
 ];
 
