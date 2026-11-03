@@ -464,8 +464,8 @@ export function cleanLatexForDocx(latex: string): string {
   }
   str = str.replace(/\\\s+/g, ' ');
   str = str.replace(/\\%/g, '%');
-  str = str.replace(/\\begin\{cases\}/g, '{ ');
-  str = str.replace(/\\end\{cases\}/g, ' }');
+  str = str.replace(/\\+begin\{cases\}/g, '{ ');
+  str = str.replace(/\\+end\{cases\}/g, ' }');
   str = str.replace(/\\\\|\\cr/g, '; ');
   str = str.replace(/&/g, ' ');
   str = str.replace(/\\\s+/g, ' ');
@@ -686,50 +686,49 @@ export function parseMathChildren(
 
   while (i < str.length) {
     // 0. Xử lý môi trường LaTeX: \begin{cases}, \begin{aligned}, \begin{array}, \begin{matrix}, \begin{pmatrix}, \begin{bmatrix}
-    if (str.startsWith('\\begin{', i)) {
+    const envMatch = str.substring(i).match(/^\\+(begin\{(cases|aligned|array|matrix|pmatrix|bmatrix)\})/);
+    if (envMatch) {
       flushText();
-      const envMatch = str.substring(i).match(/^\\begin\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/);
-      if (envMatch) {
-        const envType = envMatch[1];
-        const startLen = envMatch[0].length;
-        const endTag = `\\end{${envType}}`;
-        const endIdx = str.indexOf(endTag, i + startLen);
-        if (endIdx !== -1) {
-          const innerBody = str.substring(i + startLen, endIdx);
-          let splitLines = innerBody.split(/\\\\|\\cr|[\r\n]+/);
-          if (splitLines.length <= 1 && /;/.test(innerBody)) {
-            splitLines = innerBody.split(/;/);
-          }
-          const linesChildren: any[][] = [];
-
-          splitLines.forEach((line) => {
-            let cleanLine = line;
-            cleanLine = cleanLine.replace(/&/g, ' ');
-            cleanLine = cleanLine.replace(/(?<!\\)\\\s+/g, ' ');
-            cleanLine = cleanLine.replace(/\\\(|\\\)/g, '');
-            cleanLine = cleanLine.replace(/\\(text|mathrm|mathbf|mathit)\{([^{}]+)\}/g, '$2');
-
-            const lineChildren = parseMathChildren(cleanLine.trim());
-            if (lineChildren.length > 0) {
-              linesChildren.push(lineChildren);
-            }
-          });
-
-          if (envType === 'cases' || (linesChildren.length > 1 && (envType === 'aligned' || envType === 'array'))) {
-            elements.push(new MathCases(linesChildren.length > 0 ? linesChildren : [[new MathRun('')]]));
-          } else if (envType === 'pmatrix') {
-            const flatChildren = linesChildren.flat();
-            elements.push(new MathRoundBrackets({ children: flatChildren }));
-          } else if (envType === 'bmatrix') {
-            const flatChildren = linesChildren.flat();
-            elements.push(new MathSquareBrackets({ children: flatChildren }));
-          } else {
-            elements.push(...linesChildren.flat());
-          }
-
-          i = endIdx + endTag.length;
-          continue;
+      const envType = envMatch[2];
+      const startLen = envMatch[0].length;
+      const endTagRegex = new RegExp(`\\\\+(end\\{${envType}\\})`);
+      const afterStart = str.substring(i + startLen);
+      const endMatch = afterStart.match(endTagRegex);
+      if (endMatch && endMatch.index !== undefined) {
+        const innerBody = afterStart.substring(0, endMatch.index);
+        let splitLines = innerBody.split(/\\\\+|\\cr|[\r\n]+/);
+        if (splitLines.length <= 1 && /;/.test(innerBody)) {
+          splitLines = innerBody.split(/;/);
         }
+        const linesChildren: any[][] = [];
+
+        splitLines.forEach((line) => {
+          let cleanLine = line;
+          cleanLine = cleanLine.replace(/&/g, ' ');
+          cleanLine = cleanLine.replace(/(?<!\\)\\\s+/g, ' ');
+          cleanLine = cleanLine.replace(/\\\(|\\\)/g, '');
+          cleanLine = cleanLine.replace(/\\(text|mathrm|mathbf|mathit)\{([^{}]+)\}/g, '$2');
+
+          const lineChildren = parseMathChildren(cleanLine.trim());
+          if (lineChildren.length > 0) {
+            linesChildren.push(lineChildren);
+          }
+        });
+
+        if (envType === 'cases' || (linesChildren.length > 1 && (envType === 'aligned' || envType === 'array'))) {
+          elements.push(new MathCases(linesChildren.length > 0 ? linesChildren : [[new MathRun('')]]));
+        } else if (envType === 'pmatrix') {
+          const flatChildren = linesChildren.flat();
+          elements.push(new MathRoundBrackets({ children: flatChildren }));
+        } else if (envType === 'bmatrix') {
+          const flatChildren = linesChildren.flat();
+          elements.push(new MathSquareBrackets({ children: flatChildren }));
+        } else {
+          elements.push(...linesChildren.flat());
+        }
+
+        i = i + startLen + endMatch.index + endMatch[0].length;
+        continue;
       }
     }
 
@@ -1301,10 +1300,10 @@ function processPlainPart(plain: string): string {
     (m, p1, a1, a2, deg, p2) => `${p1} $\\${a1.toLowerCase()} = \\${a2.toLowerCase()} = ${deg}$ ${p2}`
   );
 
-  // 7e. Hàm lượng giác với đỉnh tam giác: "\tan P", "\sin A", "\cos B", "\cot C"
+  // 7e. Hàm lượng giác với góc, đỉnh tam giác hoặc số đo độ: "\tan P", "\sin A", "\cos 60^\circ", "\tan 45^\circ"
   str = str.replace(
-    /(^|[^\$])(\\(?:sin|cos|tan|cot)\s+[A-Z]\b)([^\$]|$)/g,
-    (m, p1, trig, p2) => `${p1} $${trig.trim()}$ ${p2}`
+    /(^|[^\$])(\\(?:sin|cos|tan|cot)\s*(?:\([^\)]+\)|\d+(?:\s*\^\s*(?:\\?circ|°)|°)?|[a-zA-Z]\b(?:\s*\^\s*(?:\\?circ|°)|°)?))(?![\$a-zA-Z])/g,
+    (m, p1, trig) => `${p1} $${trig.trim()}$ `
   );
 
   // 7f. Điều kiện xác định: "x \ne 4", "x \ne -1", "x \ne -4", "x \ne \frac{5}{2}", "x - 4 \ne 0", "x + 1 \ne 0", "2x - 1 \ne 0"
@@ -1408,14 +1407,9 @@ export function sanitizeLatexControlChars(text: string): string {
   str = str.replace(/\x0C/g, '');
 
   // Khôi phục các lệnh bắt đầu bằng 't' bị mất 't' do \t (Tab 0x09):
-  str = str.replace(/\tan\b/g, '\\tan');
-  str = str.replace(/\text\b/g, '\\text');
-  str = str.replace(/\theta\b/g, '\\theta');
-  str = str.replace(/\times\b/g, '\\times');
-  str = str.replace(/\tau\b/g, '\\tau');
-  str = str.replace(/\tilde\b/g, '\\tilde');
-  str = str.replace(/\triangle\b/g, '\\triangle');
-  str = str.replace(/\t([a-zA-Z]+)/g, '\\t$1');
+  str = str.replace(/\x09(an|ext|heta|imes|au|ilde|riangle)\b/gi, (m, p1) => `\\${p1}`);
+  str = str.replace(/\x09([a-zA-Z]+)/g, '\\t$1');
+  str = str.replace(/\x09/g, ' ');
 
   // Khôi phục các lệnh bắt đầu bằng 'r' bị mất 'r' do \r (Carriage Return 0x0D):
   str = str.replace(/\right\b/g, '\\right');
@@ -1439,6 +1433,10 @@ export function sanitizeLatexControlChars(text: string): string {
 export function fixCasesLatex(rawText: string): string {
   if (!rawText) return rawText;
   let str = sanitizeLatexControlChars(rawText);
+
+  // Khử triệt để dấu gạch chéo ngược thừa trước begin/end
+  str = str.replace(/\\{2,}(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+  str = str.replace(/\\+\s*\\+(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
 
   // 0. Chuẩn hóa các môi trường array / aligned / matrix có ngoặc nhọn mở bên trái thành \begin{cases} ... \end{cases}
   str = str.replace(/\\left\\\{\s*\\begin\{(?:cases|aligned|array|matrix)\}(?:\{[^{}]*\})?([\s\S]*?)\\end\{(?:cases|aligned|array|matrix)\}\s*(?:\\right(?:\.|\b)?)?/g, (_, inner) => {
@@ -1487,7 +1485,7 @@ export function fixCasesLatex(rawText: string): string {
   );
 
   // 2. Chuẩn hóa môi trường \begin{cases} ... \end{cases}
-  str = str.replace(/\\begin\{cases\}([\s\S]*?)\\end\{cases\}/g, (match, inner) => {
+  str = str.replace(/\\+begin\{cases\}([\s\S]*?)\\+end\{cases\}/g, (match, inner) => {
     let cleanedInner = inner.trim();
     cleanedInner = cleanedInner.replace(/[\n\r]+/g, ' \\\\ ');
     cleanedInner = cleanedInner.replace(/;/g, ' \\\\ ');
@@ -1497,7 +1495,7 @@ export function fixCasesLatex(rawText: string): string {
         cleanedInner = cleanedInner.replace(/(=\s*[^={}\s]+)\s+([a-zA-Z0-9_\-][^={}]*=)/g, (m, g1, g2) => `${g1} \\\\ ${g2}`);
       }
     }
-    const lines = cleanedInner.split(/\\\\|\\cr/).map((s) => s.trim()).filter(Boolean);
+    const lines = cleanedInner.split(/\\\\+|\\cr/).map((s) => s.trim()).filter(Boolean);
     return `\\begin{cases} ${lines.join(' \\\\ ')} \\end{cases}`;
   });
 
@@ -1516,11 +1514,16 @@ export function autoWrapUnwrappedLatex(text: string): string {
 
   // 1. Tự động sửa và chuẩn hóa cú pháp hệ phương trình
   cleanedText = fixCasesLatex(cleanedText);
+  cleanedText = cleanedText.replace(/\\{2,}(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+  cleanedText = cleanedText.replace(/\\+\s*\\+(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
 
   // 2. Tự động bọc $$...$$ cho các môi trường LaTeX nhiều dòng như \begin{cases} ... \end{cases} chưa bọc $ hoặc $$
   cleanedText = cleanedText.replace(
-    /(^|[^\$])((?:\\(?:Leftrightarrow|Rightarrow|Leftarrow)\s*)?\\begin\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}[\s\S]*?\\end\{\3\})([^\$]|$)/g,
-    (_, p1, p2, p3, p4) => `${p1} $$${p2}$$ ${p4}`
+    /(^|[^\$])((?:\\(?:Leftrightarrow|Rightarrow|Leftarrow)\s*)?\\+begin\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}[\s\S]*?\\+end\{\3\})([^\$]|$)/g,
+    (_, p1, p2, p3, p4) => {
+      const cleanP2 = p2.replace(/\\{2,}(begin|end)\{/g, '\\$1{');
+      return `${p1} $$${cleanP2}$$ ${p4}`;
+    }
   );
 
   // 3. Nếu toàn bộ chuỗi là một công thức toán thuần (ví dụ đáp án ngắn "\frac{1}{2}", "x = 2", "\sqrt{3}", "S = [2; 3]") chưa bọc $
@@ -1644,6 +1647,9 @@ export function createDocxInlineRuns(text: string, baseOptions: any = {}): (Text
   let cleanInput = normalizeNewlines(text);
   // Khử triệt để dấu phẩy số thập phân {,} hoặc \{,\}
   cleanInput = cleanInput.replace(/\\?\{\s*,\s*\\?\}/g, ',');
+  // Khử dấu gạch chéo ngược thừa trước begin/end
+  cleanInput = cleanInput.replace(/\\{2,}(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+  cleanInput = cleanInput.replace(/\\+\s*\\+(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
   // Chuẩn hóa hệ phương trình trước khi dọn dẹp \r\n để không làm mất phân tách dòng của hệ
   cleanInput = fixCasesLatex(cleanInput);
   cleanInput = cleanInput.replace(/\$([^$]+)\$/g, (m, p1) => '$' + p1.replace(/[\r\n]+/g, ' ').trim() + '$');

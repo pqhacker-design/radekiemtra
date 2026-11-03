@@ -11,6 +11,8 @@ import { normalizeNewlines, cleanMathNewlines, repairLatexCorruptions } from '..
 function renderMathToHtml(text: string): string {
   if (!text) return '';
   let prepared = repairLatexCorruptions(text);
+  prepared = prepared.replace(/\\{2,}(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+  prepared = prepared.replace(/\\+\s*\\+(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
   prepared = normalizeNewlines(prepared);
   prepared = prepared.replace(/\\\[([\s\S]*?)\\\]/g, (_, inner) => `$$${inner.trim()}$$`);
   prepared = prepared.replace(/\\\(([\s\S]*?)\\\)/g, (_, inner) => `$${inner.trim()}$`);
@@ -25,6 +27,8 @@ function renderMathToHtml(text: string): string {
 
       if (part.startsWith('$$') && part.endsWith('$$') && part.length >= 4) {
         let mathStr = cleanMathNewlines(part.slice(2, -2)).replace(/\\$/, '');
+        mathStr = mathStr.replace(/\\{2,}(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+        mathStr = mathStr.replace(/\\+\s*\\+(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
         mathStr = mathStr.replace(/\\?\^?\{?\\?circ\}?\s*(?:\\text\{C\}|\\mathrm\{C\}|C\b)/g, '^\\circ\\text{C}')
                          .replace(/\^\{\s*°\s*C\s*\}/g, '^\\circ\\text{C}')
                          .replace(/\^\s*°\s*C\b/g, '^\\circ\\text{C}')
@@ -43,6 +47,8 @@ function renderMathToHtml(text: string): string {
 
       if (part.startsWith('$') && part.endsWith('$') && part.length >= 2) {
         let mathStr = cleanMathNewlines(part.slice(1, -1)).replace(/\\$/, '');
+        mathStr = mathStr.replace(/\\{2,}(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+        mathStr = mathStr.replace(/\\+\s*\\+(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
         mathStr = mathStr.replace(/\\?\^?\{?\\?circ\}?\s*(?:\\text\{C\}|\\mathrm\{C\}|C\b)/g, '^\\circ\\text{C}')
                          .replace(/\^\{\s*°\s*C\s*\}/g, '^\\circ\\text{C}')
                          .replace(/\^\s*°\s*C\b/g, '^\\circ\\text{C}')
@@ -52,7 +58,7 @@ function renderMathToHtml(text: string): string {
                          .replace(/\^\s*°/g, '^\\circ')
                          .replace(/°/g, '^\\circ')
                          .replace(/(\d+)\s*\\circ\b/g, '$1^\\circ');
-        const isMultiLine = /\\begin\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/.test(mathStr);
+        const isMultiLine = /\\+begin\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/.test(mathStr);
         try {
           return katex.renderToString(mathStr, { displayMode: isMultiLine, throwOnError: false });
         } catch {

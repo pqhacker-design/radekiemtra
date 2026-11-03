@@ -15,14 +15,17 @@ export function repairLatexCorruptions(text: string): string {
   let str = LatexPostProcessingValidator.correctString(text);
 
 
-  // 0. KHÔI PHỤC NGAY MÔI TRƯỜNG HỆ PHƯƠNG TRÌNH \begin{cases} và \end{cases}
-  // Bị AI hoặc regex cũ phá vỡ thành \begin{cas \n \n \n \ne s}, \begin{cas \ne s}, \begin{casnes}, {cas \n \n \ne s}
+  // 0. KHÔI PHỤC VÀ CHUẨN HÓA MÔI TRƯỜNG HỆ PHƯƠNG TRÌNH \begin{cases} và \end{cases}
+  // Khử triệt để 2 hoặc nhiều dấu backslash trước begin/end (ví dụ \\begin{cases} hoặc \\\begin{cases} -> \begin{cases})
+  str = str.replace(/\\{2,}(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+  str = str.replace(/\\+\s*\\+(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
   str = str.replace(/\\begin\{\s*cas(?:\s|\\+[nNrR]|\\?ne|\\[a-zA-Z]+)*s\s*\}/gi, '\\begin{cases}');
   str = str.replace(/\\end\{\s*cas(?:\s|\\+[nNrR]|\\?ne|\\[a-zA-Z]+)*s\s*\}/gi, '\\end{cases}');
   str = str.replace(/(?<!\\)\bbegin\{\s*cas(?:\s|\\+[nNrR]|\\?ne|\\[a-zA-Z]+)*s\s*\}/gi, '\\begin{cases}');
   str = str.replace(/(?<!\\)\bend\{\s*cas(?:\s|\\+[nNrR]|\\?ne|\\[a-zA-Z]+)*s\s*\}/gi, '\\end{cases}');
   str = str.replace(/(?<!\\)\b(begin|end)\{cases\}/g, '\\$1{cases}');
   str = str.replace(/\{\s*cas(?:\s|\\+[nNrR]|\\?ne|\\[a-zA-Z]+)*s\s*\}/gi, '{cases}');
+  str = str.replace(/\\{2,}(begin|end)\b/g, '\\$1');
 
   // 0a. Sửa chữa các chuỗi đã bị lỗi lặp \r hoặc \Leftr trước mũi tên (\r\r\r\r\r\rightarrow, \Leftr\r\r\r\r\r \rightarrow)
   str = str.replace(/\\Left[rR]?(?:\\[rR]|\s|[\r\n]|\\+[nNrR]|\\?ne)*(?:\\?rightarrow|→)/gi, '\\Leftrightarrow ');
@@ -49,14 +52,14 @@ export function repairLatexCorruptions(text: string): string {
   str = str.replace(/\x0C(lat|rown|forall)/g, '\\f$1');
   str = str.replace(/\x0C([a-zA-Z]+)/g, '\\f$1');
   str = str.replace(/\x0C/g, '');
-  str = str.replace(/\t(ext|heta|imes|an|au|ilde|riangle)(?=[^a-z]|$)/gi, '\\$1');
-  str = str.replace(/\tan(?=[A-Z0-9\\({\s]|\^|$)/g, '\\tan ');
+  str = str.replace(/\x09(ext|heta|imes|an|au|ilde|riangle)(?=[^a-z]|$)/gi, '\\$1');
+  str = str.replace(/\x09an(?=[A-Z0-9\\({\s]|\^|$)/g, '\\tan ');
   str = str.replace(/\r(ight|ho|eal|ightarrow|ightleftharpoons)\b/g, '\\$1');
   str = str.replace(/\x0A(otin|eq|abla|neq|ni)\b/g, '\\n$1');
   str = str.replace(/\x0Ae(?=\s*[\d+-]|\s*[xyz]\b)/g, ' \\ne ');
 
   // 0e. Khôi phục nhiều dấu backslash \\+ thừa trước các lệnh LaTeX phổ biến
-  str = str.replace(/\\+(frac|dfrac|text|mathrm|mathbf|tan|sin|cos|cot|sqrt|vec|widehat|alpha|beta|gamma|ne|neq|le|leq|ge|geq|notin|in|Leftrightarrow|Rightarrow|rightarrow|rightleftharpoons)\b/g, '\\$1');
+  str = str.replace(/\\+(begin|end|frac|dfrac|text|mathrm|mathbf|tan|sin|cos|cot|sqrt|vec|widehat|alpha|beta|gamma|ne|neq|le|leq|ge|geq|notin|in|Leftrightarrow|Rightarrow|rightarrow|rightleftharpoons)\b/g, '\\$1');
 
   // 0f. Chuẩn hóa nhiệt độ độ C bị lỗi dạng \circC, ^\circC, ^\circ C, \circ C, °C, hỗ trợ cả số âm
   str = str.replace(/(-?\d+(?:(?:[.,]|\{,\})\d+)?)\s*(?:\\?\^?\{?\\?circ\}?\s*(?:\\text\{C\}|\\mathrm\{C\}|C\b)|\^\s*°\s*C\b|°\s*C\b)/g, (m, num) => {
@@ -132,7 +135,8 @@ export function repairLatexCorruptions(text: string): string {
   str = str.replace(/([A-Za-z])\s*=\s*eta\b/g, '$1 = \\beta');
 
   // 7. Phục hồi \tan bị rách thành an (như an\alpha, an\beta, an eta, an60^\circ, anQ, an A):
-  str = str.replace(/\tan\b/g, '\\tan');
+  str = str.replace(/\x09an\b/g, '\\tan');
+  str = str.replace(/(?<!\\)\btan\s*(\d+|[a-zA-Z]\b|\\alpha|\\beta|\\theta|\\widehat|\()/g, (m, p1) => `\\tan ${p1}`);
   str = str.replace(/(?<=[^a-zA-Z\\]|^)an\\alpha\b/g, '\\tan \\alpha');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)an\\beta\b/g, '\\tan \\beta');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)an\s*eta\b/g, '\\tan \\beta');
@@ -140,7 +144,7 @@ export function repairLatexCorruptions(text: string): string {
   str = str.replace(/(?<=[^a-zA-Z\\]|^)an\s*(\d+\s*(?:°|\\circ|\^|\b))/g, '\\tan $1');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)an([A-Z])\b/g, '\\tan $1');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)an\s+([A-Z]\b|\\alpha|\\beta|\\widehat|\()/g, '\\tan $1');
-  str = str.replace(/([=+\-*/\cdot\s($]|^)an(?=\s*[\d(]|[A-Za-z]\b|\\alpha|\\beta|\\widehat)/g, '$1\\tan ');
+  str = str.replace(/(?<=[=+\-*/(\s$]|\s*\\cdot\s*)\b[aA]n(?=\s*[\d(]|[A-Za-z]\b|\\alpha|\\beta|\\widehat)/g, '\\tan ');
 
   // Khử ngắt dòng vô lý giữa toán tử và toán hạng trong công thức bị gãy từ AI:
   str = str.replace(/(\\alpha\s*[\+\-\*\/\=])\s*[\r\n]+\s*(\\?beta|eta)\b/gi, '$1 \\beta');
@@ -180,7 +184,7 @@ export function repairLatexCorruptions(text: string): string {
   str = str.replace(/(?<=[^a-zA-Z\\]|^)egin\{/g, '\\begin{');
 
   // 11. Phục hồi \times bị mất \t: imes -> \times
-  str = str.replace(/\times\b/g, '\\times');
+  str = str.replace(/\x09imes\b/g, '\\times');
   str = str.replace(/(?<=[^a-zA-Z\\]|^)imes\b/g, '\\times');
 
   return LatexPostProcessingValidator.correctString(str);
@@ -247,8 +251,12 @@ export function normalizeNewlines(text: string): string {
   str = str.replace(/(^|[\r\n]|[:;?!.])\s*n([a-dA-D][.)])/g, '$1\n$2 ');
   str = str.replace(/(\d+|[a-zA-Z\)\}\]])\s*n([a-dA-D][.)])/g, '$1\n$2 ');
 
+  // 2d. Chuẩn hóa triệt để các dấu gạch chéo ngược thừa trước begin/end hệ phương trình trước khi tách khối toán
+  str = str.replace(/\\{2,}(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+  str = str.replace(/\\+\s*\\+(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+
   // 3. Tách text theo các khối toán ($...$, $$...$$, hoặc môi trường \begin{...}...\end{...})
-  const mathBlockRegex = /(\$\$[\s\S]*?\$\$|\$[^\$]+?\$|\\begin\{(?:cases|aligned|array|matrix|pmatrix|bmatrix)\}[\s\S]*?\\end\{(?:cases|aligned|array|matrix|pmatrix|bmatrix)\})/g;
+  const mathBlockRegex = /(\$\$[\s\S]*?\$\$|\$[^\$]+?\$|\\+begin\{(?:cases|aligned|array|matrix|pmatrix|bmatrix)\}[\s\S]*?\\+end\{(?:cases|aligned|array|matrix|pmatrix|bmatrix)\})/g;
 
   const parts = str.split(mathBlockRegex);
   for (let i = 0; i < parts.length; i += 2) {
@@ -318,6 +326,10 @@ export function normalizeNewlines(text: string): string {
 export function cleanMathNewlines(mathStr: string): string {
   if (!mathStr) return '';
   let s = repairLatexCorruptions(mathStr.trim());
+
+  // Chuẩn hóa dấu backslash trước begin/end
+  s = s.replace(/\\{2,}(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+  s = s.replace(/\\+\s*\\+(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
 
   // Trong LaTeX math mode, \r và \n là khoảng trắng, các dòng phương trình ngắt bằng '\\'
   s = s.replace(/[\r\n]+/g, ' ');

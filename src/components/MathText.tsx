@@ -17,6 +17,11 @@ function cleanMathForKaTeX(str: string): string {
   s = cleanMathNewlines(s);
   s = s.replace(/\\$/, '');
 
+  // Khử triệt để 2 hoặc nhiều dấu backslash trước begin/end (ví dụ \\begin{cases} -> \begin{cases})
+  s = s.replace(/\\{2,}(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+  s = s.replace(/\\+\s*\\+(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+  s = s.replace(/\\{2,}(begin|end)\b/g, '\\$1');
+
   // Chuẩn hóa ngắt dòng trong cases/aligned/matrix: tránh lặp \\ thừa
   s = s.replace(/(\\\\\s*){2,}/g, ' \\\\ ');
   // Đảm bảo giữa hai phương trình trong cases có \\\\ nếu lỡ bị mất
@@ -110,6 +115,8 @@ export const MathText: React.FC<MathTextProps> = ({ content, text, className = '
 
     // 0. Phục hồi ngay lập tức các lệnh LaTeX bị mất \r (ight), \rightarrow, \frac
     let preparedText = repairLatexCorruptions(actualText);
+    preparedText = preparedText.replace(/\\{2,}(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+    preparedText = preparedText.replace(/\\+\s*\\+(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
 
     // 1. Chuẩn hóa trước \[ ... \] thành $$ ... $$ và \( ... \) thành $ ... $
     preparedText = normalizeNewlines(preparedText);
@@ -146,7 +153,7 @@ export const MathText: React.FC<MathTextProps> = ({ content, text, className = '
       } else if (part.startsWith('$') && part.endsWith('$') && part.length >= 2) {
         // Inline Math (Tự động chuyển sang displayMode nếu chứa môi trường nhiều dòng như hệ phương trình cases)
         const mathStr = cleanMathForKaTeX(part.slice(1, -1));
-        const isMultiLineEnv = /\\begin\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/.test(mathStr);
+        const isMultiLineEnv = /\\+begin\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/.test(mathStr);
         const span = document.createElement('span');
         span.className = isMultiLineEnv
           ? 'inline-block my-1 align-middle px-1 overflow-x-auto font-sans text-left'

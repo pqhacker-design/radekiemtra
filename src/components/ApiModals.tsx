@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Key, AlertTriangle, ExternalLink, Eye, EyeOff, Sparkles, CheckCircle2, RefreshCw, X } from 'lucide-react';
 import { StorageEngine } from '../services/storageEngine';
+import { sanitizeApiKey } from '../services/geminiClient';
 
 interface ApiKeyInputModalProps {
   isOpen: boolean;
@@ -26,14 +27,14 @@ export const ApiKeyInputModal: React.FC<ApiKeyInputModalProps> = ({
   if (!isOpen) return null;
 
   const handleSave = () => {
-    const trimmed = apiKey.trim();
-    if (!trimmed) {
-      setError('Vui lòng nhập khóa API Key trước khi lưu.');
+    const cleaned = sanitizeApiKey(apiKey);
+    if (!cleaned) {
+      setError('Vui lòng nhập khóa API Key hợp lệ (chuỗi ký tự bắt đầu bằng AIzaSy...).');
       return;
     }
-    const updated = { ...settings, customApiKey: trimmed };
+    const updated = { ...settings, customApiKey: cleaned };
     StorageEngine.saveSettings(updated);
-    onSave(trimmed);
+    onSave(cleaned);
     onClose();
   };
 

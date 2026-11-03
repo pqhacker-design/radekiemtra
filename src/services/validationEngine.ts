@@ -73,8 +73,12 @@ export function cleanQuestionText(text: string): string {
     return `${cleanNum}°`;
   });
 
+  // 6c. Chuẩn hóa triệt để các dấu gạch chéo ngược thừa trước begin/end hệ phương trình trước khi tách khối toán
+  str = str.replace(/\\{2,}(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+  str = str.replace(/\\+\s*\\+(begin|end)\{(cases|aligned|array|matrix|pmatrix|bmatrix)\}/g, '\\$1{$2}');
+
   // 7. Chuyển đổi các dấu xuống dòng kiểu LaTeX '\\' còn sót NGOÀI khối công thức toán thành ngắt dòng thực sự '\n'
-  const mathBlockRegex = /(\$\$[\s\S]*?\$\$|\$[^\$]+?\$|\\begin\{(?:cases|aligned|array|matrix|pmatrix|bmatrix)\}[\s\S]*?\\end\{(?:cases|aligned|array|matrix|pmatrix|bmatrix)\})/g;
+  const mathBlockRegex = /(\$\$[\s\S]*?\$\$|\$[^\$]+?\$|\\+begin\{(?:cases|aligned|array|matrix|pmatrix|bmatrix)\}[\s\S]*?\\+end\{(?:cases|aligned|array|matrix|pmatrix|bmatrix)\})/g;
   const parts = str.split(mathBlockRegex);
   for (let i = 0; i < parts.length; i += 2) {
     if (!parts[i]) continue;

@@ -15,7 +15,7 @@ import {
   Check,
 } from 'lucide-react';
 import { AppSettings } from '../types';
-import { callGeminiApi } from '../services/geminiClient';
+import { callGeminiApi, sanitizeApiKey } from '../services/geminiClient';
 
 interface SettingsViewProps {
   settings: AppSettings;
@@ -83,10 +83,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setApiTesting(true);
     setApiStatus({ type: null, message: '' });
 
+    const cleanedKey = sanitizeApiKey(customApiKey);
+
     try {
       const res = await callGeminiApi({
         prompt: 'Hãy trả lời ngắn: "Kết nối thành công API Gemini cho hệ thống ra đề thi."',
-        customApiKey: customApiKey.trim(),
+        customApiKey: cleanedKey,
         model: selectedModel,
       });
 
@@ -112,12 +114,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handleSave = () => {
+    const cleanedKey = sanitizeApiKey(customApiKey);
     const updated: AppSettings = {
       ...settings,
       defaultSchoolName: schoolName.trim(),
       defaultDepartmentName: departmentName.trim(),
       defaultTeacherName: teacherName.trim(),
-      customApiKey: customApiKey.trim(),
+      customApiKey: cleanedKey,
       selectedModel,
       includeAuthorHeaderDocx,
     };

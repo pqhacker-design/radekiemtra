@@ -1,6 +1,7 @@
 import { AppSettings, ExamMetadata, ExamPackage, QuestionBankItem } from '../types';
 import { cleanExplanationAndNotes, repairLatexCorruptions } from '../utils/textUtils';
 import { LatexPostProcessingValidator } from './latexValidator';
+import { sanitizeApiKey } from './geminiClient';
 
 function repairQuestionItem<T extends { content?: string; options?: any[]; trueFalseStatements?: any[]; shortAnswer?: string; essayAnswerGuide?: string; explanation?: string; rubric?: any[] }>(q: T): T {
   if (!q) return q;
@@ -99,7 +100,11 @@ export class StorageEngine {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
       if (!raw) return defaultSettings;
-      return { ...defaultSettings, ...JSON.parse(raw) };
+      const parsed = { ...defaultSettings, ...JSON.parse(raw) };
+      if (parsed.customApiKey) {
+        parsed.customApiKey = sanitizeApiKey(parsed.customApiKey);
+      }
+      return parsed;
     } catch {
       return defaultSettings;
     }
@@ -107,7 +112,11 @@ export class StorageEngine {
 
   static saveSettings(settings: AppSettings): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+      const sanitized = {
+        ...settings,
+        customApiKey: sanitizeApiKey(settings.customApiKey),
+      };
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(sanitized));
       this.notifyListeners();
     } catch (e) {
       console.error('Lỗi lưu cài đặt:', e);
