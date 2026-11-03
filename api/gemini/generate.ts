@@ -20,9 +20,17 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Nội dung Yêu cầu (prompt) không được để trống.' });
     }
 
-    const apiKey = (typeof customApiKey === 'string' && customApiKey.trim().length > 0)
-      ? customApiKey.trim()
-      : ((req.headers['x-custom-api-key'] as string || '').trim() || process.env.GEMINI_API_KEY || '');
+    function cleanKey(k?: any): string {
+      if (!k || typeof k !== 'string') return '';
+      let cleaned = k.replace(/[\u200B-\u200D\uFEFF\u00A0\u180E\u2000-\u200A\u202F\u205F\u3000]/g, '').trim();
+      const match = cleaned.match(/AIzaSy[A-Za-z0-9_-]{33}/);
+      if (match) return match[0];
+      return cleaned.replace(/[^\x20-\x7E]/g, '').trim();
+    }
+
+    const userKey = cleanKey(customApiKey) || cleanKey(req.headers['x-custom-api-key']);
+    const systemKey = cleanKey(process.env.GEMINI_API_KEY);
+    const apiKey = userKey || systemKey;
 
     if (!apiKey) {
       return res.status(400).json({
