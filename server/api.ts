@@ -1,6 +1,73 @@
 import express, { type Request, type Response } from 'express';
 import { GoogleGenAI } from '@google/genai';
 
+function formatApiError(err: any): { statusCode: number; message: string } {
+  let rawStr = '';
+  if (err && typeof err === 'object') {
+    if (typeof err.message === 'string') rawStr = err.message;
+    else if (typeof err.error === 'string') rawStr = err.error;
+    else rawStr = JSON.stringify(err);
+  } else {
+    rawStr = String(err || '');
+  }
+
+  // Parse inner JSON if error message itself is a serialized JSON object from Google SDK
+  try {
+    const parsed = JSON.parse(rawStr);
+    if (parsed && typeof parsed === 'object') {
+      if (parsed.error && typeof parsed.error.message === 'string') {
+        rawStr = parsed.error.message;
+      } else if (typeof parsed.message === 'string') {
+        rawStr = parsed.message;
+      }
+    }
+  } catch {}
+
+  const lower = rawStr.toLowerCase();
+
+  if (
+    lower.includes('api_key_invalid') ||
+    lower.includes('api key not valid') ||
+    lower.includes('401') ||
+    lower.includes('permission_denied')
+  ) {
+    return {
+      statusCode: 403,
+      message: '[INVALID_API_KEY] Gemini API Key không hợp lệ hoặc đã bị khóa. Vui lòng kiểm tra lại trong phần Cài Đặt.',
+    };
+  }
+
+  if (
+    lower.includes('429') ||
+    lower.includes('resource_exhausted') ||
+    lower.includes('quota exceeded') ||
+    lower.includes('rate limit')
+  ) {
+    return {
+      statusCode: 429,
+      message: '[QUOTA_EXHAUSTED] Hạn ngạch yêu cầu miễn phí trong ngày của Gemini API đã đạt giới hạn. Bạn có thể nhập thêm Gemini API Key riêng trong mục Cài Đặt để tiếp tục sử dụng ngay.',
+    };
+  }
+
+  if (
+    lower.includes('503') ||
+    lower.includes('unavailable') ||
+    lower.includes('high demand') ||
+    lower.includes('overloaded') ||
+    lower.includes('temporarily unavailable')
+  ) {
+    return {
+      statusCode: 503,
+      message: '[SERVICE_UNAVAILABLE] Máy chủ AI Google đang chịu tải cao (Lỗi 503 - High Demand). Hệ thống đã tự động thử các mô hình dự phòng nhưng tất cả đều đang bận. Vui lòng bấm "Thử Lại" sau vài giây hoặc đổi mô hình/nhập API Key riêng trong Cài Đặt.',
+    };
+  }
+
+  return {
+    statusCode: 500,
+    message: rawStr || 'Không thể kết nối tới mô hình AI. Vui lòng thử lại sau.',
+  };
+}
+
 export function registerExamRoutes(app: express.Express) {
   // 1. Gemini AI Generation Proxy Endpoint
   app.post('/api/gemini/generate', async (req: Request, res: Response) => {
@@ -41,10 +108,9 @@ export function registerExamRoutes(app: express.Express) {
         });
       }
 
-      // Sanitize model selection: filter out deprecated models
+      // Sanitize model selection
       let requestedModel = typeof model === 'string' && model.trim().length > 0 ? model.trim() : 'gemini-3.1-flash-lite';
       if (
-        requestedModel.includes('2.5') ||
         requestedModel.includes('2.0') ||
         requestedModel.includes('1.5') ||
         requestedModel.includes('gemini-pro')
@@ -52,23 +118,19 @@ export function registerExamRoutes(app: express.Express) {
         requestedModel = 'gemini-3.1-flash-lite';
       }
 
-      // Order candidates: requested model, then gemini-3.1-flash-lite (high availability & quota), then gemini-3.8-flash
-      const candidateModels = Array.from(
-        new Set([
-          requestedModel,
-          'gemini-3.1-flash-lite',
-          'gemini-3.8-flash',
-        ])
-      );
+      // Order candidate models: requested model first, then high-throughput models
+      const defaultCandidates = [
+        'gemini-3.1-flash-lite',
+        'gemini-flash-latest',
+        'gemini-3.8-flash',
+      ];
+      const candidateModels = Array.from(new Set([requestedModel, ...defaultCandidates]));
 
       let lastError: any = null;
 
-      for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
-        const currentModel = candidateModels[mIdx];
-
-        // Transient retry attempts (only for 503/UNAVAILABLE)
-        const maxAttempts = 2;
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // Try up to 2 passes across candidate models
+      for (let pass = 1; pass <= 2; pass++) {
+        for (const currentModel of candidateModels) {
           try {
             const ai = new GoogleGenAI({
               apiKey,
@@ -80,13 +142,15 @@ export function registerExamRoutes(app: express.Express) {
             });
 
             const config: any = {
-              maxOutputTokens: 32768,
+              maxOutputTokens: 16384,
             };
 
-            // Temperature & topP are supported on gemini-3.1-flash-lite; avoid deprecated params on gemini-3.8-flash
+            // Temperature & topP are supported on gemini-3.1-flash-lite
             if (currentModel.includes('3.1-flash-lite')) {
               if (typeof temperature === 'number') config.temperature = temperature;
               if (typeof topP === 'number') config.topP = topP;
+            } else if (currentModel.includes('3.8-flash')) {
+              config.thinkingConfig = { thinkingLevel: 'LOW' };
             }
 
             if (systemInstruction) config.systemInstruction = systemInstruction;
@@ -120,77 +184,47 @@ export function registerExamRoutes(app: express.Express) {
             });
 
             const responseText = response.text || '';
-            return res.json({ text: responseText, modelUsed: currentModel });
+            if (responseText) {
+              return res.json({ text: responseText, modelUsed: currentModel });
+            }
           } catch (err: any) {
             lastError = err;
-            const errStr = String(err?.message || err?.status || err || '');
-            console.warn(`[Gemini Proxy] Lỗi với model ${currentModel} (lần ${attempt}):`, errStr.slice(0, 150));
+            const formatted = formatApiError(err);
+            console.warn(`[Gemini Proxy] Lỗi với model ${currentModel} (vòng ${pass}):`, formatted.message.slice(0, 150));
 
-            // If API key is invalid, terminate immediately
-            if (
-              errStr.includes('API_KEY_INVALID') ||
-              errStr.includes('API key not valid') ||
-              errStr.includes('401') ||
-              errStr.includes('403')
-            ) {
-              return res.status(403).json({
-                error: '[INVALID_API_KEY] Gemini API Key không hợp lệ hoặc đã bị khóa. Vui lòng kiểm tra lại trong phần Cài Đặt.',
-              });
+            // If API key is fundamentally invalid, terminate immediately
+            if (formatted.statusCode === 403) {
+              return res.status(403).json({ error: formatted.message });
             }
 
-            // If quota exhausted (429) or model not found (404), do not retry the same model; switch to next candidate immediately!
-            if (
-              errStr.includes('429') ||
-              errStr.includes('RESOURCE_EXHAUSTED') ||
-              errStr.includes('Quota exceeded') ||
-              errStr.includes('404') ||
-              errStr.includes('NOT_FOUND') ||
-              errStr.includes('no longer available')
-            ) {
-              break;
-            }
-
-            // Retry for transient 503 / UNAVAILABLE
-            const isTransient =
-              errStr.includes('503') ||
-              errStr.includes('UNAVAILABLE') ||
-              errStr.includes('high demand') ||
-              errStr.includes('timeout') ||
-              errStr.includes('ECONNRESET');
-
-            if (isTransient && attempt < maxAttempts) {
-              await new Promise((r) => setTimeout(r, 1000));
-              continue;
-            }
-            break;
+            // For 503 / UNAVAILABLE / 429, immediately continue to the NEXT candidate model!
           }
+        }
+
+        // Wait 1500ms before pass 2 if all candidate models failed on pass 1
+        if (pass < 2) {
+          await new Promise((r) => setTimeout(r, 1500));
         }
       }
 
       console.error('[Gemini Proxy] Tất cả các mô hình dự phòng đều thất bại:', lastError?.message || lastError);
-
-      const finalErrStr = String(lastError?.message || lastError || '');
-      if (
-        finalErrStr.includes('429') ||
-        finalErrStr.includes('RESOURCE_EXHAUSTED') ||
-        finalErrStr.includes('Quota exceeded')
-      ) {
-        return res.status(429).json({
-          error: '[QUOTA_EXHAUSTED] Hạn ngạch yêu cầu miễn phí trong ngày của Gemini API đã đạt giới hạn. Bạn có thể nhập thêm Gemini API Key riêng trong mục Cài Đặt để tiếp tục sử dụng ngay.',
-        });
-      }
-
-      return res.status(500).json({
-        error: lastError?.message || 'Không thể kết nối tới mô hình AI. Vui lòng thử lại.',
+      const finalFormatted = formatApiError(lastError);
+      return res.status(finalFormatted.statusCode).json({
+        error: finalFormatted.message,
       });
     } catch (err: any) {
       console.error('Server generate error:', err);
-      return res.status(500).json({ error: err.message || 'Lỗi xử lý yêu cầu AI.' });
+      const formatted = formatApiError(err);
+      return res.status(formatted.statusCode).json({ error: formatted.message });
     }
   });
 
   // Health check endpoint
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', app: 'AI Test Generator Pro' });
+    res.json({
+      status: 'ok',
+      app: 'AI Test Generator Pro',
+      hasKey: !!process.env.GEMINI_API_KEY,
+    });
   });
 }

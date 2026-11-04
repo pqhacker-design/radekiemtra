@@ -15,7 +15,12 @@ const PORT = 3000;
 
 // API Health Check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    hasKey: !!process.env.GEMINI_API_KEY,
+    keyPrefix: process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.slice(0, 6) + '...' : 'none',
+    time: new Date().toISOString()
+  });
 });
 
 
