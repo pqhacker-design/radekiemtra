@@ -63,7 +63,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [departmentName, setDepartmentName] = useState(settings.defaultDepartmentName || 'Sở Giáo dục và Đào tạo');
   const [teacherName, setTeacherName] = useState(settings.defaultTeacherName || 'Giáo viên');
   const [customApiKey, setCustomApiKey] = useState(settings.customApiKey || '');
-  const [selectedModel, setSelectedModel] = useState(settings.selectedModel || 'gemini-3.8-flash');
+  const [selectedModel, setSelectedModel] = useState(settings.selectedModel || 'gemini-3.1-flash-lite');
   const [includeAuthorHeaderDocx, setIncludeAuthorHeaderDocx] = useState(
     settings.includeAuthorHeaderDocx !== false
   );

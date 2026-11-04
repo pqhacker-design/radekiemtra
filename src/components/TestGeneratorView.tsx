@@ -35,6 +35,7 @@ import {
   CurriculumType,
   ExamMetadata,
   ExamMode,
+  MatrixInputMode,
   QuestionCounts,
   SubjectType,
   SubjectConfig,
@@ -858,15 +859,98 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     if (meta.subjectConfig) setSubjectConfig(meta.subjectConfig);
     if (meta.referenceContext !== undefined) setReferenceContext(meta.referenceContext || '');
     if (Array.isArray(meta.referenceImages)) setReferenceImages(meta.referenceImages);
-    if (meta.examMode) setExamMode(meta.examMode);
-    if (meta.questionCounts) setQuestionCounts(meta.questionCounts);
+    
+    const targetMode = meta.examMode || 'MCQ_ESSAY';
+    setExamMode(targetMode);
+
+    // Xử lý và làm sạch cấu hình ma trận / bảng đặc tả nếu không có nội dung thực tế
+    const hasValidMatrix = Boolean(
+      (meta.customMatrixContext && meta.customMatrixContext.trim().length >= 20) ||
+      (Array.isArray(meta.customMatrixImages) && meta.customMatrixImages.length > 0)
+    );
+    const hasValidSpec = Boolean(
+      (meta.customSpecContext && meta.customSpecContext.trim().length >= 20) ||
+      (Array.isArray(meta.customSpecImages) && meta.customSpecImages.length > 0)
+    );
+
+    let resolvedMode: MatrixInputMode = meta.matrixInputMode || 'auto';
+    if (resolvedMode === 'custom' && !hasValidMatrix) {
+      resolvedMode = 'auto';
+    } else if (resolvedMode === 'spec' && !hasValidSpec) {
+      resolvedMode = 'auto';
+    }
+    setMatrixInputMode(resolvedMode);
+
+    setCustomMatrixContext(meta.customMatrixContext || '');
+    setCustomMatrixImages(Array.isArray(meta.customMatrixImages) ? meta.customMatrixImages : []);
+    setCustomSpecContext(meta.customSpecContext || '');
+    setCustomSpecImages(Array.isArray(meta.customSpecImages) ? meta.customSpecImages : []);
+
+    // Khắc phục triệt để lỗi "mỗi phần chỉ có 1 câu hỏi khi tạo theo cấu hình trước":
+    // Kiểm tra và tự động khôi phục cấu hình câu hỏi chuẩn nếu cấu hình lưu bị lỗi (mỗi phần chỉ có 1 câu hoặc tổng số câu <= 4)
+    if (meta.questionCounts) {
+      let qc = { ...meta.questionCounts };
+      const totalQ =
+        (qc.part1_MCQSingle || 0) +
+        (qc.part2_MCQTrueFalse || 0) +
+        (qc.part3_MCQShort || 0) +
+        (qc.part4_Essay || 0);
+
+      // Nếu là chế độ trắc nghiệm + tự luận mà tổng câu <= 4 hoặc cả Phần 1 và Phần 2 đều <= 1 câu
+      if (
+        targetMode === 'MCQ_ESSAY' &&
+        (totalQ <= 4 || (qc.part1_MCQSingle <= 1 && qc.part2_MCQTrueFalse <= 1))
+      ) {
+        qc = {
+          part1_MCQSingle: 12,
+          part1_PointsPerQuestion: 0.25,
+          part2_MCQTrueFalse: 2,
+          part2_PointsPerQuestion: 1.0,
+          part2_TFStatementsPerQuestion: 4,
+          part3_MCQShort: 4,
+          part3_PointsPerQuestion: 0.25,
+          part4_Essay: 2,
+          part4_ApplyCount: 1,
+          part4_ApplyPoints: 2.0,
+          part4_AdvancedCount: 1,
+          part4_AdvancedPoints: 2.0,
+        };
+      } else if (targetMode === 'MCQ_ONLY' && totalQ <= 4) {
+        qc = {
+          part1_MCQSingle: 20,
+          part1_PointsPerQuestion: 0.25,
+          part2_MCQTrueFalse: 3,
+          part2_PointsPerQuestion: 1.0,
+          part2_TFStatementsPerQuestion: 4,
+          part3_MCQShort: 8,
+          part3_PointsPerQuestion: 0.25,
+          part4_Essay: 0,
+          part4_ApplyCount: 0,
+          part4_ApplyPoints: 0,
+          part4_AdvancedCount: 0,
+          part4_AdvancedPoints: 0,
+        };
+      } else if (targetMode === 'ESSAY_ONLY' && (qc.part4_Essay || 0) <= 1) {
+        qc = {
+          part1_MCQSingle: 0,
+          part1_PointsPerQuestion: 0.25,
+          part2_MCQTrueFalse: 0,
+          part2_PointsPerQuestion: 1.0,
+          part2_TFStatementsPerQuestion: 4,
+          part3_MCQShort: 0,
+          part3_PointsPerQuestion: 0.25,
+          part4_Essay: 5,
+          part4_ApplyCount: 3,
+          part4_ApplyPoints: 2.0,
+          part4_AdvancedCount: 2,
+          part4_AdvancedPoints: 2.0,
+        };
+      }
+      setQuestionCounts(qc);
+    }
+
     if (meta.cognitiveRatio) setCognitiveRatio(meta.cognitiveRatio);
     if (typeof meta.codeCount === 'number') setCodeCount(meta.codeCount);
-    if (meta.matrixInputMode) setMatrixInputMode(meta.matrixInputMode);
-    if (meta.customMatrixContext !== undefined) setCustomMatrixContext(meta.customMatrixContext || '');
-    if (Array.isArray(meta.customMatrixImages)) setCustomMatrixImages(meta.customMatrixImages);
-    if (meta.customSpecContext !== undefined) setCustomSpecContext(meta.customSpecContext || '');
-    if (Array.isArray(meta.customSpecImages)) setCustomSpecImages(meta.customSpecImages);
     if (meta.matrixOutputFormat) setMatrixOutputFormat(meta.matrixOutputFormat);
   };
 
@@ -879,7 +963,114 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     }
   }, [initialMetadata]);
 
-  const handleSaveCurrentSessionDraft = () => {
+  // Lấy cấu hình phiên trước đó (từ bản nháp hoặc từ đề thi gần nhất)
+  const getPreviousSessionMetadata = (): ExamMetadata | null => {
+    if (lastSavedSession) return lastSavedSession;
+    const stored = StorageEngine.getLastGeneratorState();
+    if (stored) return stored;
+    const history = StorageEngine.getExamHistory();
+    if (history && history.length > 0 && history[0].metadata) {
+      return history[0].metadata;
+    }
+    return null;
+  };
+
+  // 1. Tạo đề mới hoàn toàn: Thiết lập lại toàn bộ thông số về mặc định chuẩn
+  const handleResetToNewExam = () => {
+    // Lưu tạm cấu hình hiện tại trước khi reset để có thể khôi phục lại nếu muốn
+    handleSaveCurrentSessionDraft(false);
+
+    setSchoolName(settings.defaultSchoolName || 'Trường THCS Bình San');
+    setDepartmentName(settings.defaultDepartmentName || 'Sở Giáo dục và Đào tạo');
+    setSubject('Toán');
+    setGrade('Khối 6');
+    setClassName('6A1');
+    setSemester('Học kỳ I');
+    setSchoolYear('2026 - 2027');
+    setExamTitle('Kiểm tra Giữa học kỳ I');
+    setChapterTitle('Chương I: Tập hợp số tự nhiên');
+    setDurationMinutes(45);
+    setTotalPoints(10);
+    setCurriculum('Kết nối tri thức với cuộc sống');
+    setSubjectConfig({
+      readingPassageType: 'truyen',
+      writingGenre: 'nghi_luan_xa_hoi',
+      englishSkills: ['phonetics', 'grammar_vocab', 'reading', 'writing_transformation'],
+      physicsDomain: 'tong_hop',
+      chemistryDomain: 'tong_hop',
+      biologyDomain: 'tong_hop',
+    });
+    setReferenceContext('');
+    setReferenceImages([]);
+    setMatrixInputMode('auto');
+    setCustomMatrixContext('');
+    setCustomMatrixImages([]);
+    setSelectedTemplateKey('');
+    setCustomSpecContext('');
+    setCustomSpecImages([]);
+    setSelectedSpecTemplateKey('');
+    setExamMode('MCQ_ESSAY');
+    setQuestionCounts({
+      part1_MCQSingle: 12,
+      part1_PointsPerQuestion: 0.25,
+      part2_MCQTrueFalse: 2,
+      part2_PointsPerQuestion: 1.0,
+      part2_TFStatementsPerQuestion: 4,
+      part3_MCQShort: 4,
+      part3_PointsPerQuestion: 0.25,
+      part4_Essay: 2,
+      part4_ApplyCount: 1,
+      part4_ApplyPoints: 2.0,
+      part4_AdvancedCount: 1,
+      part4_AdvancedPoints: 2.0,
+    });
+    setCognitiveRatio({
+      remember: 40,
+      understand: 30,
+      apply: 20,
+      advanced: 10,
+    });
+    setCodeCount(4);
+    setMatrixOutputFormat('cv7991');
+    setErrorMsg('');
+    setRestoredToast('Đã làm mới thông số — Sẵn sàng soạn đề mới hoàn toàn!');
+    const timer = setTimeout(() => setRestoredToast(null), 3500);
+  };
+
+  // 2. Tạo đề theo cấu hình trước đó: Nạp lại toàn bộ thông số từ phiên trước hoặc đề gần nhất
+  const handleLoadPreviousConfig = () => {
+    const prev = getPreviousSessionMetadata();
+    if (prev) {
+      applyMetadata(prev);
+      setLastSavedSession(prev);
+      setRestoredToast(
+        `Đã nạp lại cấu hình trước đó: ${prev.examTitle || 'Đề kiểm tra'} • Môn ${prev.subject} (${prev.grade})`
+      );
+      const timer = setTimeout(() => setRestoredToast(null), 3500);
+    } else {
+      setRestoredToast('Chưa có cấu hình phiên trước nào được lưu trong hệ thống.');
+      const timer = setTimeout(() => setRestoredToast(null), 3000);
+    }
+  };
+
+  // 3. Lưu nháp thông số hiện tại
+  const handleSaveCurrentSessionDraft = (showToast = true) => {
+    const hasValidMatrix = Boolean(
+      (customMatrixContext && customMatrixContext.trim().length >= 20) ||
+      (customMatrixImages && customMatrixImages.length > 0)
+    );
+    const hasValidSpec = Boolean(
+      (customSpecContext && customSpecContext.trim().length >= 20) ||
+      (customSpecImages && customSpecImages.length > 0)
+    );
+
+    let resolvedMatrixInputMode: MatrixInputMode = matrixInputMode;
+    if (resolvedMatrixInputMode === 'custom' && !hasValidMatrix) {
+      resolvedMatrixInputMode = 'auto';
+    } else if (resolvedMatrixInputMode === 'spec' && !hasValidSpec) {
+      resolvedMatrixInputMode = 'auto';
+    }
+
     const currentMeta: ExamMetadata = {
       schoolName,
       departmentName,
@@ -900,17 +1091,19 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
       subjectConfig,
       referenceContext,
       referenceImages,
-      matrixInputMode,
-      customMatrixContext: customMatrixContext.trim() || undefined,
+      matrixInputMode: resolvedMatrixInputMode,
+      customMatrixContext: hasValidMatrix ? customMatrixContext.trim() : undefined,
       customMatrixImages: customMatrixImages.length > 0 ? customMatrixImages : undefined,
-      customSpecContext: customSpecContext.trim() || undefined,
+      customSpecContext: hasValidSpec ? customSpecContext.trim() : undefined,
       customSpecImages: customSpecImages.length > 0 ? customSpecImages : undefined,
       matrixOutputFormat,
     };
     StorageEngine.saveLastGeneratorState(currentMeta);
     setLastSavedSession(currentMeta);
-    setRestoredToast('Đã lưu cấu hình hiện tại vào bộ nhớ!');
-    const timer = setTimeout(() => setRestoredToast(null), 3000);
+    if (showToast) {
+      setRestoredToast('Đã lưu cấu hình hiện tại vào bộ nhớ!');
+      const timer = setTimeout(() => setRestoredToast(null), 3000);
+    }
   };
 
   // Tính toán tổng điểm hiện tại
@@ -1059,14 +1252,23 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     }
 
     const hasCustomSpec = Boolean(
-      customSpecContext.trim() || customSpecImages.length > 0 || matrixInputMode === 'spec'
+      (customSpecContext && customSpecContext.trim().length >= 20) ||
+      (customSpecImages && customSpecImages.length > 0)
     );
 
     const hasCustomMatrix = Boolean(
-      customMatrixContext.trim() || customMatrixImages.length > 0 || matrixInputMode === 'custom'
+      (customMatrixContext && customMatrixContext.trim().length >= 20) ||
+      (customMatrixImages && customMatrixImages.length > 0)
     );
 
     const hasCustomMatrixOrSpec = hasCustomMatrix || hasCustomSpec;
+
+    let resolvedMatrixInputMode: MatrixInputMode = matrixInputMode;
+    if (resolvedMatrixInputMode === 'custom' && !hasCustomMatrix) {
+      resolvedMatrixInputMode = 'auto';
+    } else if (resolvedMatrixInputMode === 'spec' && !hasCustomSpec) {
+      resolvedMatrixInputMode = 'auto';
+    }
 
     if (!hasCustomMatrixOrSpec) {
       if (totalPercentage !== 100) {
@@ -1113,10 +1315,10 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
       subjectConfig,
       referenceContext,
       referenceImages,
-      matrixInputMode,
-      customMatrixContext: customMatrixContext.trim() || undefined,
+      matrixInputMode: resolvedMatrixInputMode,
+      customMatrixContext: hasCustomMatrix ? customMatrixContext.trim() : undefined,
       customMatrixImages: customMatrixImages.length > 0 ? customMatrixImages : undefined,
-      customSpecContext: customSpecContext.trim() || undefined,
+      customSpecContext: hasCustomSpec ? customSpecContext.trim() : undefined,
       customSpecImages: customSpecImages.length > 0 ? customSpecImages : undefined,
       matrixOutputFormat,
     };
@@ -1154,25 +1356,51 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
               Hệ thống AI tự động sinh Ma trận đề, Bảng đặc tả, Đề thi, Đáp án chi tiết và Rubric chấm bài.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={handleSaveCurrentSessionDraft}
-              className="px-3.5 py-2 bg-teal-800/80 hover:bg-teal-700/80 text-teal-100 font-semibold text-xs rounded-xl border border-teal-500/40 shadow-sm transition-all flex items-center space-x-1.5 cursor-pointer"
+              onClick={handleResetToNewExam}
+              className="px-3.5 py-2 bg-teal-800/80 hover:bg-teal-700/80 text-teal-100 hover:text-white font-semibold text-xs rounded-xl border border-teal-500/40 shadow-sm transition-all flex items-center space-x-1.5 cursor-pointer"
+              title="Làm mới form về mặc định ban đầu để bắt đầu soạn đề mới hoàn toàn"
+            >
+              <Plus className="w-3.5 h-3.5 text-teal-300" />
+              <span>Tạo đề mới hoàn toàn</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleLoadPreviousConfig}
+              className={`px-3.5 py-2 bg-teal-800/80 hover:bg-teal-700/80 text-teal-100 hover:text-white font-semibold text-xs rounded-xl border border-teal-500/40 shadow-sm transition-all flex items-center space-x-1.5 cursor-pointer ${
+                !getPreviousSessionMetadata() ? 'opacity-70' : ''
+              }`}
+              title={
+                getPreviousSessionMetadata()
+                  ? `Nạp lại cấu hình: ${getPreviousSessionMetadata()?.examTitle || 'Đề kiểm tra'} - Môn ${getPreviousSessionMetadata()?.subject} (${getPreviousSessionMetadata()?.grade})`
+                  : 'Nạp lại cấu hình phiên tạo đề trước đó'
+              }
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-300" />
+              <span>Tạo theo cấu hình trước</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSaveCurrentSessionDraft(true)}
+              className="px-3.5 py-2 bg-teal-800/80 hover:bg-teal-700/80 text-teal-100 hover:text-white font-semibold text-xs rounded-xl border border-teal-500/40 shadow-sm transition-all flex items-center space-x-1.5 cursor-pointer"
               title="Lưu các thông số hiện tại trên form để có thể nạp lại sau"
             >
-              <Check className="w-3.5 h-3.5" />
+              <Check className="w-3.5 h-3.5 text-emerald-300" />
               <span>Lưu nháp thông số</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Toast thông báo khôi phục phiên */}
+      {/* Toast thông báo nhanh (Khôi phục / Lưu nháp / Làm mới) */}
       {restoredToast && (
-        <div className="p-4 bg-emerald-600 text-white font-medium rounded-2xl flex items-center justify-between shadow-lg animate-fade-in">
+        <div className="p-3.5 bg-emerald-600 text-white font-semibold text-xs rounded-xl flex items-center justify-between shadow-lg animate-fade-in border border-emerald-400/40">
           <div className="flex items-center space-x-2">
-            <CheckCircle className="w-5 h-5" />
+            <CheckCircle className="w-4 h-4 text-emerald-100" />
             <span>{restoredToast}</span>
           </div>
           <button
@@ -1180,44 +1408,8 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
             onClick={() => setRestoredToast(null)}
             className="p-1 hover:bg-white/20 rounded-lg cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
-        </div>
-      )}
-
-      {/* Banner Khôi phục phiên ra đề gần nhất */}
-      {lastSavedSession && (
-        <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-teal-950/40 dark:to-emerald-950/30 border-2 border-teal-500/40 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm shadow-xs">
-          <div className="flex items-start sm:items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-md">
-              <History className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="font-bold text-teal-900 dark:text-teal-200 flex items-center gap-2">
-                <span>Khôi phục phiên ra đề trước đó</span>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300">
-                  Sẵn sàng nạp lại
-                </span>
-              </div>
-              <p className="text-xs text-teal-700/80 dark:text-teal-300/80 mt-0.5">
-                {lastSavedSession.examTitle || 'Đề kiểm tra'} • Môn {lastSavedSession.subject} ({lastSavedSession.grade}) • {lastSavedSession.chapterTitle || 'Chương I'} • Thời gian: {lastSavedSession.durationMinutes} phút
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                applyMetadata(lastSavedSession);
-                setRestoredToast('Đã nạp toàn bộ cấu hình từ phiên ra đề trước đó!');
-                const timer = setTimeout(() => setRestoredToast(null), 3000);
-              }}
-              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-1.5 cursor-pointer"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Nạp lại cấu hình phiên này</span>
-            </button>
-          </div>
         </div>
       )}
 
@@ -3081,11 +3273,43 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
         </div>
 
         {/* Submit Action Button */}
-        <div className="flex items-center justify-end space-x-4 pt-2">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleResetToNewExam}
+              className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
+              title="Làm mới form về mặc định ban đầu để bắt đầu soạn đề mới hoàn toàn"
+            >
+              <Plus className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+              <span>Tạo đề mới hoàn toàn</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleLoadPreviousConfig}
+              className={`px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer ${
+                !getPreviousSessionMetadata() ? 'opacity-60' : ''
+              }`}
+              title="Nạp lại cấu hình phiên tạo đề trước đó"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Cấu hình trước đó</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSaveCurrentSessionDraft(true)}
+              className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
+              title="Lưu nháp các thông số hiện tại"
+            >
+              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Lưu nháp</span>
+            </button>
+          </div>
+
           <button
             type="submit"
             disabled={isGenerating}
-            className="w-full sm:w-auto px-8 py-4 rounded-2xl btn-glow-emerald text-white font-black text-sm md:text-base shadow-2xl transition-all active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-3 cursor-pointer"
+            className="w-full sm:w-auto px-8 py-4 rounded-2xl btn-glow-emerald text-white font-black text-sm md:text-base shadow-2xl transition-all active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-3 cursor-pointer shrink-0"
           >
             {isGenerating ? (
               <>

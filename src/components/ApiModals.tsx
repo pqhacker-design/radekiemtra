@@ -289,3 +289,78 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
     document.body
   );
 };
+
+interface HighDemandModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onRetry: () => void;
+  onOpenSettings?: () => void;
+}
+
+export const HighDemandModal: React.FC<HighDemandModalProps> = ({
+  isOpen,
+  onClose,
+  onRetry,
+  onOpenSettings,
+}) => {
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-5 animate-in fade-in overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 text-left space-y-5 shadow-2xl relative my-auto max-h-[88vh] overflow-y-auto">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="flex items-center space-x-3">
+          <div className="w-12 h-12 bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
+            <RefreshCw className="w-6 h-6 animate-spin text-amber-500" style={{ animationDuration: '3s' }} />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-slate-900 dark:text-white text-lg">Máy Chủ AI Đang Quá Tải Tạm Thời</h3>
+            <p className="text-xs text-amber-600 dark:text-amber-400 font-bold mt-0.5">
+              Lỗi 503: High Demand (Spikes in demand)
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-amber-50 dark:bg-amber-950/40 p-4 rounded-2xl border border-amber-200/80 dark:border-amber-800/80 text-xs text-amber-900 dark:text-amber-200 space-y-2">
+          <p className="font-bold">
+            Mô hình Google Gemini đang có lượng truy cập đột biến cùng lúc từ người dùng toàn cầu nên tạm thời chưa kịp xử lý.
+          </p>
+          <ul className="list-disc pl-4 space-y-1 text-amber-800 dark:text-amber-300">
+            <li>Hiện tượng này thường diễn ra trong khoảng 5 - 15 giây rồi tự hết.</li>
+            <li>Hệ thống đã tự động thử các mô hình dự phòng nhưng tất cả đều đang chịu tải lớn.</li>
+            <li>Bạn có thể bấm <strong>"Thử Lại Ngay"</strong> hoặc chuyển sang mô hình <strong>Gemini 3.1 Flash Lite</strong> trong mục Cài Đặt.</li>
+          </ul>
+        </div>
+
+        <div className="flex items-center space-x-3 pt-2">
+          <button
+            onClick={() => {
+              onClose();
+              if (onOpenSettings) onOpenSettings();
+            }}
+            className="w-1/2 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+          >
+            Vào Cài Đặt
+          </button>
+          <button
+            onClick={() => {
+              onClose();
+              onRetry();
+            }}
+            className="w-1/2 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl transition-colors cursor-pointer shadow-lg shadow-emerald-600/25 flex items-center justify-center space-x-1.5"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Thử Lại Ngay</span>
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};

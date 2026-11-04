@@ -96,13 +96,23 @@ export async function callGeminiApi({
     }
 
     if (data && data.error) {
-      const errMsg = String(data.error);
+      let errMsg = String(data.error);
+      try {
+        const parsed = JSON.parse(errMsg);
+        if (parsed?.error?.message) errMsg = parsed.error.message;
+        else if (parsed?.message) errMsg = parsed.message;
+      } catch {}
       throw new Error(errMsg);
     }
 
     throw new Error(`Máy chủ phản hồi với mã lỗi HTTP ${response.status}`);
   } catch (err: any) {
-    const message = String(err?.message || err || '');
+    let message = String(err?.message || err || '');
+    try {
+      const parsed = JSON.parse(message);
+      if (parsed?.error?.message) message = parsed.error.message;
+      else if (parsed?.message) message = parsed.message;
+    } catch {}
 
     // Phân loại các thông báo lỗi trực quan cho người dùng
     if (message.includes('NO_API_KEY')) {
@@ -113,6 +123,15 @@ export async function callGeminiApi({
     }
     if (message.includes('QUOTA_EXHAUSTED') || message.includes('RESOURCE_EXHAUSTED') || message.includes('429')) {
       throw new Error('[QUOTA_EXHAUSTED] Hạn ngạch miễn phí của Gemini API hôm nay đã tạm hết. Bạn có thể nhập API Key riêng trong mục Cài Đặt để tiếp tục sử dụng ngay.');
+    }
+    if (
+      message.includes('SERVICE_UNAVAILABLE') ||
+      message.includes('503') ||
+      message.includes('UNAVAILABLE') ||
+      message.includes('high demand') ||
+      message.includes('overloaded')
+    ) {
+      throw new Error('[SERVICE_UNAVAILABLE] Máy chủ AI Google đang chịu tải cao (Lỗi 503 - High Demand). Hệ thống đã tự động thử các mô hình dự phòng nhưng tạm thời chưa thể kết nối. Vui lòng bấm "Thử Lại" sau vài giây hoặc đổi mô hình/nhập API Key riêng trong Cài Đặt.');
     }
 
     throw new Error(message || 'Không thể tạo dữ liệu từ mô hình AI. Vui lòng thử lại sau.');

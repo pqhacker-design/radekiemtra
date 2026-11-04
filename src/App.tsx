@@ -10,7 +10,7 @@ import { AnswerKeyView } from './components/AnswerKeyView';
 import { MultiCodeView } from './components/MultiCodeView';
 import { QuestionBankView } from './components/QuestionBankView';
 import { SettingsView } from './components/SettingsView';
-import { ApiKeyInputModal, QuotaExceededModal, NotificationModal } from './components/ApiModals';
+import { ApiKeyInputModal, QuotaExceededModal, NotificationModal, HighDemandModal } from './components/ApiModals';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 import { AppSettings, ExamMetadata, ExamPackage, MatrixRow, Question, QuestionBankItem, SpecRow } from './types';
@@ -87,6 +87,7 @@ export default function App() {
   const [progressMessage, setProgressMessage] = useState('');
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false);
+  const [isHighDemandModalOpen, setIsHighDemandModalOpen] = useState(false);
   const [notificationModal, setNotificationModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
     title: '',
@@ -126,7 +127,17 @@ export default function App() {
         setPendingMetadata(metadata);
         setIsApiKeyModalOpen(true);
       } else if (errMsg.includes('QUOTA_EXHAUSTED') || errMsg.includes('429')) {
+        setPendingMetadata(metadata);
         setIsQuotaModalOpen(true);
+      } else if (
+        errMsg.includes('SERVICE_UNAVAILABLE') ||
+        errMsg.includes('503') ||
+        errMsg.includes('UNAVAILABLE') ||
+        errMsg.includes('high demand') ||
+        errMsg.includes('quá tải')
+      ) {
+        setPendingMetadata(metadata);
+        setIsHighDemandModalOpen(true);
       } else {
         setNotificationModal({
           isOpen: true,
@@ -491,6 +502,21 @@ export default function App() {
             handleGenerateExam(pendingMetadata);
             setPendingMetadata(null);
           }
+        }}
+      />
+
+      <HighDemandModal
+        isOpen={isHighDemandModalOpen}
+        onClose={() => setIsHighDemandModalOpen(false)}
+        onRetry={() => {
+          setIsHighDemandModalOpen(false);
+          if (pendingMetadata) {
+            handleGenerateExam(pendingMetadata);
+          }
+        }}
+        onOpenSettings={() => {
+          setIsHighDemandModalOpen(false);
+          setActiveTab('settings');
         }}
       />
 

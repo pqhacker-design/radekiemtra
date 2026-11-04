@@ -1,4 +1,4 @@
-import { ExamMetadata } from '../types';
+import { ExamMetadata, Question } from '../types';
 
 export class PromptEngine {
   /**
@@ -181,49 +181,51 @@ ${metadata.referenceContext.trim()}
     }
 
     const hasCustomSpec = Boolean(
-      (metadata.customSpecContext && metadata.customSpecContext.trim()) ||
-      (metadata.customSpecImages && metadata.customSpecImages.length > 0) ||
-      metadata.matrixInputMode === 'spec'
+      (metadata.customSpecContext && metadata.customSpecContext.trim().length >= 20) ||
+      (metadata.customSpecImages && metadata.customSpecImages.length > 0)
     );
 
     const hasCustomMatrix = Boolean(
-      (metadata.customMatrixContext && metadata.customMatrixContext.trim()) ||
-      (metadata.customMatrixImages && metadata.customMatrixImages.length > 0) ||
-      metadata.matrixInputMode === 'custom'
+      (metadata.customMatrixContext && metadata.customMatrixContext.trim().length >= 20) ||
+      (metadata.customMatrixImages && metadata.customMatrixImages.length > 0)
     );
+
+    const p1Count = questionCounts.part1_MCQSingle ?? 12;
+    const p2Count = questionCounts.part2_MCQTrueFalse ?? 2;
+    const p3Count = questionCounts.part3_MCQShort ?? 4;
+    const p4Count = questionCounts.part4_Essay ?? 2;
+    const totalRequiredQuestions = p1Count + p2Count + p3Count + p4Count;
+
+    const mandatoryQuestionsCountSection = `
+🚨🚨🚨 QUY ĐỊNH BẮT BUỘC VỀ SỐ LƯỢNG CÂU HỎI TRONG MẢNG "questions" (TUYỆT ĐỐI KHÔNG ĐƯỢC CHỈ SINH 1 CÂU MỖI PHẦN):
+Mảng "questions" trong JSON kết quả BẮT BUỘC PHẢI CHỨA ĐỦ TẤT CẢ ${totalRequiredQuestions} CÂU HỎI HOÀN CHỈNH (không được thiếu dù chỉ 1 câu, không được chỉ đưa 1 câu ví dụ):
+- PHẦN I (Trắc nghiệm nhiều lựa chọn): BẮT BUỘC SINH ĐỦ CHÍNH XÁC ${p1Count} CÂU HỎI (đánh số "number" từ 1 đến ${p1Count}, mỗi câu 4 phương án A, B, C, D). TUYỆT ĐỐI KHÔNG CHỈ SINH 1 CÂU!
+- PHẦN II (Trắc nghiệm Đúng/Sai): BẮT BUỘC SINH ĐỦ CHÍNH XÁC ${p2Count} CÂU HỎI LỚN (đánh số "number" từ 1 đến ${p2Count}, mỗi câu gồm 4 ý a, b, c, d với isCorrect và lời giải). TUYỆT ĐỐI KHÔNG CHỈ SINH 1 CÂU!
+- PHẦN III (Trắc nghiệm Trả lời ngắn): BẮT BUỘC SINH ĐỦ CHÍNH XÁC ${p3Count} CÂU HỎI ĐỘC LẬP (đánh số "number" từ 1 đến ${p3Count}). TUYỆT ĐỐI KHÔNG CHỈ SINH 1 CÂU!
+- PHẦN IV (Tự luận): BẮT BUỘC SINH ĐỦ CHÍNH XÁC ${p4Count} CÂU HỎI TỰ LUẬN (đánh số "number" từ 1 đến ${p4Count}) kèm hướng dẫn giải chi tiết và mảng "rubric" chấm điểm từng bước.
+=> TỔNG CỘNG MẢNG "questions" PHẢI CÓ ĐỦ CHÍNH XÁC ${totalRequiredQuestions} CÂU HỎI!
+`;
 
     let matrixModeSection = '';
     if (hasCustomSpec) {
       matrixModeSection = `
-🎯🎯🎯 YÊU CẦU TỐI CAO: RA ĐỀ BÁM SÁT 100% BẢNG ĐẶC TẢ CHI TIẾT (CĂN CỨ YÊU CẦU CẦN ĐẠT - YCCĐ & MỨC ĐỘ NHẬN THỨC) 🎯🎯🎯
+🎯🎯🎯 YÊU CẦU: RA ĐỀ BÁM SÁT BẢNG ĐẶC TẢ CHI TIẾT (CĂN CỨ YÊU CẦU CẦN ĐẠT - YCCĐ & MỨC ĐỘ NHẬN THỨC) 🎯🎯🎯
 Giáo viên đã cung cấp BẢNG ĐẶC TẢ ĐỀ KIỂM TRA CHI TIẾT (văn bản hoặc ảnh chụp đính kèm bên dưới).
 Trong quy trình kiểm tra đánh giá theo Công văn 7991/BGDĐT và chương trình GDPT 2018, BẢNG ĐẶC TẢ LÀ CĂN CỨ PHÁP LÝ & SƯ PHẠM CHI TIẾT NHẤT để ra đề.
 
-BẠN BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT 5 NGUYÊN TẮC SAU ĐÂY ĐỂ TRÁNH HOÀN TOÀN TÌNH TRẠNG HỎI SAI TRỌNG TÂM, SAI MỨC ĐỘ, KHÔNG ĐÚNG YÊU CẦU CẦN ĐẠT:
+BẠN BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT CÁC NGUYÊN TẮC SAU ĐÂY:
 
 1. BÁM SÁT TUYỆT ĐỐI YÊU CẦU CẦN ĐẠT (YCCĐ):
    - MỖI CÂU HỎI TRONG ĐỀ THI PHẢI ĐỐI ỨNG TRỰC TIẾP VỚI 1 YÊU CẦU CẦN ĐẠT (YCCĐ) được chỉ định trong Bảng đặc tả.
    - Nội dung câu hỏi chỉ được hỏi về kiến thức, kỹ năng đã được mô tả cụ thể trong YCCĐ của từng đơn vị kiến thức (subTopic).
-   - TUYỆT ĐỐI KHÔNG ra câu hỏi lạc đề, không hỏi những nội dung kiến thức nằm ngoài Yêu cầu cần đạt đã quy định trong Bảng đặc tả.
 
 2. ĐÚNG CHUẨN TỪNG MỨC ĐỘ NHẬN THỨC (NB, TH, VD, VDC):
-   - Mức Nhận biết (REMEMBER): Chỉ hỏi các câu nhận diện khái niệm, công thức, định nghĩa, nhận biết đối tượng trực tiếp theo đúng động từ hành vi trong YCCĐ (Nhận biết được..., Chỉ ra được..., Nêu được...). Không hỏi mẹo, không tính toán nhiều bước.
-   - Mức Thông hiểu (UNDERSTAND): Chỉ hỏi các câu giải thích bản chất, làm rõ nguyên lí, phân biệt, so sánh hoặc tính toán trực tiếp qua 1 bước theo YCCĐ (Hiểu được..., Phân biệt được..., Giải thích được...).
-   - Mức Vận dụng (APPLY): Hỏi các câu vận dụng kiến thức, kết nối nhiều bước để giải quyết bài toán hoặc tình huống thực tế đời sống theo YCCĐ.
-   - Mức Vận dụng cao (ADVANCED): Bài toán tổng hợp, phân hóa học sinh giải quyết vấn đề phức tạp trong bối cảnh thực tiễn theo YCCĐ.
-   - TUYỆT ĐỐI KHÔNG ra sai mức độ (ví dụ: YCCĐ yêu cầu "Nhận biết" lại ra bài toán phức tạp đòi hỏi nhiều bước biến đổi; hoặc YCCĐ yêu cầu "Vận dụng" lại ra câu hỏi học vẹt).
+   - Mức Nhận biết (REMEMBER): Chỉ hỏi các câu nhận diện khái niệm, công thức, định nghĩa.
+   - Mức Thông hiểu (UNDERSTAND): Hỏi các câu giải thích bản chất, làm rõ nguyên lí.
+   - Mức Vận dụng (APPLY) & Vận dụng cao (ADVANCED): Bài toán vận dụng giải quyết vấn đề thực tế.
 
-3. ĐÚNG SỐ CÂU, DẠNG THỨC VÀ ĐIỂM SỐ THEO BẢNG ĐẶC TẢ:
-   - Phần I (Trắc nghiệm 4 lựa chọn), Phần II (Đúng/Sai gồm 4 ý a,b,c,d), Phần III (Trả lời ngắn), Phần IV (Tự luận): Đúng tuyệt đối số câu được phân bổ cho từng đơn vị kiến thức trong Bảng đặc tả.
-   - Điểm số của từng câu hỏi và tổng điểm phải khớp chính xác với Bảng đặc tả (Tổng toàn đề = 10.0 điểm).
-   - QUY TẮC PHẦN II (Đúng/Sai): Nếu Bảng đặc tả ghi các ý như 13a, 13b, 13c, 13d... hãy gộp vào 1 Câu hỏi lớn (Câu 13, partType: "PART2") chứa 4 ý a,b,c,d bám sát YCCĐ tương ứng.
-   - QUY TẮC PHẦN IV (Tự luận): Nếu có các ý a, b hoặc ý 1, 2 thì trình bày rõ ràng từng ý trong đề bài kèm biểu điểm rubric chi tiết cho từng ý.
-
-4. BỎ QUA HOÀN TOÀN CẤU TRÚC VÀ TỶ LỆ MẶC ĐỊNH KHI ĐÃ CÓ BẢNG ĐẶC TẢ CHI TIẾT.
-
-5. ĐỒNG BỘ TRẢ VỀ TRONG JSON KẾT QUẢ:
-   - Mảng "specification" trong kết quả trả về PHẢI giữ trọn vẹn và thể hiện đầy đủ các đơn vị kiến thức (subTopic) và nội dung Yêu cầu cần đạt chi tiết (requirements) theo từng mức độ (- Biết: ..., - Hiểu: ..., - Vận dụng: ...) khớp với Bảng đặc tả đã cung cấp.
-   - Mảng "matrix" tương ứng cũng phải khớp số câu và điểm số 100%.
+3. ĐỒNG BỘ TRẢ VỀ TRONG JSON KẾT QUẢ:
+   - Mảng "specification" trong kết quả trả về PHẢI giữ trọn vẹn và thể hiện đầy đủ các đơn vị kiến thức (subTopic) và nội dung Yêu cầu cần đạt chi tiết (requirements).
 
 ${metadata.customSpecContext ? `
 --------------------- NỘI DUNG BẢNG ĐẶC TẢ CHI TIẾT DO GIÁO VIÊN CUNG CẤP ---------------------
@@ -234,35 +236,25 @@ ${metadata.customSpecImages && metadata.customSpecImages.length > 0 ? `
 📸 ĐÃ ĐÍNH KÈM ${metadata.customSpecImages.length} ẢNH CHỤP BẢNG ĐẶC TẢ CHI TIẾT:
 Hãy phân tích kỹ từng cột: Đơn vị kiến thức, Mức độ nhận thức, Cột Yêu cầu cần đạt (YCCĐ), Số câu hỏi theo 4 phần và Điểm số trong ảnh chụp để ra đề bám sát 100%!
 ` : ''}
+
+${mandatoryQuestionsCountSection}
 `;
     } else if (hasCustomMatrix) {
       matrixModeSection = `
-⚡⚡⚡ YÊU CẦU TỐI QUAN TRỌNG: RA ĐỀ ĐỘC QUYỀN THEO MA TRẬN BỘ MÔN (BỎ QUA CẤU TRÚC VÀ TỈ LỆ MẶC ĐỊNH) ⚡⚡⚡
+⚡⚡⚡ YÊU CẦU: RA ĐỀ THEO MA TRẬN BỘ MÔN ĐÍNH KÈM ⚡⚡⚡
 Người dùng đã cung cấp khung Ma trận & Bản đặc tả bộ môn (dạng văn bản hoặc ảnh chụp đính kèm bên dưới).
 BẠN BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT CÁC QUY TẮC SAU ĐÂY:
 
-1. ĐỌC KỸ TỪNG DÒNG, TỪNG CỘT CỦA MA TRẬN VÀ SỐ CÂU TƯƠNG ỨNG ĐỂ RA ĐỀ.
-2. BỎ QUA HOÀN TOÀN MỤC CẤU TRÚC SỐ CÂU VÀ TỶ LỆ MỨC ĐỘ NHẬN THỨC MẶC ĐỊNH TRÊN HỆ THỐNG KHI ĐÃ CÓ MA TRẬN BỘ MÔN.
-3. QUY TẮC PHÂN BIỆT RÕ RÀNG GIỮA "SỐ CÂU LỚN" VÀ "SỐ Ý" (ĐẶC BIỆT QUAN TRỌNG VỚI MA TRẬN THCS / THPT):
-   - Nhiều ma trận (như môn Toán, KHTN cấp THCS/THPT) thường ghi chi tiết từng Ý con vào các ô đánh giá (Ví dụ: 13a, 13b, 13c, 13d; 14a, 14b, 14c, 14d; 15a, 15b, 15c, 15d; 16a, 16b; 18.1, 18.2):
-     + PHẦN I (Nhiều lựa chọn): Mỗi số thứ tự (ví dụ: 1, 2, 3... 12) là 1 câu trắc nghiệm 4 lựa chọn (partType: "PART1", điểm mỗi câu thường là 0.25 điểm).
-     + PHẦN II (Đúng - Sai): Các ý như 13a, 13b, 13c, 13d BẮT BUỘC ĐƯỢC GỘP CHUNG vào đúng 1 CÂU LỚN (Câu 13, partType: "PART2") chứa mảng "trueFalseStatements" gồm 4 ý a, b, c, d! Tương tự, 14a, 14b, 14c, 14d là Câu 14. Tổng cộng là 2 CÂU LỚN Đúng/Sai (2.0 điểm, mỗi câu 1.0đ chia cho 4 ý a, b, c, d). TUYỆT ĐỐI KHÔNG TÁCH các ý này thành từng câu riêng lẻ!
-     + PHẦN III (Trả lời ngắn): Nếu ma trận ghi 15a, 15b, 15c, 15d hoặc các ý ngắn, hãy tạo thành 4 câu trả lời ngắn độc lập (partType: "PART3", đánh số từ 1 đến 4 trong Phần III) bám sát các đơn vị kiến thức tương ứng, với điểm số là 0.5 điểm/câu (Tổng Phần III = 2.0 điểm).
-     + PHẦN IV (Tự luận): Nếu ma trận ghi 16a, 16b; 17; 18.1, 18.2, đây là 3 CÂU TỰ LUẬN LỚN (Câu 16, Câu 17, Câu 18, partType: "PART4") với tổng điểm là 3.0 điểm (mỗi câu khoảng 1.0đ):
-       * Câu 16 (1.0đ): Trong "content" chia rõ 2 ý a) (0.5đ, Thông hiểu) và b) (0.5đ, Vận dụng).
-       * Câu 17 (1.0đ): Vận dụng (1.0đ).
-       * Câu 18 (1.0đ): Trong "content" chia rõ 2 ý 1) (0.5đ, Thông hiểu) và 2) (0.5đ, Vận dụng).
-       * Kèm theo "essayAnswerGuide" giải chi tiết và mảng "rubric" chia điểm chính xác cho từng ý.
-   - BẮT BUỘC SINH ĐỦ 100% TẤT CẢ CÁC CÂU THEO MA TRẬN TRÊN, KHÔNG ĐƯỢC THIẾU BẤT KỲ CÂU NÀO, KHÔNG DÙNG DẤU BA CHẤM (...).
-4. ĐÁP ÁN ĐẦY ĐỦ CHO TẤT CẢ CÁC CÂU HỎI:
-   - Phần I: Bắt buộc có "correctOption" (A, B, C hoặc D) và "explanation" giải thích chi tiết.
-   - Phần II: Bắt buộc có "trueFalseStatements" gồm đúng 4 ý a, b, c, d với "content", "isCorrect": true/false và lời giải.
-   - Phần III: Bắt buộc có "shortAnswer" là một đáp số cụ thể (ví dụ: "$15$", "$x = 3$", "24 cm") và lời giải.
-   - Phần IV: Bắt buộc có "essayAnswerGuide" giải chi tiết từng bước và mảng "rubric" chia điểm cụ thể từng bước.
-   - TUYỆT ĐỐI KHÔNG ĐỂ TRỐNG ĐÁP ÁN!
-5. BẢNG "matrix" VÀ "specification" TRONG JSON KẾT QUẢ:
-   - Phản ánh đúng khung ma trận đã cung cấp theo chuẩn Công văn 7991/BGDĐT (gồm 4 dạng thức part1, part2, part3, part4 theo 3 mức độ remember, understand, apply).
-   - TỔNG ĐIỂM TOÀN BỘ ĐỀ THI PHẢI BẰNG ĐÚNG 10.0 ĐIỂM.
+1. ĐỌC KỸ TỪNG DÒNG, TỪNG CỘT CỦA MA TRẬN VÀ PHÂN BỔ CÂU HỎI.
+2. QUY TẮC PHÂN BIỆT RÕ RÀNG GIỮA "SỐ CÂU LỚN" VÀ "SỐ Ý":
+   - PHẦN I (Nhiều lựa chọn): Sinh đủ ${p1Count} câu trắc nghiệm 4 lựa chọn (partType: "PART1").
+   - PHẦN II (Đúng - Sai): Sinh đủ ${p2Count} CÂU LỚN Đúng/Sai (partType: "PART2"), mỗi câu gồm mảng "trueFalseStatements" với 4 ý a, b, c, d. TUYỆT ĐỐI KHÔNG TÁCH các ý này thành từng câu riêng lẻ!
+   - PHẦN III (Trả lời ngắn): Sinh đủ ${p3Count} câu trả lời ngắn độc lập (partType: "PART3").
+   - PHẦN IV (Tự luận): Sinh đủ ${p4Count} câu tự luận (partType: "PART4") kèm hướng dẫn giải chi tiết và mảng rubric.
+   - BẮT BUỘC SINH ĐỦ 100% TẤT CẢ CÁC CÂU, KHÔNG DÙNG DẤU BA CHẤM (...).
+3. ĐÁP ÁN ĐẦY ĐỦ CHO TẤT CẢ CÁC CÂU HỎI (TUYỆT ĐỐI KHÔNG ĐỂ TRỐNG ĐÁP ÁN).
+4. TỔNG ĐIỂM TOÀN BỘ ĐỀ THI PHẢI BẰNG ĐÚNG 10.0 ĐIỂM.
+
 ${metadata.customMatrixContext ? `
 --------------------- NỘI DUNG MA TRẬN BỘ MÔN CUNG CẤP ---------------------
 ${metadata.customMatrixContext.trim()}
@@ -272,6 +264,8 @@ ${metadata.customMatrixImages && metadata.customMatrixImages.length > 0 ? `
 📸 ĐÃ ĐÍNH KÈM ${metadata.customMatrixImages.length} ẢNH CHỤP KHUNG MA TRẬN BỘ MÔN:
 Hãy phân tích kỹ từng hàng, từng cột, các ô phân bổ số thứ tự câu hỏi và 3 mức độ đánh giá (Biết, Hiểu, Vận dụng) trong ảnh chụp ma trận để sinh đề bám sát 100%!
 ` : ''}
+
+${mandatoryQuestionsCountSection}
 `;
     } else {
       matrixModeSection = `
@@ -304,6 +298,8 @@ Hãy phân tích kỹ từng hàng, từng cột, các ô phân bổ số thứ 
 - Thông hiểu (UNDERSTAND): ${cognitiveRatio.understand}%
 - Vận dụng (APPLY): ${cognitiveRatio.apply}%
 - Vận dụng cao (ADVANCED): ${cognitiveRatio.advanced}%
+
+${mandatoryQuestionsCountSection}
 `;
     }
 
@@ -443,7 +439,8 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
     }
   ],
   "questions": [
-    // Ví dụ câu hỏi PHẦN I (Nhiều lựa chọn):
+    // ⚠️ CHÚ Ý: DƯỚI ĐÂY CHỈ LÀ MẪU MINH HỌA CẤU TRÚC JSON CHO 1 CÂU PHẦN I.
+    // BẠN BẮT BUỘC PHẢI SINH TIẾP TỤC ĐỦ CẢ ${p1Count} CÂU HỎI CHO PHẦN I (ĐÁNH SỐ TỪ 1 ĐẾN ${p1Count})!
     {
       "id": "q-1",
       "partType": "PART1",
@@ -464,7 +461,7 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
       "correctOption": "A",
       "explanation": "Tập hợp $A = \\{9; 10; 11; 12; 13; 14\\}$ gồm $14 - 9 + 1 = 6$ phần tử. Chọn A."
     },
-    // Ví dụ câu hỏi PHẦN II (Đúng/Sai):
+    // ⚠️ ĐÂY LÀ MẪU CẤU TRÚC CHO 1 CÂU PHẦN II. BẠN PHẢI SINH ĐỦ CẢ ${p2Count} CÂU LỚN CHO PHẦN II (ĐÁNH SỐ TỪ 1 ĐẾN ${p2Count}, MỖI CÂU ĐỦ 4 Ý a,b,c,d)!
     {
       "id": "q-13",
       "partType": "PART2",
@@ -484,7 +481,7 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
       ],
       "explanation": "Ý a sai (ví dụ 2 + 3 = 5). Ý b đúng theo dấu hiệu chia hết cho 5. Ý c đúng theo tính chất chia hết cho 9. Ý d sai vì 4, 6, 8 là hợp số."
     },
-    // Ví dụ câu hỏi PHẦN III (Trả lời ngắn):
+    // ⚠️ ĐÂY LÀ MẪU CẤU TRÚC CHO 1 CÂU PHẦN III. BẠN PHẢI SINH ĐỦ CẢ ${p3Count} CÂU CHO PHẦN III (ĐÁNH SỐ TỪ 1 ĐẾN ${p3Count})!
     {
       "id": "q-15",
       "partType": "PART3",
@@ -497,7 +494,7 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
       "shortAnswer": "10",
       "explanation": "$x + 10 = 40 : 2 = 20 \\Rightarrow x = 20 - 10 = 10$."
     },
-    // Ví dụ câu hỏi PHẦN IV (Tự luận):
+    // ⚠️ ĐÂY LÀ MẪU CẤU TRÚC CHO 1 CÂU PHẦN IV. BẠN PHẢI SINH ĐỦ CẢ ${p4Count} CÂU CHO PHẦN IV (ĐÁNH SỐ TỪ 1 ĐẾN ${p4Count})!
     {
       "id": "q-16",
       "partType": "PART4",
@@ -519,7 +516,7 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
 }
 
 🛑 QUY TẮC BẮT BUỘC VỀ SỐ LƯỢNG VÀ ĐÁP ÁN TRONG MẢNG "questions":
-1. Mảng "questions" PHẢI CHỨA ĐỦ 100% TẤT CẢ CÁC CÂU HỎI THEO ĐÚNG MA TRẬN ĐÃ XÁC ĐỊNH (tuyệt đối không được thiếu câu, không cắt bớt, không bỏ dở).
+1. Mảng "questions" PHẢI CHỨA ĐỦ 100% TẤT CẢ ${totalRequiredQuestions} CÂU HỎI (${p1Count} câu Phần I + ${p2Count} câu lớn Phần II + ${p3Count} câu Phần III + ${p4Count} câu Phần IV). TUYỆT ĐỐI KHÔNG ĐƯỢC CHỈ SINH 1 CÂU CHO MỖI PHẦN! Không được thiếu câu, không cắt bớt, không bỏ dở!
 2. TẤT CẢ các câu hỏi trong mảng "questions" đều BẮT BUỘC có đáp án, biểu điểm và lời giải chi tiết (Phần I có "correctOption", Phần II có đủ 4 ý Đúng/Sai, Phần III có "shortAnswer", Phần IV có "essayAnswerGuide" và mảng "rubric" chi tiết).
 3. Đánh số lại thứ tự câu (number) bắt đầu từ 1 cho từng phần: Phần I câu 1..N, Phần II câu 1..M, Phần III câu 1..K, Phần IV câu 1..P.
 
@@ -536,10 +533,10 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
    * Tạo prompt yêu cầu AI tạo lại riêng 1 câu hỏi cụ thể theo yêu cầu của giáo viên
    */
   static buildRegenerateQuestionPrompt(
-    originalQuestion: import('../types').Question,
+    originalQuestion: Question,
     metadata: ExamMetadata,
     teacherPrompt?: string,
-    existingQuestions: import('../types').Question[] = []
+    existingQuestions: Question[] = []
   ): string {
     const avoidQuestions = existingQuestions
       .filter((q) => q.id !== originalQuestion.id)
@@ -559,6 +556,45 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
     }
 
     const entropySeed = Math.random().toString(36).substring(2, 8).toUpperCase() + '_' + Date.now();
+    const halfPts = Math.round((originalQuestion.points || 1.0) * 0.5 * 10) / 10;
+
+    let partSpecificFields = '';
+    if (originalQuestion.partType === 'PART1') {
+      partSpecificFields = `"options": [
+    { "key": "A", "content": "..." },
+    { "key": "B", "content": "..." },
+    { "key": "C", "content": "..." },
+    { "key": "D", "content": "..." }
+  ],
+  "correctOption": "A",`;
+    } else if (originalQuestion.partType === 'PART2') {
+      partSpecificFields = `"trueFalseStatements": [
+    { "key": "a", "content": "...", "isCorrect": true },
+    { "key": "b", "content": "...", "isCorrect": false },
+    { "key": "c", "content": "...", "isCorrect": true },
+    { "key": "d", "content": "...", "isCorrect": false }
+  ],`;
+    } else if (originalQuestion.partType === 'PART3') {
+      partSpecificFields = `"shortAnswer": "...",`;
+    } else if (originalQuestion.partType === 'PART4') {
+      partSpecificFields = `"essayAnswerGuide": "...",
+  "rubric": [
+    { "criteria": "...", "points": ${halfPts}, "description": "..." },
+    { "criteria": "...", "points": ${halfPts}, "description": "..." }
+  ],`;
+    }
+
+    const specContextPart = metadata.customSpecContext
+      ? `- Bảng đặc tả / YCCĐ của tổ bộ môn:\n${metadata.customSpecContext.slice(0, 800)}\n`
+      : '';
+
+    const avoidSection = avoidQuestions.length > 0
+      ? `4. CÁC CÂU HỎI KHÁC TRONG ĐỀ (TRÁNH TRÙNG LẶP Ý TƯỞNG):\n- ${avoidQuestions.join('\n- ')}\n`
+      : '';
+
+    const teacherSection = teacherPrompt && teacherPrompt.trim()
+      ? `5. YÊU CẦU ĐẶC BIỆT / GỢI Ý CỦA GIÁO VIÊN:\n👉 "${teacherPrompt.trim()}"\n(Hãy ưu tiên đáp ứng chính xác nguyện vọng/yêu cầu này của giáo viên!)`
+      : '5. Hãy tạo câu hỏi mới chất lượng cao, thực tế, hay và sáng tạo hơn câu cũ.';
 
     return `YÊU CẦU: BẠN LÀ CHUYÊN GIA GIÁO DỤC GDPT 2018. HÃY TẠO LẠI RIÊNG 1 CÂU HỎI THAY THẾ CHO CÂU HỎI HIỆN TẠI (Entropy: ${entropySeed}).
 
@@ -566,8 +602,7 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
 - Môn học: ${metadata.subject} (${metadata.grade})
 - Bộ sách: ${metadata.curriculum}
 - Chủ đề / Mạch kiến thức: ${metadata.chapterTitle}
-${metadata.customSpecContext ? `- Bảng đặc tả / YCCĐ của tổ bộ môn:\n${metadata.customSpecContext.slice(0, 800)}` : ''}
-
+${specContextPart}
 2. YÊU CẦU ĐẶC TẢ KỸ THUẬT CỦA CÂU HỎI CẦN TẠO:
 - Hình thức câu hỏi: ${partDesc}
 - Mức độ nhận thức (BẮT BUỘC): ${originalQuestion.cognitiveLevel} (${originalQuestion.cognitiveLevel === 'REMEMBER' ? 'Nhận biết' : originalQuestion.cognitiveLevel === 'UNDERSTAND' ? 'Thông hiểu' : originalQuestion.cognitiveLevel === 'APPLY' ? 'Vận dụng' : 'Vận dụng cao'})
@@ -577,11 +612,8 @@ ${metadata.customSpecContext ? `- Bảng đặc tả / YCCĐ của tổ bộ mô
 3. NỘI DUNG CÂU HỎI CŨ CẦN THAY THẾ (TUYỆT ĐỐI KHÔNG LẶP LẠI NỘI DUNG NÀY):
 "${originalQuestion.content}"
 
-${avoidQuestions.length > 0 ? `4. CÁC CÂU HỎI KHÁC TRONG ĐỀ (TRÁNH TRÙNG LẶP Ý TƯỞNG):\n- ${avoidQuestions.join('\n- ')}\n` : ''}
-
-${teacherPrompt && teacherPrompt.trim() ? `5. YÊU CẦU ĐẶC BIỆT / GỢI Ý CỦA GIÁO VIÊN:
-👉 "${teacherPrompt.trim()}"
-(Hãy ưu tiên đáp ứng chính xác nguyện vọng/yêu cầu này của giáo viên!)` : '5. Hãy tạo câu hỏi mới chất lượng cao, thực tế, hay và sáng tạo hơn câu cũ.'}
+${avoidSection}
+${teacherSection}
 
 6. QUY TẮC CÔNG THỨC TOÁN / HÓA & LATEX:
 - Bọc toàn bộ ký hiệu và công thức toán/hóa trong $...$. Không bọc chữ tiếng Việt trong $.
@@ -596,25 +628,7 @@ ${teacherPrompt && teacherPrompt.trim() ? `5. YÊU CẦU ĐẶC BIỆT / GỢI �
   "topic": "${originalQuestion.topic || metadata.chapterTitle}",
   "competency": "Năng lực đặc thù tương ứng...",
   "competencyCode": "NL...",
-  ${originalQuestion.partType === 'PART1' ? `"options": [
-    { "key": "A", "content": "..." },
-    { "key": "B", "content": "..." },
-    { "key": "C", "content": "..." },
-    { "key": "D", "content": "..." }
-  ],
-  "correctOption": "A",` : ''}
-  ${originalQuestion.partType === 'PART2' ? `"trueFalseStatements": [
-    { "key": "a", "content": "...", "isCorrect": true },
-    { "key": "b", "content": "...", "isCorrect": false },
-    { "key": "c", "content": "...", "isCorrect": true },
-    { "key": "d", "content": "...", "isCorrect": false }
-  ],` : ''}
-  ${originalQuestion.partType === 'PART3' ? `"shortAnswer": "...",` : ''}
-  ${originalQuestion.partType === 'PART4' ? `"essayAnswerGuide": "...",
-  "rubric": [
-    { "criteria": "...", "points": ${Math.round((originalQuestion.points || 1.0) * 0.5 * 10) / 10}, "description": "..." },
-    { "criteria": "...", "points": ${Math.round((originalQuestion.points || 1.0) * 0.5 * 10) / 10}, "description": "..." }
-  ],` : ''}
+  ${partSpecificFields}
   "explanation": "Lời giải hoặc giải thích chi tiết...",
   "svgDiagram": ""
 }`;

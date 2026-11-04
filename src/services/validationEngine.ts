@@ -168,11 +168,10 @@ export class ValidationEngine {
       metadata.questionCounts;
 
     const hasCustomMatrix = Boolean(
-      (metadata.customMatrixContext && metadata.customMatrixContext.trim()) ||
+      (metadata.customMatrixContext && metadata.customMatrixContext.trim().length >= 20) ||
       (metadata.customMatrixImages && metadata.customMatrixImages.length > 0) ||
-      (metadata.customSpecContext && metadata.customSpecContext.trim()) ||
-      (metadata.customSpecImages && metadata.customSpecImages.length > 0) ||
-      metadata.matrixInputMode === 'spec'
+      (metadata.customSpecContext && metadata.customSpecContext.trim().length >= 20) ||
+      (metadata.customSpecImages && metadata.customSpecImages.length > 0)
     );
 
     const part1Questions = rawQuestions.filter((q) => q.partType === 'PART1');
@@ -199,6 +198,14 @@ export class ValidationEngine {
       if (part4Questions.length !== part4_Essay) {
         warnings.push(
           `Số câu Phần IV khác yêu cầu (Cần: ${part4_Essay}, Nhận được: ${part4Questions.length}).`
+        );
+      }
+
+      // Phát hiện lỗi nghiêm trọng: Yêu cầu đề chuẩn nhiều câu nhưng AI chỉ trả về mỗi phần 1 câu mẫu (<= 4 câu)
+      const totalExpected = (part1_MCQSingle || 0) + (part2_MCQTrueFalse || 0) + (part3_MCQShort || 0) + (part4_Essay || 0);
+      if (totalExpected >= 8 && rawQuestions.length <= 4) {
+        errors.push(
+          `AI chỉ tạo ${rawQuestions.length} câu hỏi mẫu thay vì đầy đủ ${totalExpected} câu theo cấu trúc ma trận (Phần I: ${part1_MCQSingle}, Phần II: ${part2_MCQTrueFalse}, Phần III: ${part3_MCQShort}, Phần IV: ${part4_Essay}). Vui lòng bấm tạo lại để sinh đầy đủ đề.`
         );
       }
     }
