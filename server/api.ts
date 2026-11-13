@@ -68,9 +68,42 @@ function formatApiError(err: any): { statusCode: number; message: string } {
   };
 }
 
+export function formatModelDisplayName(model: string): string {
+  if (model.includes('3.8-flash')) return 'Gemini 3.8 Flash';
+  if (model.includes('3.1-flash-lite')) return 'Gemini 3.1 Flash Lite';
+  if (model.includes('flash-latest')) return 'Gemini Flash Latest';
+  if (model.includes('3.1-pro')) return 'Gemini 3.1 Pro';
+  return model;
+}
+
+function getModelTimeoutMs(modelName: string): number {
+  if (modelName.includes('3.8-flash')) return 18000; // 18s max for 3.8 flash so it does not hang
+  if (modelName.includes('3.1-pro')) return 25000;
+  return 30000; // 30s for 3.1 flash lite / flash latest
+}
+
 export function registerExamRoutes(app: express.Express) {
-  // 1. Gemini AI Generation Proxy Endpoint
+  // 1. Gemini AI Generation Proxy Endpoint (Supports JSON and Streaming SSE)
   app.post('/api/gemini/generate', async (req: Request, res: Response) => {
+    const isStream = req.body?.stream === true || (req.headers['accept'] && req.headers['accept'].includes('text/event-stream'));
+
+    const sendSseEvent = (event: string, data: any) => {
+      if (isStream && !res.writableEnded) {
+        try {
+          res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        } catch {}
+      }
+    };
+
+    if (isStream) {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+    }
+
     try {
       const {
         prompt,
@@ -85,6 +118,11 @@ export function registerExamRoutes(app: express.Express) {
       } = req.body;
 
       if (!prompt) {
+        if (isStream) {
+          sendSseEvent('error', { error: 'Nội dung yêu cầu (prompt) không được để trống.' });
+          res.end();
+          return;
+        }
         return res.status(400).json({
           error: 'Nội dung yêu cầu (prompt) không được để trống.',
         });
@@ -93,7 +131,7 @@ export function registerExamRoutes(app: express.Express) {
       function cleanKey(k?: any): string {
         if (!k || typeof k !== 'string') return '';
         let cleaned = k.replace(/[\u200B-\u200D\uFEFF\u00A0\u180E\u2000-\u200A\u202F\u205F\u3000]/g, '').trim();
-        const match = cleaned.match(/AIzaSy[A-Za-z0-9_-]{33}/);
+        const match = cleaned.match(/(?:AIzaSy[A-Za-z0-9_-]{33}|AQ\.[A-Za-z0-9_.-]+)/);
         if (match) return match[0];
         return cleaned.replace(/[^\x20-\x7E]/g, '').trim();
       }
@@ -103,8 +141,14 @@ export function registerExamRoutes(app: express.Express) {
       const apiKey = userKey || systemKey;
 
       if (!apiKey) {
+        const noKeyMsg = '[NO_API_KEY] Chưa cấu hình Gemini API Key. Vui lòng nhập API Key để tiếp tục.';
+        if (isStream) {
+          sendSseEvent('error', { error: noKeyMsg });
+          res.end();
+          return;
+        }
         return res.status(400).json({
-          error: '[NO_API_KEY] Chưa cấu hình Gemini API Key. Vui lòng nhập API Key để tiếp tục.',
+          error: noKeyMsg,
         });
       }
 
@@ -130,7 +174,17 @@ export function registerExamRoutes(app: express.Express) {
 
       // Try up to 2 passes across candidate models
       for (let pass = 1; pass <= 2; pass++) {
-        for (const currentModel of candidateModels) {
+        for (let idx = 0; idx < candidateModels.length; idx++) {
+          const currentModel = candidateModels[idx];
+          const timeoutMs = getModelTimeoutMs(currentModel);
+
+          sendSseEvent('status', {
+            message: `Đang kết nối tới mô hình AI ${formatModelDisplayName(currentModel)}...`,
+            model: currentModel,
+            pass,
+          });
+
+          let timer: NodeJS.Timeout | null = null;
           try {
             const ai = new GoogleGenAI({
               apiKey,
@@ -177,44 +231,108 @@ export function registerExamRoutes(app: express.Express) {
               contents = parts;
             }
 
-            const response = await ai.models.generateContent({
-              model: currentModel,
-              contents,
-              config,
+            const timeoutPromise = new Promise<never>((_, reject) => {
+              timer = setTimeout(() => {
+                reject(
+                  new Error(
+                    `[TIMEOUT] Mô hình ${formatModelDisplayName(currentModel)} phản hồi quá ${Math.round(
+                      timeoutMs / 1000
+                    )}s`
+                  )
+                );
+              }, timeoutMs);
             });
+
+            const response = await Promise.race([
+              ai.models.generateContent({
+                model: currentModel,
+                contents,
+                config,
+              }),
+              timeoutPromise,
+            ]);
+
+            if (timer) clearTimeout(timer);
 
             const responseText = response.text || '';
             if (responseText) {
-              return res.json({ text: responseText, modelUsed: currentModel });
+              sendSseEvent('complete', {
+                text: responseText,
+                modelUsed: currentModel,
+                wasFallback: currentModel !== requestedModel,
+                requestedModel,
+              });
+
+              if (isStream) {
+                res.end();
+                return;
+              }
+
+              return res.json({
+                text: responseText,
+                modelUsed: currentModel,
+                wasFallback: currentModel !== requestedModel,
+                requestedModel,
+              });
             }
           } catch (err: any) {
+            if (timer) clearTimeout(timer);
             lastError = err;
             const formatted = formatApiError(err);
-            console.warn(`[Gemini Proxy] Lỗi với model ${currentModel} (vòng ${pass}):`, formatted.message.slice(0, 150));
+            console.warn(
+              `[Gemini Proxy] Lỗi với model ${currentModel} (vòng ${pass}):`,
+              formatted.message.slice(0, 150)
+            );
 
             // If API key is fundamentally invalid, terminate immediately
             if (formatted.statusCode === 403) {
+              if (isStream) {
+                sendSseEvent('error', { error: formatted.message });
+                res.end();
+                return;
+              }
               return res.status(403).json({ error: formatted.message });
             }
 
-            // For 503 / UNAVAILABLE / 429, immediately continue to the NEXT candidate model!
+            // Notify client of automatic switch to next candidate
+            const nextCandidate = candidateModels[idx + 1] || candidateModels[0];
+            sendSseEvent('status', {
+              message: `Mô hình ${formatModelDisplayName(
+                currentModel
+              )} phản hồi lâu hoặc bận. Đang tự động chuyển sang ${formatModelDisplayName(nextCandidate)}...`,
+              model: nextCandidate,
+              previousModel: currentModel,
+              isSwitching: true,
+            });
           }
         }
 
-        // Wait 1500ms before pass 2 if all candidate models failed on pass 1
+        // Wait 1000ms before pass 2 if all candidate models failed on pass 1
         if (pass < 2) {
-          await new Promise((r) => setTimeout(r, 1500));
+          await new Promise((r) => setTimeout(r, 1000));
         }
       }
 
       console.error('[Gemini Proxy] Tất cả các mô hình dự phòng đều thất bại:', lastError?.message || lastError);
       const finalFormatted = formatApiError(lastError);
+
+      if (isStream) {
+        sendSseEvent('error', { error: finalFormatted.message });
+        res.end();
+        return;
+      }
+
       return res.status(finalFormatted.statusCode).json({
         error: finalFormatted.message,
       });
     } catch (err: any) {
       console.error('Server generate error:', err);
       const formatted = formatApiError(err);
+      if (isStream) {
+        sendSseEvent('error', { error: formatted.message });
+        res.end();
+        return;
+      }
       return res.status(formatted.statusCode).json({ error: formatted.message });
     }
   });
@@ -228,3 +346,4 @@ export function registerExamRoutes(app: express.Express) {
     });
   });
 }
+
