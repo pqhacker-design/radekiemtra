@@ -34,10 +34,17 @@ export function sanitizeApiKey(rawKey?: string | null): string {
   return cleaned;
 }
 
+export function formatModelDisplayName(model: string): string {
+  if (model.includes('3.8-flash')) return 'Gemini 3.8 Flash';
+  if (model.includes('3.1-flash-lite')) return 'Gemini 3.1 Flash Lite';
+  if (model.includes('flash-latest')) return 'Gemini Flash Latest';
+  if (model.includes('3.1-pro')) return 'Gemini 3.1 Pro';
+  return model;
+}
+
 /**
  * Gửi yêu cầu sinh nội dung AI thông qua Server Proxy (/api/gemini/generate).
- * Toàn bộ xử lý gọi Google GenAI SDK được thực hiện an toàn ở phía Backend,
- * loại bỏ hoàn toàn lỗi PROXY_GENERATION_DISABLED trên trình duyệt client.
+ * Hỗ trợ nhận tiến trình thời gian thực (SSE) và tự động nhận diện chuyển đổi mô hình (Smart Fallback).
  */
 export async function callGeminiApi({
   prompt,
@@ -53,15 +60,32 @@ export async function callGeminiApi({
 }: GeminiApiOptions): Promise<string> {
   const apiKey = sanitizeApiKey(customApiKey);
   const selectedModel = typeof model === 'string' && model.trim().length > 0 ? model.trim() : 'gemini-3.1-flash-lite';
+  const modelName = formatModelDisplayName(selectedModel);
 
   if (onStatusUpdate) {
-    onStatusUpdate(`Đang kết nối tới máy chủ AI (${selectedModel})...`);
+    onStatusUpdate(`Đang kết nối tới máy chủ AI (${modelName})...`);
+  }
+
+  // Timer dự phòng client-side cập nhật thông điệp nếu máy chủ đang chuyển đổi mô hình
+  let clientTimer: any = null;
+  if (onStatusUpdate) {
+    let elapsed = 0;
+    clientTimer = setInterval(() => {
+      elapsed += 4;
+      if (elapsed === 8) {
+        onStatusUpdate(`Đang phân tích và xử lý dữ liệu với ${modelName}...`);
+      } else if (elapsed === 16 && selectedModel.includes('3.8-flash')) {
+        onStatusUpdate(`Mô hình ${modelName} đang xử lý suy luận sâu, hệ thống đang giám sát để tự động chuyển sang Gemini 3.1 Flash Lite nếu vượt ngưỡng...`);
+      } else if (elapsed >= 22 && selectedModel.includes('3.8-flash')) {
+        onStatusUpdate(`Đang tự động chuyển sang mô hình siêu tốc Gemini 3.1 Flash Lite...`);
+      }
+    }, 4000);
   }
 
   try {
-    // Chỉ đính kèm header nếu là chuỗi ASCII hợp lệ để phòng ngừa triệt để lỗi ISO-8859-1
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Accept': 'text/event-stream, application/json',
     };
     if (apiKey && /^[\x20-\x7E]+$/.test(apiKey)) {
       headers['x-custom-api-key'] = apiKey;
@@ -80,10 +104,79 @@ export async function callGeminiApi({
         images,
         temperature,
         topP,
+        stream: true,
       }),
     });
 
+    const contentType = response.headers.get('content-type') || '';
+
+    // Xử lý Server-Sent Events (SSE) để nhận cập nhật tiến trình trực tiếp
+    if (contentType.includes('text/event-stream') && response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let generatedText = '';
+      let modelUsed = selectedModel;
+      let wasFallback = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+
+        for (const part of parts) {
+          const lines = part.trim().split('\n');
+          let eventType = '';
+          let dataStr = '';
+
+          for (const line of lines) {
+            if (line.startsWith('event:')) {
+              eventType = line.replace('event:', '').trim();
+            } else if (line.startsWith('data:')) {
+              dataStr = line.replace('data:', '').trim();
+            }
+          }
+
+          if (dataStr) {
+            try {
+              const data = JSON.parse(dataStr);
+              if (eventType === 'status' || data.type === 'status') {
+                if (data.message && onStatusUpdate) {
+                  onStatusUpdate(data.message);
+                }
+              } else if (eventType === 'complete' || data.type === 'complete' || typeof data.text === 'string') {
+                generatedText = data.text || '';
+                modelUsed = data.modelUsed || modelUsed;
+                wasFallback = !!data.wasFallback;
+              } else if (eventType === 'error' || data.type === 'error' || data.error) {
+                throw new Error(data.error || 'Lỗi từ máy chủ AI');
+              }
+            } catch (jsonErr: any) {
+              if (jsonErr.message && !jsonErr.message.includes('Unexpected token')) {
+                throw jsonErr;
+              }
+            }
+          }
+        }
+      }
+
+      if (clientTimer) clearInterval(clientTimer);
+
+      if (generatedText) {
+        if (wasFallback && onStatusUpdate) {
+          onStatusUpdate(`Đã tạo thành công đề thi qua mô hình siêu tốc ${formatModelDisplayName(modelUsed)}!`);
+        }
+        return generatedText;
+      }
+    }
+
+    // Fallback: Xử lý phản hồi JSON thông thường
     const responseText = await response.text();
+    if (clientTimer) clearInterval(clientTimer);
+
     let data: any = null;
     try {
       data = JSON.parse(responseText);
@@ -92,6 +185,9 @@ export async function callGeminiApi({
     }
 
     if (response.ok && data && typeof data.text === 'string') {
+      if (data.wasFallback && onStatusUpdate) {
+        onStatusUpdate(`Đã tạo thành công đề thi qua mô hình siêu tốc ${formatModelDisplayName(data.modelUsed)}!`);
+      }
       return data.text;
     }
 
@@ -107,6 +203,7 @@ export async function callGeminiApi({
 
     throw new Error(`Máy chủ phản hồi với mã lỗi HTTP ${response.status}`);
   } catch (err: any) {
+    if (clientTimer) clearInterval(clientTimer);
     let message = String(err?.message || err || '');
     try {
       const parsed = JSON.parse(message);
@@ -137,3 +234,4 @@ export async function callGeminiApi({
     throw new Error(message || 'Không thể tạo dữ liệu từ mô hình AI. Vui lòng thử lại sau.');
   }
 }
+

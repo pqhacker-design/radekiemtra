@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Loader2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, Sparkles, X } from 'lucide-react';
 import { Sidebar, TabType } from './components/Sidebar';
 import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
@@ -449,6 +449,44 @@ export default function App() {
           </ErrorBoundary>
         </main>
       </div>
+
+      {/* Live Exam Generation Progress Modal Overlay */}
+      {isGenerating && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="glass-card max-w-lg w-full p-6 md:p-8 space-y-6 text-center border border-emerald-500/30 shadow-2xl relative overflow-hidden bg-white/95 dark:bg-slate-900/95">
+            {/* Ambient background glow */}
+            <div className="absolute -top-16 -right-16 w-36 h-36 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Glowing animated spinner */}
+            <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin" />
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/30 animate-pulse">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                Đang Biên Soạn Đề Kiểm Tra Chuẩn BGDĐT
+              </h3>
+              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 min-h-[44px] flex items-center justify-center px-4 leading-relaxed bg-emerald-50/60 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800/60">
+                {progressMessage || 'Đang kết nối tới mô hình AI...'}
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-left space-y-2">
+              <div className="flex items-center space-x-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                <span>Cơ chế Tự Động Chuyển Đổi (Smart Fallback):</span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                Hệ thống tự động giám sát độ trễ. Nếu mô hình được chọn phản hồi lâu (&gt;18s) hoặc đang quá tải, hệ thống sẽ tự động chuyển sang mô hình siêu tốc Gemini 3.1 Flash Lite mà không làm mất dữ liệu hay gián đoạn tiến trình.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Export Status Toast Notification */}
       {exportToast && (
