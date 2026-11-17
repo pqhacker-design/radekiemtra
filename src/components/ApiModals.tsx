@@ -13,6 +13,11 @@ import {
   Info,
   LogOut,
   ArrowRight,
+  FileText,
+  BookOpen,
+  Shuffle,
+  Compass,
+  Download,
 } from 'lucide-react';
 import { StorageEngine } from '../services/storageEngine';
 import { sanitizeApiKey } from '../services/geminiClient';
@@ -391,27 +396,98 @@ export const StartupNoticeModal: React.FC<StartupNoticeModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const utilities = [
+    {
+      icon: Sparkles,
+      title: 'Tạo đề chuẩn Công văn 7991/BGDĐT',
+      desc: 'Tự động sinh Ma trận 16 cột, Bảng đặc tả YCCĐ, Đề thi đủ 4 phần (TN, Đúng/Sai, Trả lời ngắn, Tự luận) và Rubric chấm điểm.',
+    },
+    {
+      icon: BookOpen,
+      title: 'Bám sát tài liệu SGK & Ma trận riêng',
+      desc: 'Cho phép tải ảnh trang SGK, dán chữ giới hạn kiến thức hoặc nạp khung Ma trận/Bảng đặc tả có sẵn để AI ra đề đúng phạm vi.',
+    },
+    {
+      icon: Shuffle,
+      title: 'Trộn đề & Đồng bộ đa mã đề',
+      desc: 'Tạo nhiều mã đề đảo (101, 102, 103...); khi sửa tay hay tái tạo 1 câu hỏi sẽ tự động đồng bộ toàn bộ mã đề và đáp án.',
+    },
+    {
+      icon: Compass,
+      title: 'Soạn công thức & Vẽ hình GeoGebra',
+      desc: 'Tích hợp trình vẽ GeoGebra Web / Bảng vẽ nhanh (0ms) hỗ trợ AI tự dựng hình từ đề bài và chèn thẳng vào Đề bài hoặc Đáp án.',
+    },
+    {
+      icon: Download,
+      title: 'Ngân hàng câu hỏi & Xuất Word/PDF/Excel',
+      desc: 'Lưu trữ, phân loại ngân hàng câu hỏi và xuất trọn bộ đề thi, ma trận, đáp án ra file .docx, PDF, .xlsx sẵn sàng in ấn.',
+    },
+  ];
+
   return createPortal(
-    <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in duration-200 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 sm:p-7 text-left space-y-5 shadow-2xl relative my-auto">
-        <div className="flex items-center space-x-3.5">
-          <div className="w-12 h-12 bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
-            <Info className="w-6 h-6" />
+    <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200 overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-5 sm:p-7 text-left space-y-5 shadow-2xl relative my-auto max-h-[92vh] overflow-y-auto">
+        {/* App Header */}
+        <div className="flex items-start space-x-3.5 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20">
+            <FileText className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="font-extrabold text-slate-900 dark:text-white text-lg">
-              Thông Báo Khi Truy Cập Ứng Dụng
+            <h3 className="font-black text-slate-900 dark:text-white text-lg sm:text-xl tracking-tight">
+              Chào mừng đến với AI Test Generator Pro
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-              Thông tin minh bạch dành cho người dùng trước khi sử dụng
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+              Ứng dụng hỗ trợ giáo viên THCS và THPT tự động hóa quy trình biên soạn đề kiểm tra, ma trận, bảng đặc tả YCCĐ và đáp án chi tiết theo chương trình GDPT 2018.
             </p>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 text-sm text-slate-800 dark:text-amber-100 leading-relaxed font-semibold">
-          Ứng dụng đã từng dự thi AI do đại học RMIT tổ chức và đã không đạt giải, nếu các bạn tin tưởng thì bấm tiếp tục để sử dụng, nếu không bấm thoát.
+        {/* App Utilities Overview */}
+        <div className="space-y-2.5">
+          <div className="text-xs font-extrabold uppercase tracking-wider text-teal-700 dark:text-teal-400">
+            Các tiện ích chính có trong ứng dụng
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {utilities.map((item, idx) => {
+              const IconComp = item.icon;
+              return (
+                <div
+                  key={idx}
+                  className={`p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70 flex items-start space-x-2.5 ${
+                    idx === utilities.length - 1 ? 'sm:col-span-2' : ''
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-xl bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0 mt-0.5">
+                    <IconComp className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-extrabold text-slate-900 dark:text-white">
+                      {item.title}
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed mt-0.5">
+                      {item.desc}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
+        {/* RMIT Transparency Notice */}
+        <div className="p-4 rounded-2xl bg-amber-50/95 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 flex items-start space-x-3">
+          <Info className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <div className="text-xs font-extrabold uppercase tracking-wide text-amber-800 dark:text-amber-300">
+              Thông báo từ tác giả
+            </div>
+            <p className="text-xs sm:text-sm text-slate-800 dark:text-amber-100 leading-relaxed font-semibold">
+              Ứng dụng đã từng dự thi AI do đại học RMIT tổ chức và đã không đạt giải, nếu các bạn tin tưởng thì bấm tiếp tục để sử dụng, nếu không bấm thoát.
+            </p>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
         <div className="flex flex-col-reverse sm:flex-row items-center gap-3 pt-1">
           <button
             type="button"

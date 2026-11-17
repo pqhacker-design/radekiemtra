@@ -9,7 +9,6 @@ import {
   FileSpreadsheet,
   FileText,
   Grid,
-  Languages,
   Layers,
   PlusCircle,
   Sparkles,
@@ -146,13 +145,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch gap-3 shrink-0">
-            <button
-              onClick={() => onNavigateTab('bilingual')}
-              className="px-5 py-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/25 text-white font-bold text-xs md:text-sm flex items-center justify-center space-x-2 cursor-pointer transition-colors whitespace-nowrap shrink-0"
-            >
-              <Languages className="w-5 h-5 text-cyan-300" />
-              <span>Tra cứu Toán Song ngữ</span>
-            </button>
             <button
               onClick={() => onNavigateTab('generator')}
               className="btn-glow-emerald px-7 py-4 rounded-2xl text-white font-black text-xs md:text-sm shadow-xl flex items-center justify-center space-x-2.5 cursor-pointer whitespace-nowrap shrink-0"

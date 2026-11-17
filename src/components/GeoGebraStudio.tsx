@@ -187,8 +187,8 @@ export const GeoGebraStudio: React.FC<GeoGebraStudioProps> = ({
 
         hostEl.innerHTML = '';
 
-        const measuredWidth = hostEl.clientWidth > 320 ? Math.floor(hostEl.clientWidth) : 780;
-        const appletHeight = 450;
+        const measuredWidth = hostEl.clientWidth > 320 ? Math.floor(hostEl.clientWidth) : 1100;
+        const appletHeight = 520;
         const uniqueAppletName = `ggbApplet_${reactId}_${reloadNonce}_${appMode}_${sdkSource}`;
 
         const defaultAxes = appMode === 'graphing' || appMode === 'classic' || appMode === '3d';
@@ -775,7 +775,7 @@ export const GeoGebraStudio: React.FC<GeoGebraStudioProps> = ({
       )}
 
       {/* Canvas Host: GeoGebra Web OR Fast Local Geometry Board */}
-      <div className="relative rounded-2xl border border-slate-300 dark:border-slate-700 bg-white overflow-hidden min-h-[455px]">
+      <div className="relative rounded-2xl border border-slate-300 dark:border-slate-700 bg-white overflow-hidden min-h-[525px]">
         {engineMode === 'local' ? (
           <LocalGeometryBoard
             ref={localBoardRef}
@@ -846,7 +846,7 @@ export const GeoGebraStudio: React.FC<GeoGebraStudioProps> = ({
               </div>
             )}
 
-            <div id={containerDomId} ref={containerRef} className="w-full min-h-[450px]" />
+            <div id={containerDomId} ref={containerRef} className="w-full min-h-[520px]" />
           </>
         )}
       </div>

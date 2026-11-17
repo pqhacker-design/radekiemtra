@@ -9,7 +9,6 @@ import { SpecificationView } from './components/SpecificationView';
 import { AnswerKeyView } from './components/AnswerKeyView';
 import { MultiCodeView } from './components/MultiCodeView';
 import { QuestionBankView } from './components/QuestionBankView';
-import { BilingualMathView } from './components/BilingualMathView';
 import { SettingsView } from './components/SettingsView';
 import { ApiKeyInputModal, QuotaExceededModal, NotificationModal, HighDemandModal, StartupNoticeModal } from './components/ApiModals';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -35,7 +34,6 @@ export default function App() {
       cleanTab === 'matrix' ||
       cleanTab === 'specification' ||
       cleanTab === 'bank' ||
-      cleanTab === 'bilingual' ||
       cleanTab === 'answers' ||
       cleanTab === 'settings'
     ) {
@@ -397,8 +395,6 @@ export default function App() {
               ? 'Bảng Đặc Tả YCCĐ'
               : activeTab === 'bank'
               ? 'Ngân Hàng Câu Hỏi'
-              : activeTab === 'bilingual'
-              ? 'Tra Cứu Toán THCS Song Ngữ Anh – Việt'
               : activeTab === 'multicode'
               ? 'Đề Đã Tạo - Các Mã Đề'
               : activeTab === 'answers'
@@ -471,16 +467,6 @@ export default function App() {
                 onDeleteMultipleQuestions={handleDeleteMultipleQBItems}
                 onClearQuestionBank={handleClearQB}
                 onExportExcel={() => handleExportExcel()}
-              />
-            )}
-
-            {activeTab === 'bilingual' && (
-              <BilingualMathView
-                settings={settings}
-                onCreateExamFromTopic={(meta) => {
-                  setGeneratorInitialMetadata(meta);
-                  setActiveTab('generator');
-                }}
               />
             )}
 

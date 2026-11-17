@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertCircle,
   Calculator,
@@ -426,15 +427,11 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-      <div
-        className={`bg-white dark:bg-slate-900 w-full ${
-          activeTab === 'geogebra' ? 'max-w-5xl' : 'max-w-4xl'
-        } rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 my-4 sm:my-8 flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150 transition-all`}
-      >
+  return createPortal(
+    <div className="fixed inset-0 z-[9990] w-screen h-screen bg-white dark:bg-slate-900 flex flex-col overflow-hidden animate-in fade-in duration-150">
+      <div className="w-full h-full flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/80 dark:bg-slate-950/60 shrink-0">
+        <div className="px-4 sm:px-6 py-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/90 dark:bg-slate-950/80 shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-400 flex items-center justify-center font-black">
               <Pencil className="w-5 h-5" />
@@ -514,7 +511,8 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div ref={modalBodyRef} className="p-6 overflow-y-auto space-y-5 flex-1">
+        <div ref={modalBodyRef} className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-50/40 dark:bg-slate-950/30">
+          <div className={`${activeTab === 'geogebra' ? 'max-w-[1600px]' : 'max-w-6xl'} mx-auto w-full space-y-5`}>
           {formError && (
             <div className="p-3 bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 rounded-xl flex items-center space-x-2 text-xs font-bold text-rose-700 dark:text-rose-300">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -1124,10 +1122,11 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
               </div>
             </div>
           )}
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 flex items-center justify-between gap-3 shrink-0">
+        <div className="px-4 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-950/80 flex items-center justify-between gap-3 shrink-0">
           <div className="text-xs text-slate-500 hidden sm:block">
             Mẹo: Dùng tab <strong>Xem trước</strong> ở trên để kiểm tra công thức trước khi lưu.
           </div>
@@ -1151,6 +1150,7 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

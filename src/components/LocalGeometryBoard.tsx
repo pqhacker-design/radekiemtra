@@ -775,8 +775,8 @@ export const LocalGeometryBoard = forwardRef<LocalGeometryBoardRef, LocalGeometr
     );
 
     const autoFitView = useCallback(() => {
-      const w = wrapperRef.current?.clientWidth || 760;
-      const h = 440;
+      const w = wrapperRef.current?.clientWidth || 1000;
+      const h = 520;
       setViewport(computeAutoViewport(w, h));
     }, [computeAutoViewport]);
 
@@ -1084,13 +1084,33 @@ export const LocalGeometryBoard = forwardRef<LocalGeometryBoardRef, LocalGeometr
       [parsed, viewport, showAxes, showGrid, labelOffsets]
     );
 
+    const [containerWidth, setContainerWidth] = useState<number>(1000);
+
+    useEffect(() => {
+      const wrapper = wrapperRef.current;
+      if (!wrapper) return;
+      const syncSize = () => {
+        if (wrapper.clientWidth > 0) {
+          setContainerWidth(wrapper.clientWidth);
+        }
+      };
+      syncSize();
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(syncSize);
+        ro.observe(wrapper);
+        return () => ro.disconnect();
+      }
+      window.addEventListener('resize', syncSize);
+      return () => window.removeEventListener('resize', syncSize);
+    }, []);
+
     useEffect(() => {
       const canvas = canvasRef.current;
       const wrapper = wrapperRef.current;
       if (!canvas || !wrapper) return;
 
-      const width = Math.max(320, wrapper.clientWidth || 760);
-      const height = 440;
+      const width = Math.max(320, wrapper.clientWidth || containerWidth || 1000);
+      const height = 520;
       const dpr = Math.max(2, window.devicePixelRatio || 1);
 
       canvas.width = width * dpr;
@@ -1102,7 +1122,7 @@ export const LocalGeometryBoard = forwardRef<LocalGeometryBoardRef, LocalGeometr
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawScene(ctx, width, height);
-    }, [drawScene]);
+    }, [drawScene, containerWidth]);
 
     useImperativeHandle(ref, () => ({
       toDataURL: () => {
@@ -1195,7 +1215,7 @@ export const LocalGeometryBoard = forwardRef<LocalGeometryBoardRef, LocalGeometr
     };
 
     return (
-      <div ref={wrapperRef} className="relative w-full h-[440px] bg-white select-none">
+      <div ref={wrapperRef} className="relative w-full h-[520px] bg-white select-none">
         <canvas
           ref={canvasRef}
           onMouseDown={handleMouseDown}

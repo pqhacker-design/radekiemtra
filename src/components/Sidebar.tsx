@@ -8,7 +8,6 @@ import {
   FileSpreadsheet,
   Grid,
   Home,
-  Languages,
   Layers,
   Moon,
   PlusCircle,
@@ -25,7 +24,6 @@ export type TabType =
   | 'matrix'
   | 'specification'
   | 'bank'
-  | 'bilingual'
   | 'answers'
   | 'settings';
 
@@ -68,7 +66,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'matrix', label: 'Ma trận đề thi', icon: Grid },
     { id: 'specification', label: 'Bảng đặc tả YCCĐ', icon: Layers },
     { id: 'bank', label: 'Ngân hàng câu hỏi', icon: BookOpen },
-    { id: 'bilingual', label: 'Tra cứu Toán Song ngữ', icon: Languages, badge: '6-9' },
     { id: 'answers', label: 'Đáp án & Rubric', icon: CheckSquare },
     { id: 'settings', label: 'Cài đặt hệ thống', icon: Settings, badge: 'API KEY' },
   ];
