@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Check, CheckCircle2, CheckSquare, ChevronDown, ChevronUp, Edit3, HelpCircle, Lightbulb, Sparkles, Square, XCircle } from 'lucide-react';
 import { Question, QuestionBankItem, getCognitiveTag, getCognitiveLabel } from '../types';
 import { MathText } from './MathText';
+import { DiagramRenderer } from './DiagramRenderer';
 
 interface QuestionDetailCardProps {
   question: Question | QuestionBankItem;
@@ -143,12 +144,9 @@ export const QuestionDetailCard: React.FC<QuestionDetailCardProps> = ({
           <MathText content={question.content} />
         </div>
 
-        {/* SVG Diagram if present */}
+        {/* Diagram if present (GeoGebra PNG or SVG) */}
         {question.svgDiagram && (
-          <div
-            className="p-3 my-2 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto flex justify-center"
-            dangerouslySetInnerHTML={{ __html: question.svgDiagram }}
-          />
+          <DiagramRenderer diagram={question.svgDiagram} alt={`Hình minh họa Câu ${num}`} />
         )}
 
         {/* PART I OPTIONS */}
@@ -296,7 +294,7 @@ export const QuestionDetailCard: React.FC<QuestionDetailCardProps> = ({
         )}
 
         {/* EXPLANATION / LỜI GIẢI CHI TIẾT */}
-        {showExplanation && explanation && (
+        {showExplanation && (explanation || question.solutionDiagramSvg) && (
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
@@ -304,7 +302,7 @@ export const QuestionDetailCard: React.FC<QuestionDetailCardProps> = ({
               className="text-xs font-bold text-teal-700 dark:text-teal-400 hover:text-teal-800 flex items-center space-x-1.5 py-1 cursor-pointer"
             >
               <Lightbulb className="w-4 h-4 text-amber-500" />
-              <span>{expandExplanation ? 'Thu gọn Lời giải chi tiết' : 'Xem Lời giải chi tiết & Hướng dẫn'}</span>
+              <span>{expandExplanation ? 'Thu gọn Lời giải chi tiết' : 'Xem Lời giải chi tiết & Hình minh họa'}</span>
               {expandExplanation ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
 
@@ -313,14 +311,13 @@ export const QuestionDetailCard: React.FC<QuestionDetailCardProps> = ({
                 <div className="font-extrabold text-amber-900 dark:text-amber-300 flex items-center space-x-1">
                   <span>Lời giải chi tiết:</span>
                 </div>
-                <div className="leading-relaxed font-medium">
-                  <MathText content={explanation} />
-                </div>
+                {explanation && (
+                  <div className="leading-relaxed font-medium">
+                    <MathText content={explanation} />
+                  </div>
+                )}
                 {question.solutionDiagramSvg && (
-                  <div
-                    className="p-2 bg-white dark:bg-slate-900 rounded-xl border border-amber-200 dark:border-amber-900 flex justify-center overflow-x-auto mt-2"
-                    dangerouslySetInnerHTML={{ __html: question.solutionDiagramSvg }}
-                  />
+                  <DiagramRenderer diagram={question.solutionDiagramSvg} alt={`Hình vẽ lời giải Câu ${num}`} />
                 )}
               </div>
             )}

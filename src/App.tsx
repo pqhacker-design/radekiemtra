@@ -9,8 +9,9 @@ import { SpecificationView } from './components/SpecificationView';
 import { AnswerKeyView } from './components/AnswerKeyView';
 import { MultiCodeView } from './components/MultiCodeView';
 import { QuestionBankView } from './components/QuestionBankView';
+import { BilingualMathView } from './components/BilingualMathView';
 import { SettingsView } from './components/SettingsView';
-import { ApiKeyInputModal, QuotaExceededModal, NotificationModal, HighDemandModal } from './components/ApiModals';
+import { ApiKeyInputModal, QuotaExceededModal, NotificationModal, HighDemandModal, StartupNoticeModal } from './components/ApiModals';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 import { AppSettings, ExamMetadata, ExamPackage, MatrixRow, Question, QuestionBankItem, SpecRow } from './types';
@@ -34,6 +35,7 @@ export default function App() {
       cleanTab === 'matrix' ||
       cleanTab === 'specification' ||
       cleanTab === 'bank' ||
+      cleanTab === 'bilingual' ||
       cleanTab === 'answers' ||
       cleanTab === 'settings'
     ) {
@@ -95,6 +97,34 @@ export default function App() {
   });
   const [pendingMetadata, setPendingMetadata] = useState<ExamMetadata | null>(null);
   const [generatorInitialMetadata, setGeneratorInitialMetadata] = useState<ExamMetadata | null>(null);
+
+  // Startup Notice Acceptance & Exit State
+  const [hasAcceptedNotice, setHasAcceptedNotice] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('app_startup_notice_accepted') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [hasExitedApp, setHasExitedApp] = useState<boolean>(false);
+
+  const handleAcceptNotice = () => {
+    try {
+      sessionStorage.setItem('app_startup_notice_accepted', '1');
+    } catch {}
+    setHasAcceptedNotice(true);
+    setHasExitedApp(false);
+  };
+
+  const handleExitApp = () => {
+    try {
+      sessionStorage.removeItem('app_startup_notice_accepted');
+    } catch {}
+    setHasExitedApp(true);
+    try {
+      window.close();
+    } catch {}
+  };
 
   // Export Toast Notification State
   const [exportToast, setExportToast] = useState<{
@@ -314,6 +344,31 @@ export default function App() {
     StorageEngine.clearQuestionBank();
   };
 
+  if (hasExitedApp) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex items-center justify-center p-6 font-sans">
+        <div className="max-w-md w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-7 text-center space-y-4 shadow-xl">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center mx-auto">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
+            Bạn đã thoát khỏi ứng dụng
+          </h2>
+          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Cảm ơn bạn đã ghé thăm. Bạn có thể đóng tab trình duyệt này hoặc bấm nút bên dưới nếu muốn xem lại thông báo và tiếp tục sử dụng.
+          </p>
+          <button
+            type="button"
+            onClick={() => setHasExitedApp(false)}
+            className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl transition-colors cursor-pointer shadow-md"
+          >
+            Xem lại thông báo
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'} flex transition-colors duration-200 font-sans`}>
       {/* Sidebar Navigation */}
@@ -342,6 +397,8 @@ export default function App() {
               ? 'Bảng Đặc Tả YCCĐ'
               : activeTab === 'bank'
               ? 'Ngân Hàng Câu Hỏi'
+              : activeTab === 'bilingual'
+              ? 'Tra Cứu Toán THCS Song Ngữ Anh – Việt'
               : activeTab === 'multicode'
               ? 'Đề Đã Tạo - Các Mã Đề'
               : activeTab === 'answers'
@@ -414,6 +471,16 @@ export default function App() {
                 onDeleteMultipleQuestions={handleDeleteMultipleQBItems}
                 onClearQuestionBank={handleClearQB}
                 onExportExcel={() => handleExportExcel()}
+              />
+            )}
+
+            {activeTab === 'bilingual' && (
+              <BilingualMathView
+                settings={settings}
+                onCreateExamFromTopic={(meta) => {
+                  setGeneratorInitialMetadata(meta);
+                  setActiveTab('generator');
+                }}
               />
             )}
 
@@ -563,6 +630,12 @@ export default function App() {
         onClose={() => setNotificationModal({ isOpen: false, title: '', message: '' })}
         title={notificationModal.title}
         message={notificationModal.message}
+      />
+
+      <StartupNoticeModal
+        isOpen={!hasAcceptedNotice}
+        onContinue={handleAcceptNotice}
+        onExit={handleExitApp}
       />
     </div>
   );

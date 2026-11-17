@@ -1739,7 +1739,7 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
           isOpen={true}
           question={selectedQuestionForModalEdit}
           onClose={() => setSelectedQuestionForModalEdit(null)}
-          onSave={(updatedQ) => {
+          onSave={(_origQ, updatedQ) => {
             const asBankItem = updatedQ as QuestionBankItem;
             if (onUpdateQuestion) {
               onUpdateQuestion(asBankItem);

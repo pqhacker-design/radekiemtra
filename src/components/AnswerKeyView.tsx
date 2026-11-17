@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CheckSquare, Download, FileText, Printer, CheckCircle, HelpCircle, AlignLeft, BookOpen, Lightbulb, Check } from 'lucide-react';
 import { ExamPackage, getCognitiveTag, getCognitiveLabel } from '../types';
 import { MathText } from './MathText';
+import { DiagramRenderer } from './DiagramRenderer';
 
 interface AnswerKeyViewProps {
   examPackage: ExamPackage | null;
@@ -207,6 +208,9 @@ export const AnswerKeyView: React.FC<AnswerKeyViewProps> = ({
                         <div className="text-slate-800 dark:text-slate-200 font-medium">
                           <MathText content={q.content} />
                         </div>
+                        {q.svgDiagram && (
+                          <DiagramRenderer diagram={q.svgDiagram} alt={`Hình minh họa Câu ${ans.questionNumber}`} imageClassName="max-h-52" />
+                        )}
                         {q.options && q.options.length > 0 && (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
                             {q.options.map((opt) => (
@@ -230,14 +234,19 @@ export const AnswerKeyView: React.FC<AnswerKeyViewProps> = ({
                             ))}
                           </div>
                         )}
-                        {q.explanation && (
-                          <div className="p-2.5 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-slate-800 dark:text-slate-200 space-y-1">
+                        {(q.explanation || q.solutionDiagramSvg) && (
+                          <div className="p-2.5 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-slate-800 dark:text-slate-200 space-y-2">
                             <div className="font-bold text-amber-900 dark:text-amber-300 text-[11px]">
                               Lời giải chi tiết:
                             </div>
-                            <div className="leading-relaxed font-normal">
-                              <MathText content={q.explanation} />
-                            </div>
+                            {q.explanation && (
+                              <div className="leading-relaxed font-normal">
+                                <MathText content={q.explanation} />
+                              </div>
+                            )}
+                            {q.solutionDiagramSvg && (
+                              <DiagramRenderer diagram={q.solutionDiagramSvg} alt={`Hình vẽ lời giải Câu ${ans.questionNumber}`} imageClassName="max-h-56" />
+                            )}
                           </div>
                         )}
                       </div>
@@ -317,6 +326,9 @@ export const AnswerKeyView: React.FC<AnswerKeyViewProps> = ({
                         <div className="text-slate-800 dark:text-slate-200 font-medium">
                           <MathText content={q.content} />
                         </div>
+                        {q.svgDiagram && (
+                          <DiagramRenderer diagram={q.svgDiagram} alt={`Hình minh họa Câu ${ans.questionNumber}`} imageClassName="max-h-52" />
+                        )}
                         {q.trueFalseStatements && q.trueFalseStatements.length > 0 && (
                           <div className="space-y-1.5 pt-1">
                             {q.trueFalseStatements.map((st: any) => {
@@ -340,10 +352,15 @@ export const AnswerKeyView: React.FC<AnswerKeyViewProps> = ({
                             })}
                           </div>
                         )}
-                        {q.explanation && (
-                          <div className="p-2.5 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-slate-800 dark:text-slate-200 space-y-1">
+                        {(q.explanation || q.solutionDiagramSvg) && (
+                          <div className="p-2.5 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-slate-800 dark:text-slate-200 space-y-2">
                             <div className="font-bold text-amber-900 dark:text-amber-300 text-[11px]">Lời giải chi tiết:</div>
-                            <div className="leading-relaxed font-normal"><MathText content={q.explanation} /></div>
+                            {q.explanation && (
+                              <div className="leading-relaxed font-normal"><MathText content={q.explanation} /></div>
+                            )}
+                            {q.solutionDiagramSvg && (
+                              <DiagramRenderer diagram={q.solutionDiagramSvg} alt={`Hình vẽ lời giải Câu ${ans.questionNumber}`} imageClassName="max-h-56" />
+                            )}
                           </div>
                         )}
                       </div>
@@ -413,10 +430,18 @@ export const AnswerKeyView: React.FC<AnswerKeyViewProps> = ({
                         <div className="text-slate-800 dark:text-slate-200 font-medium">
                           <MathText content={q.content} />
                         </div>
-                        {q.explanation && (
-                          <div className="p-2.5 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-slate-800 dark:text-slate-200 space-y-1">
+                        {q.svgDiagram && (
+                          <DiagramRenderer diagram={q.svgDiagram} alt={`Hình minh họa Câu ${ans.questionNumber}`} imageClassName="max-h-52" />
+                        )}
+                        {(q.explanation || q.solutionDiagramSvg) && (
+                          <div className="p-2.5 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-slate-800 dark:text-slate-200 space-y-2">
                             <div className="font-bold text-amber-900 dark:text-amber-300 text-[11px]">Lời giải chi tiết:</div>
-                            <div className="leading-relaxed font-normal"><MathText content={q.explanation} /></div>
+                            {q.explanation && (
+                              <div className="leading-relaxed font-normal"><MathText content={q.explanation} /></div>
+                            )}
+                            {q.solutionDiagramSvg && (
+                              <DiagramRenderer diagram={q.solutionDiagramSvg} alt={`Hình vẽ lời giải Câu ${ans.questionNumber}`} imageClassName="max-h-56" />
+                            )}
                           </div>
                         )}
                       </div>
@@ -463,10 +488,13 @@ export const AnswerKeyView: React.FC<AnswerKeyViewProps> = ({
                       </h4>
                     </div>
 
-                    <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed space-y-1">
+                    <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed space-y-2">
                       <div className="font-semibold text-teal-800 dark:text-teal-300">Hướng dẫn giải chi tiết:</div>
-                      <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 font-sans whitespace-pre-wrap">
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 font-sans whitespace-pre-wrap space-y-2">
                         <MathText content={ans.essayAnswerGuide} />
+                        {q?.solutionDiagramSvg && (
+                          <DiagramRenderer diagram={q.solutionDiagramSvg} alt={`Hình vẽ hướng dẫn Câu ${ans.questionNumber}`} />
+                        )}
                       </div>
                     </div>
 

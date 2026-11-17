@@ -1,6 +1,19 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Key, AlertTriangle, ExternalLink, Eye, EyeOff, Sparkles, CheckCircle2, RefreshCw, X } from 'lucide-react';
+import {
+  Key,
+  AlertTriangle,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Sparkles,
+  CheckCircle2,
+  RefreshCw,
+  X,
+  Info,
+  LogOut,
+  ArrowRight,
+} from 'lucide-react';
 import { StorageEngine } from '../services/storageEngine';
 import { sanitizeApiKey } from '../services/geminiClient';
 
@@ -364,3 +377,62 @@ export const HighDemandModal: React.FC<HighDemandModalProps> = ({
     document.body
   );
 };
+
+interface StartupNoticeModalProps {
+  isOpen: boolean;
+  onContinue: () => void;
+  onExit: () => void;
+}
+
+export const StartupNoticeModal: React.FC<StartupNoticeModalProps> = ({
+  isOpen,
+  onContinue,
+  onExit,
+}) => {
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in duration-200 overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 sm:p-7 text-left space-y-5 shadow-2xl relative my-auto">
+        <div className="flex items-center space-x-3.5">
+          <div className="w-12 h-12 bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
+            <Info className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-slate-900 dark:text-white text-lg">
+              Thông Báo Khi Truy Cập Ứng Dụng
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+              Thông tin minh bạch dành cho người dùng trước khi sử dụng
+            </p>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 text-sm text-slate-800 dark:text-amber-100 leading-relaxed font-semibold">
+          Ứng dụng đã từng dự thi AI do đại học RMIT tổ chức và đã không đạt giải, nếu các bạn tin tưởng thì bấm tiếp tục để sử dụng, nếu không bấm thoát.
+        </div>
+
+        <div className="flex flex-col-reverse sm:flex-row items-center gap-3 pt-1">
+          <button
+            type="button"
+            onClick={onExit}
+            className="w-full sm:w-1/2 py-3 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-700 dark:text-slate-200 hover:text-rose-700 dark:hover:text-rose-300 border border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-800 font-bold text-xs sm:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-center space-x-2"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Thoát</span>
+          </button>
+          <button
+            type="button"
+            onClick={onContinue}
+            className="w-full sm:w-1/2 py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs sm:text-sm rounded-xl transition-all cursor-pointer shadow-lg shadow-emerald-600/25 flex items-center justify-center space-x-2 active:scale-[0.99]"
+          >
+            <span>Tiếp tục</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+

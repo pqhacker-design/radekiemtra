@@ -1,17 +1,21 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   AlertCircle,
   Calculator,
   CheckCircle2,
+  Compass,
   Eye,
   FileEdit,
+  ImagePlus,
   Pencil,
   Save,
+  Trash2,
   X,
-  Target,
 } from 'lucide-react';
 import { Question, CognitiveLevel, PartType, MCQOption, TrueFalseStatement } from '../types';
 import { MathText } from './MathText';
+import { DiagramRenderer } from './DiagramRenderer';
+import { GeoGebraStudio } from './GeoGebraStudio';
 
 interface MathSnippet {
   label: string;
@@ -210,8 +214,14 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
   // Part 4 state (Essay answer guide)
   const [essayAnswerGuide, setEssayAnswerGuide] = useState(question.essayAnswerGuide || '');
 
-  // Active tab for preview
-  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+  // GeoGebra & Diagram attachments state
+  const [svgDiagram, setSvgDiagram] = useState(question.svgDiagram || '');
+  const [solutionDiagramSvg, setSolutionDiagramSvg] = useState(question.solutionDiagramSvg || '');
+  const [geogebraCommands, setGeogebraCommands] = useState(question.geogebraCommands || '');
+  const [solutionGeogebraCommands, setSolutionGeogebraCommands] = useState(question.solutionGeogebraCommands || '');
+
+  // Active tab for edit / geogebra / preview
+  const [activeTab, setActiveTab] = useState<'edit' | 'geogebra' | 'preview'>('edit');
   const [formError, setFormError] = useState('');
 
   // Snippet toolbar state
@@ -228,8 +238,15 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
     end: number;
   }
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const modalBodyRef = useRef<HTMLDivElement>(null);
   const activeTargetRef = useRef<ActiveTarget | null>(null);
   const [activeTargetName, setActiveTargetName] = useState<string>('Nội dung câu hỏi');
+
+  useEffect(() => {
+    if (modalBodyRef.current) {
+      modalBodyRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
 
   const handleTrackTarget = (
     e: React.SyntheticEvent<HTMLTextAreaElement | HTMLInputElement>,
@@ -354,10 +371,15 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
 
     const updatedQuestion: Question = {
       ...question,
+      partType,
       content: content.trim(),
       cognitiveLevel,
       points: Number(points) || 0.25,
       explanation: explanation.trim(),
+      svgDiagram: svgDiagram.trim() ? svgDiagram.trim() : undefined,
+      solutionDiagramSvg: solutionDiagramSvg.trim() ? solutionDiagramSvg.trim() : undefined,
+      geogebraCommands: geogebraCommands.trim() ? geogebraCommands.trim() : undefined,
+      solutionGeogebraCommands: solutionGeogebraCommands.trim() ? solutionGeogebraCommands.trim() : undefined,
       ...(partType === 'PART1'
         ? {
             options: options.map((o) => ({ key: o.key, content: o.content.trim() })),
@@ -405,17 +427,21 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 my-8 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+      <div
+        className={`bg-white dark:bg-slate-900 w-full ${
+          activeTab === 'geogebra' ? 'max-w-5xl' : 'max-w-4xl'
+        } rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 my-4 sm:my-8 flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150 transition-all`}
+      >
         {/* Header */}
-        <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-950/60 shrink-0">
+        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/80 dark:bg-slate-950/60 shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-400 flex items-center justify-center font-black">
               <Pencil className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="text-lg font-black text-slate-900 dark:text-white">
+              <div className="flex items-center space-x-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
                   Chỉnh Sửa Thủ Công Câu {question.number || 1}
                 </h3>
                 <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
@@ -428,13 +454,13 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
                 )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Chỉnh sửa trực tiếp nội dung, đáp án và lời giải ngay tức thì mà không cần chờ AI
+                Chỉnh sửa nội dung, công thức toán và vẽ hình trực quan bằng GeoGebra
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
-            {/* Tab switch edit / preview */}
+            {/* Tab switch edit / geogebra / preview */}
             <div className="flex bg-slate-200 dark:bg-slate-800 p-0.5 rounded-xl text-xs font-bold">
               <button
                 type="button"
@@ -447,6 +473,21 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
               >
                 <FileEdit className="w-3.5 h-3.5" />
                 <span>Soạn thảo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('geogebra')}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                  activeTab === 'geogebra'
+                    ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Compass className="w-3.5 h-3.5 text-amber-500" />
+                <span>Vẽ hình GeoGebra</span>
+                {(svgDiagram || solutionDiagramSvg) && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" title="Đã đính kèm hình vẽ" />
+                )}
               </button>
               <button
                 type="button"
@@ -473,7 +514,7 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
+        <div ref={modalBodyRef} className="p-6 overflow-y-auto space-y-5 flex-1">
           {formError && (
             <div className="p-3 bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 rounded-xl flex items-center space-x-2 text-xs font-bold text-rose-700 dark:text-rose-300">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -481,7 +522,30 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
             </div>
           )}
 
-          {activeTab === 'preview' ? (
+          {activeTab === 'geogebra' ? (
+            <GeoGebraStudio
+              questionContent={content}
+              solutionText={partType === 'PART4' ? [essayAnswerGuide, explanation].filter(Boolean).join('\n') : explanation}
+              currentQuestionDiagram={svgDiagram}
+              currentSolutionDiagram={solutionDiagramSvg}
+              initialCommands={geogebraCommands}
+              initialSolutionCommands={solutionGeogebraCommands}
+              onInsertToQuestion={(dataUrl, cmds) => {
+                setSvgDiagram(dataUrl);
+                if (cmds.trim()) setGeogebraCommands(cmds.trim());
+              }}
+              onInsertToAnswer={(dataUrl, cmds) => {
+                setSolutionDiagramSvg(dataUrl);
+                if (cmds.trim()) setSolutionGeogebraCommands(cmds.trim());
+              }}
+              onClearQuestionDiagram={() => {
+                setSvgDiagram('');
+              }}
+              onClearSolutionDiagram={() => {
+                setSolutionDiagramSvg('');
+              }}
+            />
+          ) : activeTab === 'preview' ? (
             /* Live Full Preview */
             <div className="p-5 rounded-2xl border border-teal-200 dark:border-teal-900/60 bg-teal-50/40 dark:bg-slate-950 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
@@ -502,6 +566,11 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-relaxed bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
                 <MathText content={content} />
               </div>
+
+              {/* Question Diagram Preview */}
+              {svgDiagram && (
+                <DiagramRenderer diagram={svgDiagram} alt="Hình vẽ đề bài" />
+              )}
 
               {/* Part 1 Options */}
               {partType === 'PART1' && (
@@ -577,23 +646,31 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
 
               {/* Part 4 Essay Guide */}
               {partType === 'PART4' && (
-                <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1 text-xs md:text-sm">
+                <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs md:text-sm">
                   <div className="font-bold text-slate-500">Hướng dẫn chấm tự luận:</div>
                   <div className="whitespace-pre-line text-slate-800 dark:text-slate-200">
                     <MathText content={essayAnswerGuide} />
                   </div>
+                  {solutionDiagramSvg && (
+                    <DiagramRenderer diagram={solutionDiagramSvg} alt="Hình vẽ hướng dẫn chấm" />
+                  )}
                 </div>
               )}
 
               {/* Explanation */}
-              {explanation && (
-                <div className="p-3.5 bg-amber-50/70 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800/60 space-y-1 text-xs md:text-sm">
+              {(explanation || (partType !== 'PART4' && solutionDiagramSvg)) && (
+                <div className="p-3.5 bg-amber-50/70 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800/60 space-y-2 text-xs md:text-sm">
                   <span className="font-bold text-amber-800 dark:text-amber-300">
                     Lời giải chi tiết:
                   </span>
-                  <div className="text-slate-800 dark:text-slate-200 leading-relaxed">
-                    <MathText content={explanation} />
-                  </div>
+                  {explanation && (
+                    <div className="text-slate-800 dark:text-slate-200 leading-relaxed">
+                      <MathText content={explanation} />
+                    </div>
+                  )}
+                  {partType !== 'PART4' && solutionDiagramSvg && (
+                    <DiagramRenderer diagram={solutionDiagramSvg} alt="Hình vẽ lời giải" />
+                  )}
                 </div>
               )}
             </div>
@@ -983,6 +1060,66 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
                     </span>
                     <MathText content={explanation} />
                   </div>
+                )}
+              </div>
+
+              {/* Attached GeoGebra / SVG Diagrams Summary & Quick Launcher */}
+              <div className="p-3.5 rounded-xl border border-teal-200 dark:border-teal-800/70 bg-teal-50/40 dark:bg-teal-950/20 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2 text-xs font-extrabold text-teal-800 dark:text-teal-300">
+                    <Compass className="w-4 h-4 text-amber-500" />
+                    <span>Hình vẽ GeoGebra / Minh họa đính kèm:</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('geogebra')}
+                    className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center space-x-1.5 shadow-2xs cursor-pointer transition-all"
+                  >
+                    <ImagePlus className="w-3.5 h-3.5" />
+                    <span>Mở trình vẽ GeoGebra & AI dựng hình</span>
+                  </button>
+                </div>
+
+                {(svgDiagram || solutionDiagramSvg) ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {svgDiagram && (
+                      <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-teal-700 dark:text-teal-300">
+                          <span>Hình trong Đề bài</span>
+                          <button
+                            type="button"
+                            onClick={() => setSvgDiagram('')}
+                            className="text-rose-600 hover:underline flex items-center space-x-0.5 cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Xóa</span>
+                          </button>
+                        </div>
+                        <DiagramRenderer diagram={svgDiagram} alt="Hình đề bài" imageClassName="max-h-40" showFrame={false} />
+                      </div>
+                    )}
+
+                    {solutionDiagramSvg && (
+                      <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                          <span>Hình trong Đáp án / Lời giải</span>
+                          <button
+                            type="button"
+                            onClick={() => setSolutionDiagramSvg('')}
+                            className="text-rose-600 hover:underline flex items-center space-x-0.5 cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Xóa</span>
+                          </button>
+                        </div>
+                        <DiagramRenderer diagram={solutionDiagramSvg} alt="Hình đáp án" imageClassName="max-h-40" showFrame={false} />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-500">
+                    Chưa có hình vẽ đính kèm. Nhấn nút <strong>Mở trình vẽ GeoGebra & AI dựng hình</strong> để tự động tạo hình từ đề bài hoặc vẽ thủ công.
+                  </p>
                 )}
               </div>
             </div>

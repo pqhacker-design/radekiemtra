@@ -337,6 +337,100 @@ export function registerExamRoutes(app: express.Express) {
     }
   });
 
+  // 2. Cached Same-Origin Proxy for GeoGebra Web SDK & Assets (/api/geogebra/apps/*)
+  const geogebraCache = new Map<string, { body: Buffer; contentType: string; cachedAt: number }>();
+  const GEOGEBRA_CACHE_MAX_ENTRIES = 80;
+  const GEOGEBRA_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+  const inferGeoGebraMimeType = (subpath: string, upstreamMime?: string | null): string => {
+    const cleanPath = subpath.split('?')[0].toLowerCase();
+    if (cleanPath.endsWith('.js')) return 'application/javascript; charset=utf-8';
+    if (cleanPath.endsWith('.css')) return 'text/css; charset=utf-8';
+    if (cleanPath.endsWith('.html') || cleanPath.endsWith('.htm')) return 'text/html; charset=utf-8';
+    if (cleanPath.endsWith('.wasm')) return 'application/wasm';
+    if (cleanPath.endsWith('.woff2')) return 'font/woff2';
+    if (cleanPath.endsWith('.woff')) return 'font/woff';
+    if (cleanPath.endsWith('.ttf')) return 'font/ttf';
+    if (cleanPath.endsWith('.svg')) return 'image/svg+xml';
+    if (cleanPath.endsWith('.png')) return 'image/png';
+    if (cleanPath.endsWith('.gif')) return 'image/gif';
+    if (cleanPath.endsWith('.json')) return 'application/json; charset=utf-8';
+    return upstreamMime || 'application/octet-stream';
+  };
+
+  app.get('/api/geogebra/apps/*', async (req: Request, res: Response) => {
+    const rawSubpath = String((req.params as any)[0] || '').replace(/^\/+/, '');
+    if (!rawSubpath || rawSubpath.includes('..') || rawSubpath.includes('://')) {
+      return res.status(400).json({ error: 'Đường dẫn GeoGebra không hợp lệ.' });
+    }
+
+    const cacheKey = rawSubpath;
+    const now = Date.now();
+    const cached = geogebraCache.get(cacheKey);
+    if (cached && now - cached.cachedAt < GEOGEBRA_CACHE_TTL_MS) {
+      res.setHeader('Content-Type', cached.contentType);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return res.status(200).send(cached.body);
+    }
+
+    const upstreamOrigins = [
+      `https://www.geogebra.org/apps/${rawSubpath}`,
+      `https://cdn.geogebra.org/apps/${rawSubpath}`,
+    ];
+
+    for (const upstreamUrl of upstreamOrigins) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      try {
+        const upstreamRes = await fetch(upstreamUrl, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; AITestGeneratorPro/1.0)',
+            Accept: '*/*',
+          },
+        });
+        clearTimeout(timeout);
+
+        if (!upstreamRes.ok) {
+          continue;
+        }
+
+        const arrayBuf = await upstreamRes.arrayBuffer();
+        let body = Buffer.from(arrayBuf);
+        const contentType = inferGeoGebraMimeType(rawSubpath, upstreamRes.headers.get('content-type'));
+
+        // Rewrite codebase URLs inside deployggb.js to use same-origin proxy (preserving http:// check)
+        if (rawSubpath === 'deployggb.js') {
+          const jsCode = body
+            .toString('utf8')
+            .replace(
+              /"https?:\/\/(?:www|cdn)\.geogebra\.org\/apps\/([^"]*)"/g,
+              '(window.location.origin+"/api/geogebra/apps/$1")'
+            );
+          body = Buffer.from(jsCode, 'utf8');
+        }
+
+        if (geogebraCache.size >= GEOGEBRA_CACHE_MAX_ENTRIES) {
+          const oldestKey = geogebraCache.keys().next().value;
+          if (oldestKey) geogebraCache.delete(oldestKey);
+        }
+        geogebraCache.set(cacheKey, { body, contentType, cachedAt: now });
+
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        return res.status(200).send(body);
+      } catch {
+        clearTimeout(timeout);
+      }
+    }
+
+    return res.status(502).json({
+      error: 'Không thể tải tài nguyên GeoGebra từ máy chủ gốc.',
+    });
+  });
+
   // Health check endpoint
   app.get('/api/health', (req, res) => {
     res.json({

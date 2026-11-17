@@ -3,6 +3,7 @@ import { CheckCircle2, Download, Edit2, FileText, Printer, Save, Sparkles } from
 import { ExamPackage, Question, getCognitiveTag, getCognitiveLabel } from '../types';
 import { MathText } from './MathText';
 import { DiagramEngine } from '../services/diagramEngine';
+import { DiagramRenderer } from './DiagramRenderer';
 import { RegenerateQuestionModal } from './RegenerateQuestionModal';
 import { EditQuestionModal } from './EditQuestionModal';
 
@@ -268,6 +269,14 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                     </div>
                   </div>
 
+                  {/* Hình vẽ / Đồ thị minh họa câu hỏi */}
+                  {(q.svgDiagram || DiagramEngine.getQuestionDiagramSvg(q)) && (
+                    <DiagramRenderer
+                      diagram={q.svgDiagram || DiagramEngine.getQuestionDiagramSvg(q)}
+                      alt={`Hình minh họa Câu ${q.number}`}
+                    />
+                  )}
+
                   {/* Phần I: 4 Lựa chọn A, B, C, D */}
                   {q.partType === 'PART1' && q.options && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pl-4">
@@ -331,12 +340,15 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                   )}
 
                   {/* Phần IV: Tự luận */}
-                  {q.partType === 'PART4' && showAnswersInPaper && q.essayAnswerGuide && (
+                  {q.partType === 'PART4' && showAnswersInPaper && (q.essayAnswerGuide || q.solutionDiagramSvg) && (
                     <div className="mt-2 pl-4 text-xs text-teal-900 dark:text-teal-200 bg-teal-50 dark:bg-teal-950/40 p-3 rounded-xl border border-teal-300 dark:border-teal-800 space-y-2">
                       <div className="font-bold text-teal-800 dark:text-teal-300">
                         Hướng dẫn chấm & Đáp án tự luận:
                       </div>
-                      <MathText content={q.essayAnswerGuide} />
+                      {q.essayAnswerGuide && <MathText content={q.essayAnswerGuide} />}
+                      {q.solutionDiagramSvg && (
+                        <DiagramRenderer diagram={q.solutionDiagramSvg} alt={`Hình vẽ hướng dẫn Câu ${q.number}`} />
+                      )}
                       {q.rubric && q.rubric.length > 0 && (
                         <div className="mt-2">
                           <div className="font-bold text-slate-800 dark:text-slate-200 mb-1">
@@ -366,12 +378,15 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                   )}
 
                   {/* Lời giải chi tiết */}
-                  {showAnswersInPaper && q.explanation && (
-                    <div className="mt-3 pl-4 text-xs text-amber-950 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-xl border border-amber-200 dark:border-amber-900 space-y-1">
+                  {showAnswersInPaper && (q.explanation || (q.partType !== 'PART4' && q.solutionDiagramSvg)) && (
+                    <div className="mt-3 pl-4 text-xs text-amber-950 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-xl border border-amber-200 dark:border-amber-900 space-y-2">
                       <div className="font-extrabold text-amber-800 dark:text-amber-300">
                         Lời giải chi tiết:
                       </div>
-                      <MathText content={q.explanation} />
+                      {q.explanation && <MathText content={q.explanation} />}
+                      {q.partType !== 'PART4' && q.solutionDiagramSvg && (
+                        <DiagramRenderer diagram={q.solutionDiagramSvg} alt={`Hình vẽ lời giải Câu ${q.number}`} />
+                      )}
                     </div>
                   )}
                 </div>
