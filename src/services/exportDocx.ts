@@ -30,6 +30,7 @@ import {
 } from 'docx';
 import { AppSettings, ExamMetadata, ExamPackage, MatrixRow, Question, SpecRow, calculateExamScores, getCognitiveTag, getSpecRowQuestionDetails } from '../types';
 import { StorageEngine } from './storageEngine';
+import { DiagramEngine } from './diagramEngine';
 import { normalizeNewlines, repairLatexCorruptions, parseRequirementsByLevel } from '../utils/textUtils';
 import { getSpecCellQuestions, getSubjectCompetencies } from '../utils/competencyUtils';
 
@@ -1695,55 +1696,91 @@ export function createDocxInlineRuns(text: string, baseOptions: any = {}): (Text
 }
 
 /**
- * Chuyển đổi mã SVG thành PNG Uint8Array Buffer cho Word ImageRun
+ * Chuyển đổi mã SVG hoặc ảnh Data URL (PNG/JPEG/WebP từ GeoGebra) thành PNG Buffer + kích thước giữ nguyên tỷ lệ khung hình cho Word ImageRun
  */
-async function svgToPngBuffer(svgStr: string, width = 450, height = 280): Promise<Uint8Array | null> {
-  if (!svgStr || svgStr.trim().length < 10) return null;
+async function diagramToPngAsset(
+  diagramStr: string,
+  maxWidth = 390,
+  maxHeight = 270
+): Promise<{ buffer: Uint8Array; width: number; height: number } | null> {
+  if (!diagramStr || diagramStr.trim().length < 10) return null;
+  const trimmed = diagramStr.trim();
+
   return new Promise((resolve) => {
+    let objectUrlToRevoke: string | null = null;
     try {
-      let cleanSvg = svgStr.trim();
-      if (!cleanSvg.includes('xmlns=')) {
-        cleanSvg = cleanSvg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-      }
       const img = new Image();
-      const svgBlob = new Blob([cleanSvg], { type: 'image/svg+xml;charset=utf-8' });
-      const url = URL.createObjectURL(svgBlob);
+      const isDataImage = /^data:image\//i.test(trimmed);
+
+      if (isDataImage) {
+        img.src = trimmed;
+      } else {
+        let cleanSvg = trimmed;
+        if (!cleanSvg.includes('xmlns=')) {
+          cleanSvg = cleanSvg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+        }
+        const svgBlob = new Blob([cleanSvg], { type: 'image/svg+xml;charset=utf-8' });
+        objectUrlToRevoke = URL.createObjectURL(svgBlob);
+        img.src = objectUrlToRevoke;
+      }
 
       img.onload = () => {
         try {
+          const natW = img.naturalWidth || 450;
+          const natH = img.naturalHeight || 280;
+          const ratio = natW / natH;
+
+          let displayW = Math.min(natW, maxWidth);
+          let displayH = Math.round(displayW / ratio);
+          if (displayH > maxHeight) {
+            displayH = maxHeight;
+            displayW = Math.round(displayH * ratio);
+          }
+          displayW = Math.max(80, displayW);
+          displayH = Math.max(60, displayH);
+
+          // Render ở độ phân giải cao (2x display) với nền trắng để sắc nét khi in từ Word
+          const renderScale = 2;
           const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
+          canvas.width = isDataImage ? Math.min(Math.max(natW, displayW * renderScale), 1400) : displayW * renderScale;
+          canvas.height = isDataImage ? Math.round(canvas.width / ratio) : displayH * renderScale;
+
           const ctx = canvas.getContext('2d');
           if (!ctx) {
-            URL.revokeObjectURL(url);
+            if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
             resolve(null);
             return;
           }
           ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, width, height);
-          ctx.drawImage(img, 0, 0, width, height);
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
           canvas.toBlob((blob) => {
-            URL.revokeObjectURL(url);
+            if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
             if (blob) {
-              blob.arrayBuffer().then((buf) => resolve(new Uint8Array(buf)));
+              blob.arrayBuffer().then((buf) =>
+                resolve({
+                  buffer: new Uint8Array(buf),
+                  width: displayW,
+                  height: displayH,
+                })
+              );
             } else {
               resolve(null);
             }
           }, 'image/png');
-        } catch (e) {
-          URL.revokeObjectURL(url);
+        } catch {
+          if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
           resolve(null);
         }
       };
 
       img.onerror = () => {
-        URL.revokeObjectURL(url);
+        if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
         resolve(null);
       };
-
-      img.src = url;
-    } catch (e) {
+    } catch {
+      if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
       resolve(null);
     }
   });
@@ -1946,19 +1983,19 @@ async function buildContentParagraphs(
 
   // Chèn Hình vẽ / Đồ thị dưới câu hỏi hoặc lời giải nếu có
   if (svgDiagramStr) {
-    const pngBuf = await svgToPngBuffer(svgDiagramStr);
-    if (pngBuf) {
+    const asset = await diagramToPngAsset(svgDiagramStr);
+    if (asset) {
       paragraphs.push(
         new Paragraph({
           alignment: AlignmentType.CENTER,
           spacing: { before: 120, after: 120 },
           children: [
             new ImageRun({
-              data: pngBuf,
+              data: asset.buffer,
               type: 'png',
               transformation: {
-                width: 360,
-                height: 230,
+                width: asset.width,
+                height: asset.height,
               },
             }),
           ],
@@ -3158,7 +3195,8 @@ export class ExportDocx {
 
         for (const q of part1Questions) {
           const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART1');
-          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag}: `, true, { size: 22 });
+          const diagram = q.svgDiagram || DiagramEngine.getQuestionDiagramSvg(q);
+          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag}: `, true, { size: 22 }, diagram);
           docChildren.push(...qPars);
 
           if (q.options) {
@@ -3188,7 +3226,8 @@ export class ExportDocx {
 
         for (const q of part2Questions) {
           const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART2');
-          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag}: `, true, { size: 22 });
+          const diagram = q.svgDiagram || DiagramEngine.getQuestionDiagramSvg(q);
+          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag}: `, true, { size: 22 }, diagram);
           docChildren.push(...qPars);
 
           if (q.trueFalseStatements) {
@@ -3218,7 +3257,8 @@ export class ExportDocx {
 
         for (const q of part3Questions) {
           const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART3');
-          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag}: `, true, { size: 22 });
+          const diagram = q.svgDiagram || DiagramEngine.getQuestionDiagramSvg(q);
+          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag}: `, true, { size: 22 }, diagram);
           docChildren.push(...qPars);
         }
       }
@@ -3241,7 +3281,8 @@ export class ExportDocx {
 
         for (const q of part4Questions) {
           const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART4');
-          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag} (${q.points} điểm): `, true, { size: 22 });
+          const diagram = q.svgDiagram || DiagramEngine.getQuestionDiagramSvg(q);
+          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag} (${q.points} điểm): `, true, { size: 22 }, diagram);
           docChildren.push(...qPars);
         }
       }
@@ -3363,9 +3404,9 @@ export class ExportDocx {
       // Đáp án & Hướng dẫn giải chi tiết cho tất cả các phần (I, II, III, IV)
       const targetExam = exams.find((e) => e.code === ak.code) || exams[0];
       if (targetExam) {
-        const p1WithExp = targetExam.questions.filter((q) => q.partType === 'PART1' && q.explanation);
-        const p2WithExp = targetExam.questions.filter((q) => q.partType === 'PART2' && q.explanation);
-        const p3WithExp = targetExam.questions.filter((q) => q.partType === 'PART3' && (q.explanation || q.shortAnswer));
+        const p1WithExp = targetExam.questions.filter((q) => q.partType === 'PART1' && (q.explanation || q.solutionDiagramSvg));
+        const p2WithExp = targetExam.questions.filter((q) => q.partType === 'PART2' && (q.explanation || q.solutionDiagramSvg));
+        const p3WithExp = targetExam.questions.filter((q) => q.partType === 'PART3' && (q.explanation || q.solutionDiagramSvg || q.shortAnswer));
         const p4Questions = targetExam.questions.filter((q) => q.partType === 'PART4');
 
         if (p1WithExp.length > 0 || p2WithExp.length > 0 || p3WithExp.length > 0) {
@@ -3401,7 +3442,7 @@ export class ExportDocx {
             for (const q of p1WithExp) {
               const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART1');
               const title = `Câu ${q.number} ${tag} (Đáp án đúng: ${q.correctOption}): `;
-              const pars = await buildContentParagraphs(q.explanation || '', title, true, { size: 21 });
+              const pars = await buildContentParagraphs(q.explanation || '', title, true, { size: 21 }, q.solutionDiagramSvg);
               docChildren.push(...pars);
             }
           }
@@ -3423,7 +3464,7 @@ export class ExportDocx {
             for (const q of p2WithExp) {
               const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART2');
               const title = `Câu ${q.number} ${tag}: `;
-              const pars = await buildContentParagraphs(q.explanation || '', title, true, { size: 21 });
+              const pars = await buildContentParagraphs(q.explanation || '', title, true, { size: 21 }, q.solutionDiagramSvg);
               docChildren.push(...pars);
             }
           }
@@ -3446,7 +3487,7 @@ export class ExportDocx {
               const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART3');
               const title = `Câu ${q.number} ${tag} (Đáp số: ${q.shortAnswer || ''}): `;
               const solText = q.explanation || `Đáp số chính xác: ${q.shortAnswer || ''}`;
-              const pars = await buildContentParagraphs(solText, title, true, { size: 21 });
+              const pars = await buildContentParagraphs(solText, title, true, { size: 21 }, q.solutionDiagramSvg);
               docChildren.push(...pars);
             }
           }
@@ -3472,7 +3513,7 @@ export class ExportDocx {
             const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART4');
             const title = `Câu ${q.number} ${tag} (${q.points} điểm): `;
             const textContent = q.essayAnswerGuide || q.explanation || q.content;
-            const solPars = await buildContentParagraphs(textContent, title, true, { size: 21 });
+            const solPars = await buildContentParagraphs(textContent, title, true, { size: 21 }, q.solutionDiagramSvg);
             docChildren.push(...solPars);
 
             if (q.rubric && q.rubric.length > 0) {
@@ -3555,7 +3596,8 @@ export class ExportDocx {
 
         for (const q of part1Questions) {
           const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART1');
-          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag}: `, true, { size: 22 });
+          const diagram = q.svgDiagram || DiagramEngine.getQuestionDiagramSvg(q);
+          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag}: `, true, { size: 22 }, diagram);
           docChildren.push(...qPars);
 
           if (q.options) {
@@ -3584,7 +3626,8 @@ export class ExportDocx {
 
         for (const q of part2Questions) {
           const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART2');
-          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag}: `, true, { size: 22 });
+          const diagram = q.svgDiagram || DiagramEngine.getQuestionDiagramSvg(q);
+          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag}: `, true, { size: 22 }, diagram);
           docChildren.push(...qPars);
 
           if (q.trueFalseStatements) {
@@ -3613,7 +3656,8 @@ export class ExportDocx {
 
         for (const q of part3Questions) {
           const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART3');
-          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag}: `, true, { size: 22 });
+          const diagram = q.svgDiagram || DiagramEngine.getQuestionDiagramSvg(q);
+          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag}: `, true, { size: 22 }, diagram);
           docChildren.push(...qPars);
         }
       }
@@ -3635,7 +3679,8 @@ export class ExportDocx {
 
         for (const q of part4Questions) {
           const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART4');
-          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag} (${q.points} điểm): `, true, { size: 22 });
+          const diagram = q.svgDiagram || DiagramEngine.getQuestionDiagramSvg(q);
+          const qPars = await buildContentParagraphs(q.content, `Câu ${q.number} ${tag} (${q.points} điểm): `, true, { size: 22 }, diagram);
           docChildren.push(...qPars);
         }
       }
@@ -3781,9 +3826,9 @@ export class ExportDocx {
       // Đáp án & Hướng dẫn giải chi tiết cho tất cả các phần (I, II, III, IV)
       const targetExam = exams.find((e) => e.code === ak.code) || exams[0];
       if (targetExam) {
-        const p1WithExp = targetExam.questions.filter((q) => q.partType === 'PART1' && q.explanation);
-        const p2WithExp = targetExam.questions.filter((q) => q.partType === 'PART2' && q.explanation);
-        const p3WithExp = targetExam.questions.filter((q) => q.partType === 'PART3' && (q.explanation || q.shortAnswer));
+        const p1WithExp = targetExam.questions.filter((q) => q.partType === 'PART1' && (q.explanation || q.solutionDiagramSvg));
+        const p2WithExp = targetExam.questions.filter((q) => q.partType === 'PART2' && (q.explanation || q.solutionDiagramSvg));
+        const p3WithExp = targetExam.questions.filter((q) => q.partType === 'PART3' && (q.explanation || q.solutionDiagramSvg || q.shortAnswer));
         const p4Questions = targetExam.questions.filter((q) => q.partType === 'PART4');
 
         if (p1WithExp.length > 0 || p2WithExp.length > 0 || p3WithExp.length > 0) {
@@ -3819,7 +3864,7 @@ export class ExportDocx {
             for (const q of p1WithExp) {
               const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART1');
               const title = `Câu ${q.number} ${tag} (Đáp án đúng: ${q.correctOption}): `;
-              const pars = await buildContentParagraphs(q.explanation || '', title, true, { size: 21 });
+              const pars = await buildContentParagraphs(q.explanation || '', title, true, { size: 21 }, q.solutionDiagramSvg);
               docChildren.push(...pars);
             }
           }
@@ -3841,7 +3886,7 @@ export class ExportDocx {
             for (const q of p2WithExp) {
               const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART2');
               const title = `Câu ${q.number} ${tag}: `;
-              const pars = await buildContentParagraphs(q.explanation || '', title, true, { size: 21 });
+              const pars = await buildContentParagraphs(q.explanation || '', title, true, { size: 21 }, q.solutionDiagramSvg);
               docChildren.push(...pars);
             }
           }
@@ -3864,7 +3909,7 @@ export class ExportDocx {
               const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART3');
               const title = `Câu ${q.number} ${tag} (Đáp số: ${q.shortAnswer || ''}): `;
               const solText = q.explanation || `Đáp số chính xác: ${q.shortAnswer || ''}`;
-              const pars = await buildContentParagraphs(solText, title, true, { size: 21 });
+              const pars = await buildContentParagraphs(solText, title, true, { size: 21 }, q.solutionDiagramSvg);
               docChildren.push(...pars);
             }
           }
@@ -3890,7 +3935,7 @@ export class ExportDocx {
             const tag = getCognitiveTag(q.cognitiveLevel, q.partType || 'PART4');
             const title = `Câu ${q.number} ${tag} (${q.points} điểm): `;
             const textContent = q.essayAnswerGuide || q.explanation || q.content;
-            const solPars = await buildContentParagraphs(textContent, title, true, { size: 21 });
+            const solPars = await buildContentParagraphs(textContent, title, true, { size: 21 }, q.solutionDiagramSvg);
             docChildren.push(...solPars);
 
             if (q.rubric && q.rubric.length > 0) {

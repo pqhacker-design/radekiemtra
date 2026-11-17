@@ -233,10 +233,12 @@ export interface Question {
   essayAnswerGuide?: string;
   rubric?: RubricItem[];
   
-  // Giải thích chi tiết & Sơ đồ hình vẽ / đồ thị
+  // Giải thích chi tiết & Sơ đồ hình vẽ / đồ thị / GeoGebra
   explanation?: string;
   svgDiagram?: string;
   solutionDiagramSvg?: string;
+  geogebraCommands?: string;
+  solutionGeogebraCommands?: string;
 }
 
 export interface CognitiveBreakdown {

@@ -2,6 +2,7 @@ import katex from 'katex';
 import 'katex/dist/contrib/mhchem.js';
 import { ExamPackage, getCognitiveTag } from '../types';
 import { autoWrapUnwrappedLatex, cleanLatexForDocx } from './exportDocx';
+import { DiagramEngine } from './diagramEngine';
 import { normalizeNewlines, cleanMathNewlines, repairLatexCorruptions } from '../utils/textUtils';
 
 /**
@@ -74,6 +75,25 @@ function renderMathToHtml(text: string): string {
       return cleanP.replace(/\n/g, '<br/>');
     })
     .join('');
+}
+
+/**
+ * Kết xuất hình ảnh GeoGebra (Data URL PNG/WebP) hoặc SVG inline thành khối HTML căn giữa chuẩn in ấn PDF
+ */
+function renderDiagramToHtml(diagram?: string | null, alt = 'Hình minh họa'): string {
+  if (!diagram || typeof diagram !== 'string') return '';
+  const trimmed = diagram.trim();
+  if (trimmed.length < 10) return '';
+
+  if (/^data:image\//i.test(trimmed)) {
+    return `<div class="diagram-box"><img src="${trimmed}" alt="${alt}" /></div>`;
+  }
+
+  if (trimmed.includes('<svg')) {
+    return `<div class="diagram-box">${trimmed}</div>`;
+  }
+
+  return '';
 }
 
 export class ExportPdf {
@@ -187,6 +207,20 @@ export class ExportPdf {
         .katex {
           font-size: 1.05em !important;
         }
+        .diagram-box {
+          margin: 10px auto;
+          text-align: center;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+        .diagram-box img,
+        .diagram-box svg {
+          max-width: 85%;
+          max-height: 260px;
+          width: auto;
+          height: auto;
+          display: inline-block;
+        }
         @media print {
           .no-print { display: none !important; }
         }
@@ -236,9 +270,14 @@ export class ExportPdf {
         }
 
         const tag = getCognitiveTag(q.cognitiveLevel, q.partType);
+        const diagramHtml = renderDiagramToHtml(
+          q.svgDiagram || DiagramEngine.getQuestionDiagramSvg(q),
+          `Hình minh họa Câu ${q.number}`
+        );
         htmlContent += `
           <div class="question-box">
             <span class="question-num">Câu ${q.number} ${tag ? `<span style="color:#d97706; font-size: 11pt;">${tag}</span>` : ''}:</span> ${renderMathToHtml(q.content)}
+            ${diagramHtml}
         `;
 
         if (q.partType === 'PART1' && q.options) {
@@ -319,6 +358,10 @@ export class ExportPdf {
         .essay-guide { white-space: pre-wrap; font-size: 11.5pt; margin-bottom: 8px; line-height: 1.5; }
         .page-break { page-break-after: always; break-after: page; }
         .katex { font-size: 1.05em !important; }
+        .diagram-box { margin: 10px auto; text-align: center; page-break-inside: avoid; break-inside: avoid; }
+        .diagram-box img, .diagram-box svg { max-width: 85%; max-height: 260px; width: auto; height: auto; display: inline-block; }
+        .code-badge { float: right; border: 2px solid #000; padding: 4px 10px; font-weight: bold; font-size: 14pt; }
+        .subtitle { text-align: center; font-style: italic; font-size: 11pt; margin-bottom: 10px; }
         @media print { .no-print { display: none !important; } }
       </style>
     </head>
@@ -404,15 +447,23 @@ export class ExportPdf {
       }
 
       if (ak.part4Answers && ak.part4Answers.length > 0) {
+        const targetExamForP4 = examPack.exams.find((e) => e.code === ak.code) || examPack.exams[0];
         htmlContent += `
           <div class="section-title">4. Hướng dẫn giải chi tiết & Rubric bài Tự luận:</div>
         `;
 
         ak.part4Answers.forEach((ans) => {
+          const matchingQ = targetExamForP4?.questions.find((q) => q.number === ans.questionNumber);
+          const solDiagramHtml = renderDiagramToHtml(
+            matchingQ?.solutionDiagramSvg,
+            `Hình vẽ lời giải Câu ${ans.questionNumber}`
+          );
+
           htmlContent += `
             <div class="essay-box">
               <div class="essay-title">Câu ${ans.questionNumber} (${ans.points} điểm)</div>
               <div class="essay-guide"><b>Hướng dẫn giải:</b><br>${renderMathToHtml(ans.essayAnswerGuide)}</div>
+              ${solDiagramHtml}
           `;
 
           if (ans.rubric && ans.rubric.length > 0) {
@@ -435,6 +486,30 @@ export class ExportPdf {
           }
 
           htmlContent += `</div>`;
+        });
+      }
+
+      const targetExamForSol = examPack.exams.find((e) => e.code === ak.code) || examPack.exams[0];
+      const objSolutions = (targetExamForSol?.questions || []).filter(
+        (q) => q.partType !== 'PART4' && (q.explanation || q.solutionDiagramSvg)
+      );
+      if (objSolutions.length > 0) {
+        htmlContent += `
+          <div class="section-title">5. Hướng dẫn giải chi tiết & Hình minh họa (Phần I, II, III):</div>
+        `;
+        objSolutions.forEach((q) => {
+          const tag = getCognitiveTag(q.cognitiveLevel, q.partType);
+          const solDiagramHtml = renderDiagramToHtml(
+            q.solutionDiagramSvg,
+            `Hình vẽ lời giải Câu ${q.number}`
+          );
+          htmlContent += `
+            <div class="essay-box">
+              <div class="essay-title">Câu ${q.number} ${tag}</div>
+              ${q.explanation ? `<div class="essay-guide">${renderMathToHtml(q.explanation)}</div>` : ''}
+              ${solDiagramHtml}
+            </div>
+          `;
         });
       }
 

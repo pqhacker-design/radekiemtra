@@ -6,7 +6,7 @@ export class DiagramEngine {
    */
   static getQuestionDiagramSvg(question: Question): string | null {
     if (question.svgDiagram && question.svgDiagram.trim().length > 10) {
-      return this.cleanSvgString(question.svgDiagram);
+      return this.cleanDiagramString(question.svgDiagram);
     }
 
     // Tự động nhận diện bài toán hình học / đồ thị để sinh hình vẽ bổ sung nếu thiếu
@@ -14,19 +14,30 @@ export class DiagramEngine {
   }
 
   /**
-   * Lấy mã SVG sơ đồ / hình vẽ cho phần Lời giải / Đáp án
+   * Lấy mã SVG hoặc ảnh PNG (GeoGebra) cho phần Lời giải / Đáp án
    */
   static getSolutionDiagramSvg(question: Question): string | null {
     if (question.solutionDiagramSvg && question.solutionDiagramSvg.trim().length > 10) {
-      return this.cleanSvgString(question.solutionDiagramSvg);
+      return this.cleanDiagramString(question.solutionDiagramSvg);
     }
 
     if (question.svgDiagram && question.svgDiagram.trim().length > 10) {
-      return this.cleanSvgString(question.svgDiagram);
+      return this.cleanDiagramString(question.svgDiagram);
     }
 
     const fullText = (question.content || '') + ' ' + (question.essayAnswerGuide || '') + ' ' + (question.explanation || '');
     return this.autoGenerateSvgIfNeeded(fullText);
+  }
+
+  /**
+   * Chuẩn hóa chuỗi SVG hoặc giữ nguyên ảnh PNG/DataURL từ GeoGebra
+   */
+  private static cleanDiagramString(diagram: string): string {
+    const trimmed = diagram.trim();
+    if (/^data:image\//i.test(trimmed)) {
+      return trimmed;
+    }
+    return this.cleanSvgString(trimmed);
   }
 
   /**
@@ -41,7 +52,7 @@ export class DiagramEngine {
     } else if (clean.includes('```')) {
       clean = clean.replace(/```/g, '').trim();
     }
-    if (!clean.includes('xmlns=')) {
+    if (clean.includes('<svg') && !clean.includes('xmlns=')) {
       clean = clean.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
     }
     return clean;
