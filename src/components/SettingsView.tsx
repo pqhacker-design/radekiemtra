@@ -13,9 +13,11 @@ import {
   AlertTriangle,
   HardDrive,
   Check,
+  Link2,
 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { callGeminiApi, sanitizeApiKey } from '../services/geminiClient';
+import { KNTT_DEFAULT_DRIVE_LINKS, KNTT_DRIVE_LINK_ITEMS, normalizeTextbookUrl } from '../config/knttDriveLinks';
 
 interface SettingsViewProps {
   settings: AppSettings;
@@ -67,6 +69,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [includeAuthorHeaderDocx, setIncludeAuthorHeaderDocx] = useState(
     settings.includeAuthorHeaderDocx !== false
   );
+  const [knttDriveLinks, setKnttDriveLinks] = useState<Record<string, string>>(
+    settings.knttDriveLinks || {}
+  );
   const [showApiKey, setShowApiKey] = useState(false);
 
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -115,6 +120,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleSave = () => {
     const cleanedKey = sanitizeApiKey(customApiKey);
+    const cleanedDriveLinks: Record<string, string> = {};
+    Object.entries(knttDriveLinks).forEach(([k, v]) => {
+      const trimmed = String(v || '').trim();
+      if (trimmed) cleanedDriveLinks[k] = trimmed;
+    });
     const updated: AppSettings = {
       ...settings,
       defaultSchoolName: schoolName.trim(),
@@ -123,6 +133,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       customApiKey: cleanedKey,
       selectedModel,
       includeAuthorHeaderDocx,
+      knttDriveLinks: cleanedDriveLinks,
     };
 
     onSaveSettings(updated);
@@ -369,6 +380,84 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 animate-in fade-in">
               <CheckCircle2 className="w-4 h-4" />
               Đã lưu thành công!
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Section 2b: Google Drive Links for 8 KNTT Math Textbooks */}
+      <div className="glass-card p-6 md:p-8 space-y-5">
+        <div className="flex items-center gap-3 border-b border-slate-200/60 dark:border-slate-800/60 pb-4">
+          <div className="p-2.5 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
+            <Link2 className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">
+              Link Google Drive — 8 Cuốn SGK Toán KNTT (Lớp 6–9)
+            </h3>
+            <p className="text-xs text-slate-500">
+              Dùng cho nút "Xem SGK" mà không cần tải file PDF nặng lên Vercel (bật chế độ chia sẻ "Bất kỳ ai có đường liên kết")
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {KNTT_DRIVE_LINK_ITEMS.map((item) => {
+            const val = knttDriveLinks[item.id] ?? '';
+            const defaultVal = KNTT_DEFAULT_DRIVE_LINKS[item.id] || '';
+            const parsed = normalizeTextbookUrl(val);
+            return (
+              <div key={item.id} className="space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    {item.label}
+                  </label>
+                  {val.trim() ? (
+                    <span
+                      className={`text-[10px] font-bold ${
+                        parsed.isConfigured
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-rose-600 dark:text-rose-400'
+                      }`}
+                    >
+                      {parsed.isConfigured ? '✓ Link tùy chỉnh' : '⚠ Chưa hợp lệ'}
+                    </span>
+                  ) : defaultVal ? (
+                    <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400">
+                      ✓ Đã gắn mặc định
+                    </span>
+                  ) : null}
+                </div>
+                <input
+                  type="url"
+                  value={val}
+                  onChange={(e) =>
+                    setKnttDriveLinks((prev) => ({
+                      ...prev,
+                      [item.id]: e.target.value,
+                    }))
+                  }
+                  placeholder={defaultVal || `https://drive.google.com/file/d/.../view (${item.envKey})`}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="pt-1 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={handleSave}
+            className="btn-glow-emerald px-5 py-2 rounded-xl text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-md"
+          >
+            <Save className="w-4 h-4" />
+            <span>Lưu Link Google Drive</span>
+          </button>
+          {savedSuccess && (
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4" />
+              Đã lưu!
             </span>
           )}
         </div>

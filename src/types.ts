@@ -322,6 +322,7 @@ export interface AppSettings {
   saveExamHistory: boolean;
   autoSaveToBank: boolean;
   includeAuthorHeaderDocx?: boolean; // Tự động chèn thông tin tác giả vào Header file Word (.docx)
+  knttDriveLinks?: Record<string, string>; // Link Google Drive cho 8 cuốn SGK Toán KNTT (Lớp 6-9)
 }
 
 /**

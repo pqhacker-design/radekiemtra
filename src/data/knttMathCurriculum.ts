@@ -4,6 +4,8 @@
  * được đính kèm trong ứng dụng. Không sử dụng bất kỳ bộ sách giáo khoa nào khác.
  */
 
+import { KNTT_DEFAULT_DRIVE_LINKS } from '../config/knttDriveLinks';
+
 export type KnttMathGrade = 'Khối 6' | 'Khối 7' | 'Khối 8' | 'Khối 9';
 
 export type KnttMathDomain =
@@ -69,7 +71,7 @@ export const KNTT_TEXTBOOKS: KnttTextbookVolume[] = [
     semester: 'Học kỳ I',
     title: 'SGK Toán 6 - Tập Một (Kết nối tri thức với cuộc sống)',
     fileName: '06-sgk-toan-6-tap-mot.pdf',
-    pdfUrl: '/assets/aistudio/06-sgk-toan-6-tap-mot_e31436f8.pdf',
+    pdfUrl: KNTT_DEFAULT_DRIVE_LINKS['toan-6-tap-1'],
     pageCount: 126,
     publisher: 'NXB Giáo dục Việt Nam',
     series: KNTT_CURRICULUM_NAME,
@@ -316,7 +318,7 @@ export const KNTT_TEXTBOOKS: KnttTextbookVolume[] = [
     semester: 'Học kỳ II',
     title: 'SGK Toán 6 - Tập Hai (Kết nối tri thức với cuộc sống)',
     fileName: '06-sgk-toan-6-tap-hai.pdf',
-    pdfUrl: '/assets/aistudio/06-sgk-toan-6-tap-hai_a1f215d4.pdf',
+    pdfUrl: KNTT_DEFAULT_DRIVE_LINKS['toan-6-tap-2'],
     pageCount: 114,
     publisher: 'NXB Giáo dục Việt Nam',
     series: KNTT_CURRICULUM_NAME,
@@ -550,7 +552,7 @@ export const KNTT_TEXTBOOKS: KnttTextbookVolume[] = [
     semester: 'Học kỳ I',
     title: 'SGK Toán 7 - Tập Một (Kết nối tri thức với cuộc sống)',
     fileName: '07-sgk-toan-7-tap-mot.pdf',
-    pdfUrl: '/assets/aistudio/07-sgk-toan-7-tap-mot_8cbda2fa.pdf',
+    pdfUrl: KNTT_DEFAULT_DRIVE_LINKS['toan-7-tap-1'],
     pageCount: 122,
     publisher: 'NXB Giáo dục Việt Nam',
     series: KNTT_CURRICULUM_NAME,
@@ -781,7 +783,7 @@ export const KNTT_TEXTBOOKS: KnttTextbookVolume[] = [
     semester: 'Học kỳ II',
     title: 'SGK Toán 7 - Tập Hai (Kết nối tri thức với cuộc sống)',
     fileName: '07-sgk-toan-7-tap-hai.pdf',
-    pdfUrl: '/assets/aistudio/07-sgk-toan-7-tap-hai_68c01076.pdf',
+    pdfUrl: KNTT_DEFAULT_DRIVE_LINKS['toan-7-tap-2'],
     pageCount: 118,
     publisher: 'NXB Giáo dục Việt Nam',
     series: KNTT_CURRICULUM_NAME,
@@ -997,7 +999,7 @@ export const KNTT_TEXTBOOKS: KnttTextbookVolume[] = [
     semester: 'Học kỳ I',
     title: 'SGK Toán 8 - Tập Một (Kết nối tri thức với cuộc sống)',
     fileName: '08-sgk-toan-8-tap-mot.pdf',
-    pdfUrl: '/assets/aistudio/08-sgk-toan-8-tap-mot_e2049b31.pdf',
+    pdfUrl: KNTT_DEFAULT_DRIVE_LINKS['toan-8-tap-1'],
     pageCount: 126,
     publisher: 'NXB Giáo dục Việt Nam',
     series: KNTT_CURRICULUM_NAME,
@@ -1235,7 +1237,7 @@ export const KNTT_TEXTBOOKS: KnttTextbookVolume[] = [
     semester: 'Học kỳ II',
     title: 'SGK Toán 8 - Tập Hai (Kết nối tri thức với cuộc sống)',
     fileName: '08-sgk-toan-8-tap-hai.pdf',
-    pdfUrl: '/assets/aistudio/08-sgk-toan-8-tap-hai_f9e821f6.pdf',
+    pdfUrl: KNTT_DEFAULT_DRIVE_LINKS['toan-8-tap-2'],
     pageCount: 142,
     publisher: 'NXB Giáo dục Việt Nam',
     series: KNTT_CURRICULUM_NAME,
@@ -1465,7 +1467,7 @@ export const KNTT_TEXTBOOKS: KnttTextbookVolume[] = [
     semester: 'Học kỳ I',
     title: 'SGK Toán 9 - Tập Một (Kết nối tri thức với cuộc sống)',
     fileName: '09-sgk-toan-9-tap-mot.pdf',
-    pdfUrl: '/assets/aistudio/09-sgk-toan-9-tap-mot_2b08b12a.pdf',
+    pdfUrl: KNTT_DEFAULT_DRIVE_LINKS['toan-9-tap-1'],
     pageCount: 122,
     publisher: 'NXB Giáo dục Việt Nam',
     series: KNTT_CURRICULUM_NAME,
@@ -1675,7 +1677,7 @@ export const KNTT_TEXTBOOKS: KnttTextbookVolume[] = [
     semester: 'Học kỳ II',
     title: 'SGK Toán 9 - Tập Hai (Kết nối tri thức với cuộc sống)',
     fileName: '09-sgk-toan-9-tap-hai.pdf',
-    pdfUrl: '/assets/aistudio/09-sgk-toan-9-tap-hai_659a980f.pdf',
+    pdfUrl: KNTT_DEFAULT_DRIVE_LINKS['toan-9-tap-2'],
     pageCount: 134,
     publisher: 'NXB Giáo dục Việt Nam',
     series: KNTT_CURRICULUM_NAME,

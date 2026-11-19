@@ -9,6 +9,7 @@ import {
   Clock,
   Compass,
   Copy,
+  ExternalLink,
   Eye,
   FileSpreadsheet,
   FileText,
@@ -18,6 +19,7 @@ import {
   Info,
   Key,
   Layers,
+  Link2,
   Minus,
   Paperclip,
   Plus,
@@ -54,6 +56,12 @@ import {
   getKnttTextbooksByGrade,
   normalizeKnttGrade,
 } from '../data/knttMathCurriculum';
+import {
+  KNTT_DEFAULT_DRIVE_LINKS,
+  KNTT_DRIVE_LINK_ITEMS,
+  normalizeTextbookUrl,
+  resolveKnttTextbookDriveUrls,
+} from '../config/knttDriveLinks';
 
 interface TestGeneratorViewProps {
   settings: AppSettings;
@@ -100,14 +108,51 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     hasContextData: true,
   });
 
-  // Trình xem nhanh SGK PDF đính kèm & chế độ hiển thị mục lục SGK
+  // Trình xem nhanh SGK qua Google Drive & hộp thoại cấu hình link Drive
   const [previewPdf, setPreviewPdf] = useState<{
+    volumeId: string;
     title: string;
-    url: string;
+    previewUrl: string;
+    viewUrl: string;
     fileName: string;
     pageCount: number;
   } | null>(null);
+  const [showDriveLinksModal, setShowDriveLinksModal] = useState(false);
+  const [focusedDriveVolumeId, setFocusedDriveVolumeId] = useState<string | null>(null);
+  const [driveLinksDraft, setDriveLinksDraft] = useState<Record<string, string>>(
+    () => settings.knttDriveLinks || {}
+  );
   const [showAllSemestersInPicker, setShowAllSemestersInPicker] = useState(false);
+
+  useEffect(() => {
+    setDriveLinksDraft(settings.knttDriveLinks || {});
+  }, [settings.knttDriveLinks]);
+
+  const handleOpenDriveLinksModal = (volumeId?: string) => {
+    setDriveLinksDraft(settings.knttDriveLinks || {});
+    setFocusedDriveVolumeId(volumeId || null);
+    setShowDriveLinksModal(true);
+  };
+
+  const handleSaveDriveLinks = () => {
+    const cleaned: Record<string, string> = {};
+    Object.entries(driveLinksDraft).forEach(([k, v]) => {
+      const trimmed = String(v || '').trim();
+      if (trimmed) cleaned[k] = trimmed;
+    });
+    const updatedSettings: AppSettings = {
+      ...settings,
+      knttDriveLinks: cleaned,
+    };
+    if (onSaveSettings) {
+      onSaveSettings(updatedSettings);
+    } else {
+      StorageEngine.saveSettings(updatedSettings);
+    }
+    setShowDriveLinksModal(false);
+    setRestoredToast('Đã lưu danh sách link Google Drive SGK Toán KNTT!');
+    setTimeout(() => setRestoredToast(null), 3500);
+  };
 
   // 1b. Nguồn tài liệu & Giới hạn kiến thức tham khảo (tùy chọn bổ sung ngoài mục lục SGK)
   const [referenceContext, setReferenceContext] = useState('');
@@ -1508,8 +1553,8 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Nguồn Sách Giáo Khoa Duy Nhất
               </label>
-              <div className="w-full px-3 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 text-sm font-bold truncate" title="Kết nối tri thức với cuộc sống (NXB Giáo dục Việt Nam) - Đính kèm PDF">
-                Kết nối tri thức với cuộc sống (PDF đính kèm)
+              <div className="w-full px-3 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 text-sm font-bold truncate" title="Kết nối tri thức với cuộc sống (NXB Giáo dục Việt Nam) • Xem SGK qua Google Drive">
+                Kết nối tri thức với cuộc sống (Google Drive)
               </div>
             </div>
 
@@ -1541,57 +1586,105 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
               />
             </div>
 
-            {/* KHO NGUỒN SGK TOÁN KNTT ĐÍNH KÈM & CHỌN BÀI HỌC TRỰC TIẾP */}
+            {/* KHO NGUỒN SGK TOÁN KNTT & XEM SGK QUA GOOGLE DRIVE */}
             <div className="md:col-span-2 lg:col-span-3 bg-teal-50/60 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900/60 rounded-2xl p-4 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center space-x-2 text-teal-900 dark:text-teal-200 font-bold text-xs uppercase tracking-wide">
                   <BookOpen className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
                   <span>
-                    Kho SGK Toán {grade.replace('Khối ', '')} — Kết nối tri thức với cuộc sống (Nguồn PDF đính kèm duy nhất)
+                    Kho SGK Toán {grade.replace('Khối ', '')} — Kết nối tri thức với cuộc sống (Xem SGK qua Google Drive)
                   </span>
                 </div>
-                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800">
-                  Không dùng bộ sách khác
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDriveLinksModal()}
+                    className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-teal-600 hover:text-white text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-700 flex items-center space-x-1 transition-colors cursor-pointer"
+                    title="Gắn hoặc cập nhật đường dẫn Google Drive cho 8 cuốn SGK Toán 6–9"
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    <span>Gắn link Google Drive</span>
+                  </button>
+                  <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800">
+                    Không dùng bộ sách khác
+                  </span>
+                </div>
               </div>
 
-              {/* 2 cuốn SGK PDF đính kèm của khối đang chọn */}
+              {/* 2 cuốn SGK Google Drive của khối đang chọn */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {getKnttTextbooksByGrade(grade).map((vol) => (
-                  <div
-                    key={vol.id}
-                    className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-teal-200/80 dark:border-teal-800/60 shadow-2xs"
-                  >
-                    <div className="flex items-start space-x-2.5 min-w-0">
-                      <div className="w-9 h-9 rounded-lg bg-teal-600/10 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0">
-                        <FileText className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
-                          {vol.title}
-                        </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          {vol.semester} • {vol.pageCount} trang • {vol.publisher}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPreviewPdf({
-                          title: vol.title,
-                          url: vol.pdfUrl,
-                          fileName: vol.fileName,
-                          pageCount: vol.pageCount,
-                        })
-                      }
-                      className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center space-x-1 shrink-0 cursor-pointer transition-colors"
+                {getKnttTextbooksByGrade(grade).map((vol) => {
+                  const resolved = resolveKnttTextbookDriveUrls(
+                    vol.id,
+                    settings.knttDriveLinks,
+                    vol.pdfUrl
+                  );
+                  return (
+                    <div
+                      key={vol.id}
+                      className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-teal-200/80 dark:border-teal-800/60 shadow-2xs"
                     >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Xem SGK</span>
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex items-start space-x-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-teal-600/10 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+                            {vol.title}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            <span>
+                              {vol.semester} • {vol.pageCount} trang
+                            </span>
+                            {resolved.isConfigured ? (
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                                Đã gắn Google Drive
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 text-[10px] font-bold">
+                                Chưa gắn link Drive
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (resolved.isConfigured) {
+                            setPreviewPdf({
+                              volumeId: vol.id,
+                              title: vol.title,
+                              previewUrl: resolved.previewUrl,
+                              viewUrl: resolved.viewUrl,
+                              fileName: vol.fileName,
+                              pageCount: vol.pageCount,
+                            });
+                          } else {
+                            handleOpenDriveLinksModal(vol.id);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1 shrink-0 cursor-pointer transition-colors ${
+                          resolved.isConfigured
+                            ? 'bg-teal-600 hover:bg-teal-700 text-white'
+                            : 'bg-amber-500 hover:bg-amber-600 text-white'
+                        }`}
+                      >
+                        {resolved.isConfigured ? (
+                          <>
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Xem SGK</span>
+                          </>
+                        ) : (
+                          <>
+                            <Link2 className="w-3.5 h-3.5" />
+                            <span>Gắn Drive</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Chọn bài học trực tiếp từ mục lục SGK KNTT */}
@@ -3363,12 +3456,12 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
         }}
       />
 
-      {/* In-App SGK PDF Viewer Modal */}
+      {/* In-App SGK Google Drive Viewer Modal */}
       {previewPdf &&
         createPortal(
           <div className="fixed inset-0 z-[100000] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-6xl h-[92vh] flex flex-col shadow-2xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900">
+              <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900">
                 <div className="flex items-center space-x-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center shrink-0">
                     <BookOpen className="w-4 h-4" />
@@ -3378,25 +3471,167 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
                       {previewPdf.title}
                     </div>
                     <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Tệp đính kèm: {previewPdf.fileName} • {previewPdf.pageCount} trang • NXB Giáo dục Việt Nam
+                      Nguồn Google Drive • {previewPdf.pageCount} trang • NXB Giáo dục Việt Nam
                     </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={previewPdf.viewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-bold flex items-center space-x-1 transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Mở trên Drive</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const volId = previewPdf.volumeId;
+                      setPreviewPdf(null);
+                      handleOpenDriveLinksModal(volId);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    <span>Đổi link</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPdf(null)}
+                    className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-700 dark:text-slate-200 hover:text-rose-700 text-xs font-bold flex items-center space-x-1 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                    <span>Đóng</span>
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 bg-slate-100 dark:bg-slate-950 relative">
+                <iframe
+                  src={previewPdf.previewUrl}
+                  title={previewPdf.title}
+                  allow="autoplay"
+                  className="w-full h-full border-0 bg-white"
+                />
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal Cấu Hình Link Google Drive cho 8 cuốn SGK Toán KNTT */}
+      {showDriveLinksModal &&
+        createPortal(
+          <div className="fixed inset-0 z-[100000] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0">
+                    <Link2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                      Cấu Hình Link Google Drive — 8 Cuốn SGK Toán KNTT (Lớp 6–9)
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Xem SGK trực tiếp từ Google Drive mà không cần tải file PDF nặng lên Vercel
+                    </p>
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setPreviewPdf(null)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-700 dark:text-slate-200 hover:text-rose-700 text-xs font-bold flex items-center space-x-1 cursor-pointer shrink-0"
+                  onClick={() => setShowDriveLinksModal(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
-                  <span>Đóng</span>
                 </button>
               </div>
-              <div className="flex-1 bg-slate-100 dark:bg-slate-950">
-                <iframe
-                  src={previewPdf.url}
-                  title={previewPdf.title}
-                  className="w-full h-full border-0 bg-white"
-                />
+
+              <div className="p-5 overflow-y-auto flex-1 space-y-4">
+                <div className="p-3 rounded-xl bg-teal-50/80 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 text-xs text-teal-900 dark:text-teal-200 space-y-1 leading-relaxed">
+                  <div className="font-bold">Hướng dẫn lấy link Google Drive (chỉ cần dán link chia sẻ gốc):</div>
+                  <div>
+                    1. Tải file PDF lên Google Drive → chuột phải chọn <b>Chia sẻ</b> → chuyển quyền truy cập thành <b>Bất kỳ ai có đường liên kết (Người xem)</b>.
+                  </div>
+                  <div>
+                    2. Sao chép đường liên kết (dạng <code className="px-1 py-0.5 rounded bg-white/80 dark:bg-slate-900 font-mono text-[11px]">https://drive.google.com/file/d/.../view</code>) rồi dán vào ô tương ứng. Ứng dụng sẽ tự động chuyển sang chế độ xem nhúng mượt mà.
+                  </div>
+                </div>
+
+                <div className="space-y-2.5">
+                  {KNTT_DRIVE_LINK_ITEMS.map((item) => {
+                    const currentVal = driveLinksDraft[item.id] ?? '';
+                    const defaultVal = KNTT_DEFAULT_DRIVE_LINKS[item.id] || '';
+                    const parsed = normalizeTextbookUrl(currentVal);
+                    const isFocused = focusedDriveVolumeId === item.id;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-3 rounded-xl border transition-all ${
+                          isFocused
+                            ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-400 dark:border-amber-700 ring-2 ring-amber-400/40'
+                            : 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/80'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            {item.label}
+                          </label>
+                          {currentVal.trim() ? (
+                            parsed.isConfigured ? (
+                              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                                {parsed.isGoogleDrive ? '✓ Link Google Drive tùy chỉnh' : '✓ Đường dẫn hợp lệ'}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                                ⚠ Link chưa hợp lệ
+                              </span>
+                            )
+                          ) : defaultVal ? (
+                            <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400">
+                              ✓ Đã gắn sẵn link Google Drive mặc định
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {item.envKey}
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="url"
+                          value={currentVal}
+                          onChange={(e) =>
+                            setDriveLinksDraft((prev) => ({
+                              ...prev,
+                              [item.id]: e.target.value,
+                            }))
+                          }
+                          placeholder={defaultVal || `Dán link Google Drive cho ${item.fileNameHint}...`}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-teal-500 outline-none"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="px-5 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDriveLinksModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-200/80 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold cursor-pointer"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveDriveLinks}
+                  className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-extrabold shadow-md flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Lưu Link Google Drive</span>
+                </button>
               </div>
             </div>
           </div>,
