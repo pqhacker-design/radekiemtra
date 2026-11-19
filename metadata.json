@@ -1,6 +1,6 @@
 {
   "name": "AI Test Generator Pro",
-  "description": "Hệ thống tạo đề kiểm tra, ma trận, bảng đặc tả và đáp án chuẩn Công văn 7991/BGDĐT dành cho giáo viên THCS và THPT.",
+  "description": "Hệ thống tạo đề kiểm tra Môn Toán THCS (Lớp 6–9), ma trận, bảng đặc tả YCCĐ chuẩn Công văn 7991/BGDĐT theo bộ SGK Kết nối tri thức với cuộc sống.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
