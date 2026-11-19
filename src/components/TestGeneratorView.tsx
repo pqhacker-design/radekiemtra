@@ -3456,12 +3456,12 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
         }}
       />
 
-      {/* In-App SGK Google Drive Viewer Modal */}
+      {/* In-App SGK Google Drive Viewer Modal (Full-Screen) */}
       {previewPdf &&
         createPortal(
-          <div className="fixed inset-0 z-[100000] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-6xl h-[92vh] flex flex-col shadow-2xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900">
+          <div className="fixed inset-0 z-[100000] bg-slate-950 flex flex-col w-screen h-screen">
+            <div className="bg-white dark:bg-slate-900 w-full h-full flex flex-col overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900 shrink-0">
                 <div className="flex items-center space-x-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center shrink-0">
                     <BookOpen className="w-4 h-4" />
@@ -3487,27 +3487,15 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
                   </a>
                   <button
                     type="button"
-                    onClick={() => {
-                      const volId = previewPdf.volumeId;
-                      setPreviewPdf(null);
-                      handleOpenDriveLinksModal(volId);
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center space-x-1 cursor-pointer"
-                  >
-                    <Link2 className="w-3.5 h-3.5" />
-                    <span>Đổi link</span>
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setPreviewPdf(null)}
-                    className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-700 dark:text-slate-200 hover:text-rose-700 text-xs font-bold flex items-center space-x-1 cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-200 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-700 dark:text-slate-200 hover:text-rose-700 text-xs font-bold flex items-center space-x-1 cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                     <span>Đóng</span>
                   </button>
                 </div>
               </div>
-              <div className="flex-1 bg-slate-100 dark:bg-slate-950 relative">
+              <div className="flex-1 bg-slate-100 dark:bg-slate-950 relative min-h-0">
                 <iframe
                   src={previewPdf.previewUrl}
                   title={previewPdf.title}

@@ -24,12 +24,14 @@ import {
   EyeOff,
   Calculator,
   CheckCircle2,
+  Download,
 } from 'lucide-react';
 import { ExamPackage, QuestionBankItem, SubjectType, CognitiveLevel, PartType, MCQOption, TrueFalseStatement } from '../types';
 import { MathText } from './MathText';
 import { QuestionDetailCard } from './QuestionDetailCard';
 import { EditQuestionModal } from './EditQuestionModal';
 import { StorageEngine } from '../services/storageEngine';
+import { ExportDocx } from '../services/exportDocx';
 
 // Helper function to format date time in Vietnamese format
 const formatDateTime = (dateStr?: string): string => {
@@ -166,6 +168,17 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
   const [targetGrade, setTargetGrade] = useState<string>('ALL');
   const [targetTopic, setTargetTopic] = useState<string>('');
   const [confirmClearText, setConfirmClearText] = useState('');
+
+  // Word Equation Export Modal state
+  const [showWordExportModal, setShowWordExportModal] = useState(false);
+  const [isExportingWord, setIsExportingWord] = useState(false);
+  const [wordExportNotice, setWordExportNotice] = useState<string | null>(null);
+  const [wordExportScope, setWordExportScope] = useState<'FILTERED' | 'ALL' | 'EXAM'>('FILTERED');
+  const [wordExportExamKey, setWordExportExamKey] = useState<string>('');
+  const [wordExportAnswerMode, setWordExportAnswerMode] = useState<'SEPARATE_SECTION' | 'INLINE' | 'QUESTIONS_ONLY'>('SEPARATE_SECTION');
+  const [wordExportGroupByPart, setWordExportGroupByPart] = useState(true);
+  const [wordExportIncludeMetadata, setWordExportIncludeMetadata] = useState(true);
+  const [wordExportTitle, setWordExportTitle] = useState('NGÂN HÀNG CÂU HỎI MÔN TOÁN THCS');
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newContent, setNewContent] = useState('');
@@ -413,6 +426,99 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
     }
   };
 
+  const hasActiveFilter =
+    selectedPartType !== 'ALL' ||
+    selectedGrade !== 'ALL' ||
+    selectedCognitive !== 'ALL' ||
+    searchTerm.trim().length > 0;
+
+  const getWordExportQuestions = (): QuestionBankItem[] => {
+    if (wordExportScope === 'ALL') return questionBank;
+    if (wordExportScope === 'EXAM') {
+      const opt = examOptions.find((o) => o.key === wordExportExamKey);
+      if (!opt) return [];
+      return questionBank.filter((q) => opt.ids.includes(q.id));
+    }
+    return filteredList;
+  };
+
+  const wordExportQuestions = getWordExportQuestions();
+
+  const handleOpenWordExportModal = (preferredScope?: 'FILTERED' | 'ALL' | 'EXAM') => {
+    const scope = preferredScope || (hasActiveFilter ? 'FILTERED' : 'ALL');
+    setWordExportScope(scope);
+    if (examOptions.length > 0 && !wordExportExamKey) {
+      setWordExportExamKey(examOptions[0].key);
+    }
+
+    const gradeLabel = selectedGrade !== 'ALL' ? ` — ${selectedGrade.toUpperCase()}` : '';
+    const partLabel =
+      selectedPartType === 'PART1'
+        ? ' (PHẦN I: TN 4 LỰA CHỌN)'
+        : selectedPartType === 'PART2'
+        ? ' (PHẦN II: ĐÚNG / SAI)'
+        : selectedPartType === 'PART3'
+        ? ' (PHẦN III: TRẢ LỜI NGẮN)'
+        : selectedPartType === 'PART4'
+        ? ' (PHẦN IV: TỰ LUẬN)'
+        : '';
+
+    setWordExportTitle(
+      scope === 'FILTERED' && hasActiveFilter
+        ? `NGÂN HÀNG CÂU HỎI MÔN TOÁN${gradeLabel}${partLabel}`
+        : 'NGÂN HÀNG CÂU HỎI MÔN TOÁN THCS'
+    );
+    setShowWordExportModal(true);
+  };
+
+  const handleExecuteWordExport = async () => {
+    const list = getWordExportQuestions();
+    if (list.length === 0 || isExportingWord) return;
+    setIsExportingWord(true);
+    try {
+      const subtitleParts: string[] = ['SGK Toán Kết nối tri thức với cuộc sống (GDPT 2018)'];
+      if (wordExportScope === 'FILTERED' && hasActiveFilter) {
+        if (selectedGrade !== 'ALL') subtitleParts.push(selectedGrade);
+        if (selectedCognitive !== 'ALL') {
+          const cogMap: Record<string, string> = {
+            REMEMBER: 'Nhận biết',
+            UNDERSTAND: 'Thông hiểu',
+            APPLY: 'Vận dụng',
+            ADVANCED: 'Vận dụng cao',
+          };
+          subtitleParts.push(`Mức độ: ${cogMap[selectedCognitive] || selectedCognitive}`);
+        }
+        if (searchTerm.trim()) subtitleParts.push(`Từ khóa: "${searchTerm.trim()}"`);
+      } else if (wordExportScope === 'EXAM') {
+        const opt = examOptions.find((o) => o.key === wordExportExamKey);
+        if (opt) subtitleParts.push(`Nguồn: ${opt.title}`);
+      }
+      subtitleParts.push(`${list.length} câu hỏi`);
+
+      const prefix =
+        wordExportScope === 'FILTERED' && selectedGrade !== 'ALL'
+          ? `Ngan_Hang_Cau_Hoi_Toan_${selectedGrade}`
+          : wordExportScope === 'EXAM'
+          ? `Ngan_Hang_${examOptions.find((o) => o.key === wordExportExamKey)?.title || 'De_Kiem_Tra'}`
+          : 'Ngan_Hang_Cau_Hoi_Toan';
+
+      await ExportDocx.exportQuestionBankToDocx(list, {
+        title: wordExportTitle.trim() || 'NGÂN HÀNG CÂU HỎI MÔN TOÁN THCS',
+        subtitle: subtitleParts.join(' • '),
+        answerMode: wordExportAnswerMode,
+        groupByPart: wordExportGroupByPart,
+        includeMetadataTag: wordExportIncludeMetadata,
+        fileNamePrefix: prefix,
+      });
+
+      setShowWordExportModal(false);
+      setWordExportNotice(`Đã xuất thành công ${list.length} câu hỏi ra file Word (.docx) chuẩn Word Equation!`);
+      setTimeout(() => setWordExportNotice(null), 5000);
+    } finally {
+      setIsExportingWord(false);
+    }
+  };
+
   const handleCreateNew = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newContent) return;
@@ -502,6 +608,21 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
             <span>Xóa / Dọn Dẹp Ngân Hàng</span>
           </button>
 
+          <button
+            type="button"
+            disabled={questionBank.length === 0 || isExportingWord}
+            onClick={() => handleOpenWordExportModal()}
+            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-blue-600/20 cursor-pointer transition-colors"
+            title="Xuất ngân hàng câu hỏi ra file Word (.docx) chuẩn công thức Microsoft Word Equation (OMML)"
+          >
+            {isExportingWord ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FileText className="w-4 h-4" />
+            )}
+            <span>Xuất Word (Equation)</span>
+          </button>
+
           {onExportExcel && (
             <button
               onClick={onExportExcel}
@@ -513,6 +634,22 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
           )}
         </div>
       </div>
+
+      {wordExportNotice && (
+        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-center justify-between text-xs text-emerald-900 dark:text-emerald-200">
+          <div className="flex items-center space-x-2 font-semibold">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{wordExportNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setWordExportNotice(null)}
+            className="p-1 rounded-lg hover:bg-emerald-200/60 dark:hover:bg-emerald-900/60 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
@@ -574,26 +711,38 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
         </div>
       </div>
 
-      {/* Active Filter status bar & quick delete filtered */}
+      {/* Active Filter status bar & quick actions */}
       {(selectedPartType !== 'ALL' || selectedGrade !== 'ALL' || selectedCognitive !== 'ALL' || searchTerm) && (
-        <div className="p-3 bg-teal-50 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800/60 rounded-2xl flex items-center justify-between text-xs text-teal-900 dark:text-teal-200">
+        <div className="p-3 bg-teal-50 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800/60 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-xs text-teal-900 dark:text-teal-200">
           <div className="flex items-center space-x-2">
             <Filter className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
             <span>
               Đang lọc: <strong>{filteredList.length}</strong> / <strong>{questionBank.length}</strong> câu hỏi.
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setBulkDeleteType('FILTER');
-              setShowBulkDeleteModal(true);
-            }}
-            className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline flex items-center space-x-1 cursor-pointer ml-2 shrink-0"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Xóa {filteredList.length} câu đang lọc này</span>
-          </button>
+          <div className="flex items-center gap-3">
+            {filteredList.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleOpenWordExportModal('FILTERED')}
+                className="text-xs font-bold text-blue-700 dark:text-blue-400 hover:underline flex items-center space-x-1 cursor-pointer shrink-0"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Xuất Word ({filteredList.length} câu đang lọc)</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setBulkDeleteType('FILTER');
+                setShowBulkDeleteModal(true);
+              }}
+              className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline flex items-center space-x-1 cursor-pointer shrink-0"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Xóa {filteredList.length} câu đang lọc này</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -1694,6 +1843,238 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Word Equation (.docx) Export Modal */}
+      {showWordExportModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-blue-50/70 dark:bg-blue-950/30 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                    Xuất File Word (.docx) Chuẩn Word Equation
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Tự động chuyển công thức toán sang Office MathML (OMML) chỉnh sửa trực tiếp trong Microsoft Word
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWordExportModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto text-xs">
+              {/* Scope Selection */}
+              <div className="space-y-2">
+                <label className="font-bold text-slate-800 dark:text-slate-200 block">
+                  1. Chọn phạm vi câu hỏi cần xuất:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setWordExportScope('FILTERED')}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      wordExportScope === 'FILTERED'
+                        ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-500 text-blue-900 dark:text-blue-200 ring-1 ring-blue-500'
+                        : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="font-bold">Đang lọc hiện tại</div>
+                    <div className="text-[11px] opacity-80">{filteredList.length} câu hỏi</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setWordExportScope('ALL')}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      wordExportScope === 'ALL'
+                        ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-500 text-blue-900 dark:text-blue-200 ring-1 ring-blue-500'
+                        : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="font-bold">Toàn bộ ngân hàng</div>
+                    <div className="text-[11px] opacity-80">{questionBank.length} câu hỏi</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={examOptions.length === 0}
+                    onClick={() => {
+                      setWordExportScope('EXAM');
+                      if (examOptions.length > 0 && !wordExportExamKey) {
+                        setWordExportExamKey(examOptions[0].key);
+                      }
+                    }}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed ${
+                      wordExportScope === 'EXAM'
+                        ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-500 text-blue-900 dark:text-blue-200 ring-1 ring-blue-500'
+                        : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="font-bold">Theo đề đã tạo</div>
+                    <div className="text-[11px] opacity-80">{examOptions.length} bộ đề</div>
+                  </button>
+                </div>
+
+                {wordExportScope === 'EXAM' && examOptions.length > 0 && (
+                  <select
+                    value={wordExportExamKey}
+                    onChange={(e) => setWordExportExamKey(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold"
+                  >
+                    {examOptions.map((opt) => (
+                      <option key={opt.key} value={opt.key}>
+                        {opt.title} ({opt.count} câu){opt.formattedDate ? ` • ${opt.formattedDate}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Answer Mode */}
+              <div className="space-y-2">
+                <label className="font-bold text-slate-800 dark:text-slate-200 block">
+                  2. Bố cục Đáp án &amp; Hướng dẫn giải:
+                </label>
+                <div className="space-y-2">
+                  {[
+                    {
+                      value: 'SEPARATE_SECTION' as const,
+                      title: 'Tách riêng Đề bài & Đáp án ở cuối file (Khuyên dùng)',
+                      desc: 'Đề bài sạch để in phát cho học sinh; trang cuối có bảng đáp án nhanh + lời giải chi tiết & Rubric.',
+                    },
+                    {
+                      value: 'INLINE' as const,
+                      title: 'Kèm Đáp án & Lời giải ngay dưới mỗi câu',
+                      desc: 'Tô đậm đáp án đúng và đặt hướng dẫn giải ngay bên dưới từng câu, tiện lưu trữ hoặc ôn tập.',
+                    },
+                    {
+                      value: 'QUESTIONS_ONLY' as const,
+                      title: 'Chỉ xuất Đề bài (không kèm đáp án)',
+                      desc: 'Xuất thuần danh sách câu hỏi và hình vẽ để làm phiếu bài tập hoặc đề kiểm tra.',
+                    },
+                  ].map((opt) => (
+                    <label
+                      key={opt.value}
+                      className={`flex items-start space-x-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                        wordExportAnswerMode === opt.value
+                          ? 'bg-teal-50/70 dark:bg-teal-950/40 border-teal-400 dark:border-teal-700'
+                          : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="wordExportAnswerMode"
+                        checked={wordExportAnswerMode === opt.value}
+                        onChange={() => setWordExportAnswerMode(opt.value)}
+                        className="mt-0.5 accent-teal-600"
+                      />
+                      <div>
+                        <div className="font-bold text-slate-900 dark:text-slate-100">{opt.title}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">{opt.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Title & Display Checkboxes */}
+              <div className="space-y-2.5">
+                <div>
+                  <label className="font-bold text-slate-800 dark:text-slate-200 block mb-1">
+                    3. Tiêu đề tài liệu Word:
+                  </label>
+                  <input
+                    type="text"
+                    value={wordExportTitle}
+                    onChange={(e) => setWordExportTitle(e.target.value)}
+                    placeholder="NGÂN HÀNG CÂU HỎI MÔN TOÁN THCS"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <label className="flex items-center space-x-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={wordExportGroupByPart}
+                      onChange={(e) => setWordExportGroupByPart(e.target.checked)}
+                      className="accent-blue-600 rounded"
+                    />
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      Phân nhóm theo Phần I, II, III, IV
+                    </span>
+                  </label>
+
+                  <label className="flex items-center space-x-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={wordExportIncludeMetadata}
+                      onChange={(e) => setWordExportIncludeMetadata(e.target.checked)}
+                      className="accent-blue-600 rounded"
+                    />
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      Ghi nhãn Khối, Chủ đề &amp; [NB/TH/VD]
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Summary Strip */}
+              <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <span className="font-bold text-slate-700 dark:text-slate-200">
+                  Sẽ xuất: <strong className="text-blue-600 dark:text-blue-400">{wordExportQuestions.length}</strong> câu hỏi
+                </span>
+                <div className="flex flex-wrap items-center gap-2 text-slate-500 dark:text-slate-400">
+                  <span>P.I: {wordExportQuestions.filter((q) => !q.partType || q.partType === 'PART1').length}</span>
+                  <span>•</span>
+                  <span>P.II: {wordExportQuestions.filter((q) => q.partType === 'PART2').length}</span>
+                  <span>•</span>
+                  <span>P.III: {wordExportQuestions.filter((q) => q.partType === 'PART3').length}</span>
+                  <span>•</span>
+                  <span>P.IV: {wordExportQuestions.filter((q) => q.partType === 'PART4').length}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowWordExportModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-200/80 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={wordExportQuestions.length === 0 || isExportingWord}
+                onClick={handleExecuteWordExport}
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center space-x-1.5 shadow-md shadow-blue-600/20 cursor-pointer"
+              >
+                {isExportingWord ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang tạo file Word...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    <span>Tải xuống file Word (.docx)</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

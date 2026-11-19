@@ -28,7 +28,7 @@ import {
   WidthType,
   XmlComponent,
 } from 'docx';
-import { AppSettings, ExamMetadata, ExamPackage, MatrixRow, Question, SpecRow, calculateExamScores, getCognitiveTag, getSpecRowQuestionDetails } from '../types';
+import { AppSettings, ExamMetadata, ExamPackage, MatrixRow, Question, QuestionBankItem, SpecRow, calculateExamScores, getCognitiveTag, getSpecRowQuestionDetails } from '../types';
 import { StorageEngine } from './storageEngine';
 import { DiagramEngine } from './diagramEngine';
 import { normalizeNewlines, repairLatexCorruptions, parseRequirementsByLevel } from '../utils/textUtils';
@@ -4198,4 +4198,845 @@ export class ExportDocx {
   static async exportPackageToWord(examPack: ExamPackage): Promise<void> {
     return this.exportExamPackageToDocx(examPack);
   }
+
+  /**
+   * Xuất Ngân Hàng Câu Hỏi ra file Word (.docx) chuẩn công thức Microsoft Word Equation (OMML)
+   * Hỗ trợ đầy đủ 4 dạng thức (Phần I, II, III, IV), hình vẽ SVG / GeoGebra, đáp án, lời giải chi tiết và Rubric.
+   */
+  static async exportQuestionBankToDocx(
+    questions: QuestionBankItem[],
+    options: QuestionBankWordExportOptions = {}
+  ): Promise<void> {
+    if (!questions || questions.length === 0) return;
+
+    const {
+      title = 'NGÂN HÀNG CÂU HỎI MÔN TOÁN THCS',
+      subtitle = 'Nguồn: Sách giáo khoa Toán Kết nối tri thức với cuộc sống (GDPT 2018)',
+      answerMode = 'SEPARATE_SECTION',
+      groupByPart = true,
+      includeMetadataTag = true,
+      fileNamePrefix = 'Ngan_Hang_Cau_Hoi_Toan',
+    } = options;
+
+    let schoolName = 'TRƯỜNG THCS';
+    let departmentName = 'SỞ GIÁO DỤC VÀ ĐÀO TẠO';
+    try {
+      const s = StorageEngine.getSettings();
+      if (s?.defaultSchoolName) schoolName = s.defaultSchoolName;
+      if (s?.defaultDepartmentName) departmentName = s.defaultDepartmentName;
+    } catch {
+      // ignore
+    }
+
+    const docChildren: (Paragraph | Table)[] = [];
+
+    // 1. Tiêu đề hành chính đầu trang
+    const headerTable = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: {
+        top: { style: BorderStyle.NONE },
+        bottom: { style: BorderStyle.NONE },
+        left: { style: BorderStyle.NONE },
+        right: { style: BorderStyle.NONE },
+        insideHorizontal: { style: BorderStyle.NONE },
+        insideVertical: { style: BorderStyle.NONE },
+      },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              children: [
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [
+                    new TextRun({
+                      text: departmentName.toUpperCase(),
+                      bold: true,
+                      size: 20,
+                      font: 'Times New Roman',
+                    }),
+                  ],
+                }),
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [
+                    new TextRun({
+                      text: schoolName.toUpperCase(),
+                      bold: true,
+                      size: 22,
+                      font: 'Times New Roman',
+                    }),
+                  ],
+                }),
+              ],
+            }),
+            new TableCell({
+              width: { size: 50, type: WidthType.PERCENTAGE },
+              children: [
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [
+                    new TextRun({
+                      text: 'NGÂN HÀNG CÂU HỎI CHUẨN CV 7991/BGDĐT',
+                      bold: true,
+                      size: 20,
+                      font: 'Times New Roman',
+                    }),
+                  ],
+                }),
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  children: [
+                    new TextRun({
+                      text: `Tổng số: ${questions.length} câu hỏi • Công thức Word Equation`,
+                      italics: true,
+                      size: 19,
+                      font: 'Times New Roman',
+                      color: '374151',
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    docChildren.push(
+      headerTable,
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 200, after: 80 },
+        children: [
+          new TextRun({
+            text: title.toUpperCase(),
+            bold: true,
+            size: 28,
+            color: '006666',
+            font: 'Times New Roman',
+          }),
+        ],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 220 },
+        children: [
+          new TextRun({
+            text: subtitle,
+            italics: true,
+            size: 20,
+            color: '4B5563',
+            font: 'Times New Roman',
+          }),
+        ],
+      })
+    );
+
+    const partOrder: Array<{
+      partType: 'PART1' | 'PART2' | 'PART3' | 'PART4';
+      heading: string;
+      shortLabel: string;
+    }> = [
+      {
+        partType: 'PART1',
+        heading: 'PHẦN I. Câu hỏi trắc nghiệm nhiều phương án lựa chọn (Thí sinh chọn 1 đáp án đúng nhất)',
+        shortLabel: 'Phần I (TN 4 lựa chọn)',
+      },
+      {
+        partType: 'PART2',
+        heading: 'PHẦN II. Câu hỏi trắc nghiệm Đúng/Sai (Trong mỗi ý ở mỗi câu, thí sinh chọn Đúng hoặc Sai)',
+        shortLabel: 'Phần II (Đúng / Sai)',
+      },
+      {
+        partType: 'PART3',
+        heading: 'PHẦN III. Câu hỏi trắc nghiệm trả lời ngắn (Thí sinh điền kết quả ngắn gọn)',
+        shortLabel: 'Phần III (Trả lời ngắn)',
+      },
+      {
+        partType: 'PART4',
+        heading: 'PHẦN IV. Tự luận (Thí sinh trình bày chi tiết bài làm)',
+        shortLabel: 'Phần IV (Tự luận)',
+      },
+    ];
+
+    const getNormalizedPartType = (q: QuestionBankItem): 'PART1' | 'PART2' | 'PART3' | 'PART4' => {
+      if (q.partType === 'PART2' || q.partType === 'PART3' || q.partType === 'PART4') {
+        return q.partType;
+      }
+      return 'PART1';
+    };
+
+    const getCognitiveLabel = (level?: string): string => {
+      switch (level) {
+        case 'REMEMBER':
+          return 'Nhận biết';
+        case 'UNDERSTAND':
+          return 'Thông hiểu';
+        case 'APPLY':
+          return 'Vận dụng';
+        case 'ADVANCED':
+          return 'Vận dụng cao';
+        default:
+          return '';
+      }
+    };
+
+    interface NumberedBankQuestion {
+      displayNumber: number;
+      partType: 'PART1' | 'PART2' | 'PART3' | 'PART4';
+      item: QuestionBankItem;
+    }
+
+    const numberedQuestions: NumberedBankQuestion[] = [];
+    const groupedBuckets: Array<{
+      partType: 'PART1' | 'PART2' | 'PART3' | 'PART4' | 'ALL';
+      heading?: string;
+      items: NumberedBankQuestion[];
+    }> = [];
+
+    if (groupByPart) {
+      for (const p of partOrder) {
+        const matched = questions.filter((q) => getNormalizedPartType(q) === p.partType);
+        if (matched.length > 0) {
+          const bucketItems: NumberedBankQuestion[] = matched.map((item, idx) => ({
+            displayNumber: idx + 1,
+            partType: p.partType,
+            item,
+          }));
+          numberedQuestions.push(...bucketItems);
+          groupedBuckets.push({
+            partType: p.partType,
+            heading: `${p.heading} (${matched.length} câu)`,
+            items: bucketItems,
+          });
+        }
+      }
+    } else {
+      const bucketItems: NumberedBankQuestion[] = questions.map((item, idx) => ({
+        displayNumber: idx + 1,
+        partType: getNormalizedPartType(item),
+        item,
+      }));
+      numberedQuestions.push(...bucketItems);
+      groupedBuckets.push({
+        partType: 'ALL',
+        items: bucketItems,
+      });
+    }
+
+    // Helper: dựng khối lời giải + đáp án chi tiết bằng Word Equation cho 1 câu hỏi
+    const appendQuestionSolution = async (entry: NumberedBankQuestion, showHeaderPrefix: boolean) => {
+      const { displayNumber, partType, item: q } = entry;
+      const tag = includeMetadataTag ? ` ${getCognitiveTag(q.cognitiveLevel, partType)}` : '';
+
+      if (partType === 'PART1') {
+        const prefixText = showHeaderPrefix
+          ? `Câu ${displayNumber}${tag}: `
+          : '→ Đáp án đúng: ';
+        const runs: (TextRun | DocxMath)[] = [
+          new TextRun({
+            text: prefixText,
+            bold: true,
+            size: 21,
+            color: '006666',
+            font: 'Times New Roman',
+          }),
+          new TextRun({
+            text: showHeaderPrefix ? `Chọn ${q.correctOption || '-'}` : `${q.correctOption || '-'}`,
+            bold: true,
+            size: 21,
+            color: 'B91C1C',
+            font: 'Times New Roman',
+          }),
+        ];
+        docChildren.push(
+          new Paragraph({
+            spacing: { before: showHeaderPrefix ? 80 : 60, after: 40 },
+            indent: showHeaderPrefix ? undefined : { left: 320 },
+            children: runs,
+          })
+        );
+        if (q.explanation || q.solutionDiagramSvg) {
+          const expPars = await buildContentParagraphs(
+            q.explanation || '',
+            'Hướng dẫn giải: ',
+            true,
+            { size: 20, italics: false },
+            q.solutionDiagramSvg
+          );
+          docChildren.push(...expPars);
+        }
+      } else if (partType === 'PART2') {
+        const tfSummary = (q.trueFalseStatements || [])
+          .map((st) => `${st.key}) ${st.isCorrect ? 'Đúng' : 'Sai'}`)
+          .join('   |   ');
+        docChildren.push(
+          new Paragraph({
+            spacing: { before: showHeaderPrefix ? 80 : 60, after: 40 },
+            indent: showHeaderPrefix ? undefined : { left: 320 },
+            children: [
+              new TextRun({
+                text: showHeaderPrefix ? `Câu ${displayNumber}${tag}: ` : '→ Đáp án Đúng/Sai: ',
+                bold: true,
+                size: 21,
+                color: '006666',
+                font: 'Times New Roman',
+              }),
+              new TextRun({
+                text: tfSummary || '-',
+                bold: true,
+                size: 21,
+                color: 'B91C1C',
+                font: 'Times New Roman',
+              }),
+            ],
+          })
+        );
+        if (q.explanation || q.solutionDiagramSvg) {
+          const expPars = await buildContentParagraphs(
+            q.explanation || '',
+            'Giải thích chi tiết: ',
+            true,
+            { size: 20 },
+            q.solutionDiagramSvg
+          );
+          docChildren.push(...expPars);
+        }
+      } else if (partType === 'PART3') {
+        const answerRuns: (TextRun | DocxMath)[] = [
+          new TextRun({
+            text: showHeaderPrefix ? `Câu ${displayNumber}${tag} — Đáp số: ` : '→ Đáp số: ',
+            bold: true,
+            size: 21,
+            color: '006666',
+            font: 'Times New Roman',
+          }),
+          ...createDocxInlineRuns(q.shortAnswer || '-', {
+            bold: true,
+            size: 21,
+            color: 'B91C1C',
+            font: 'Times New Roman',
+          }),
+        ];
+        docChildren.push(
+          new Paragraph({
+            spacing: { before: showHeaderPrefix ? 80 : 60, after: 40 },
+            indent: showHeaderPrefix ? undefined : { left: 320 },
+            children: answerRuns,
+          })
+        );
+        if (q.explanation || q.solutionDiagramSvg) {
+          const expPars = await buildContentParagraphs(
+            q.explanation || '',
+            'Hướng dẫn giải: ',
+            true,
+            { size: 20 },
+            q.solutionDiagramSvg
+          );
+          docChildren.push(...expPars);
+        }
+      } else {
+        const guideText = q.essayAnswerGuide || q.explanation || '';
+        if (guideText || q.solutionDiagramSvg) {
+          const prefixTitle = showHeaderPrefix
+            ? `Câu ${displayNumber}${tag} (${q.points || 1} điểm) — Hướng dẫn giải: `
+            : '→ Hướng dẫn giải chi tiết: ';
+          const solPars = await buildContentParagraphs(
+            guideText,
+            prefixTitle,
+            true,
+            { size: 21 },
+            q.solutionDiagramSvg
+          );
+          docChildren.push(...solPars);
+        }
+        if (q.rubric && q.rubric.length > 0) {
+          docChildren.push(
+            new Paragraph({
+              spacing: { before: 80, after: 40 },
+              children: [
+                new TextRun({
+                  text: 'Bảng Rubric chấm điểm:',
+                  bold: true,
+                  size: 20,
+                  font: 'Times New Roman',
+                  color: '008080',
+                }),
+              ],
+            }),
+            buildDocxRubricTable(q.rubric),
+            new Paragraph({ text: '', spacing: { after: 100 } })
+          );
+        }
+      }
+    };
+
+    // 2. Render danh sách câu hỏi (chuẩn Word Equation + Hình vẽ)
+    for (const bucket of groupedBuckets) {
+      if (bucket.heading) {
+        docChildren.push(
+          new Paragraph({
+            spacing: { before: 220, after: 100 },
+            children: [
+              new TextRun({
+                text: bucket.heading,
+                bold: true,
+                size: 23,
+                color: '0F766E',
+                font: 'Times New Roman',
+              }),
+            ],
+          })
+        );
+      }
+
+      for (const entry of bucket.items) {
+        const { displayNumber, partType, item: q } = entry;
+        const tag = includeMetadataTag ? ` ${getCognitiveTag(q.cognitiveLevel, partType)}` : '';
+        const pointsLabel = partType === 'PART4' && q.points ? ` (${q.points} điểm)` : '';
+
+        // Dòng metadata phụ gọn gàng (Khối lớp • Chương/Chủ đề • Mức độ)
+        if (includeMetadataTag) {
+          const metaParts: string[] = [];
+          if (q.grade) metaParts.push(q.grade);
+          if (q.chapter || q.topic) metaParts.push(q.chapter || q.topic);
+          const cogName = getCognitiveLabel(q.cognitiveLevel);
+          if (cogName) metaParts.push(cogName);
+          if (metaParts.length > 0) {
+            docChildren.push(
+              new Paragraph({
+                spacing: { before: 120, after: 20 },
+                children: [
+                  new TextRun({
+                    text: `[${metaParts.join(' • ')}]`,
+                    italics: true,
+                    size: 17,
+                    color: '6B7280',
+                    font: 'Times New Roman',
+                  }),
+                ],
+              })
+            );
+          }
+        }
+
+        const diagram = q.svgDiagram || DiagramEngine.getQuestionDiagramSvg(q);
+        const qPars = await buildContentParagraphs(
+          q.content,
+          `Câu ${displayNumber}${tag}${pointsLabel}: `,
+          true,
+          { size: 22 },
+          diagram
+        );
+        docChildren.push(...qPars);
+
+        // Phương án Phần I
+        if (partType === 'PART1' && q.options && q.options.length > 0) {
+          for (const opt of q.options) {
+            const isCorrectInline = answerMode === 'INLINE' && q.correctOption === opt.key;
+            const optRuns: (TextRun | DocxMath)[] = [
+              new TextRun({
+                text: `${opt.key}. `,
+                bold: true,
+                underline: isCorrectInline ? {} : undefined,
+                color: isCorrectInline ? 'B91C1C' : undefined,
+                size: 22,
+                font: 'Times New Roman',
+              }),
+              ...createDocxInlineRuns(opt.content || '', {
+                size: 22,
+                font: 'Times New Roman',
+                bold: isCorrectInline,
+                color: isCorrectInline ? 'B91C1C' : undefined,
+              }),
+            ];
+            docChildren.push(
+              new Paragraph({
+                spacing: { before: 30, after: 30 },
+                indent: { left: 320 },
+                children: optRuns,
+              })
+            );
+          }
+        }
+
+        // Các ý Đúng/Sai Phần II
+        if (partType === 'PART2' && q.trueFalseStatements && q.trueFalseStatements.length > 0) {
+          for (const st of q.trueFalseStatements) {
+            const stPars = await buildContentParagraphs(st.content, `${st.key}) `, true, { size: 22 });
+            docChildren.push(...stPars);
+          }
+        }
+
+        // Nếu chọn chế độ kèm đáp án ngay dưới mỗi câu
+        if (answerMode === 'INLINE') {
+          await appendQuestionSolution(entry, false);
+        }
+      }
+    }
+
+    // 3. Nếu chọn chế độ tách riêng Đáp án & Hướng dẫn giải ở cuối file
+    if (answerMode === 'SEPARATE_SECTION') {
+      docChildren.push(
+        new Paragraph({ children: [new PageBreak()] }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 100, after: 180 },
+          children: [
+            new TextRun({
+              text: 'ĐÁP ÁN VÀ HƯỚNG DẪN GIẢI CHI TIẾT',
+              bold: true,
+              size: 26,
+              color: '006666',
+              font: 'Times New Roman',
+            }),
+          ],
+        })
+      );
+
+      const p1Entries = numberedQuestions.filter((e) => e.partType === 'PART1');
+      const p2Entries = numberedQuestions.filter((e) => e.partType === 'PART2');
+      const p3Entries = numberedQuestions.filter((e) => e.partType === 'PART3');
+      const p4Entries = numberedQuestions.filter((e) => e.partType === 'PART4');
+
+      // Bảng đáp án nhanh Phần I (chia tối đa 10 cột / hàng để không bị tràn trang)
+      if (p1Entries.length > 0) {
+        docChildren.push(
+          new Paragraph({
+            spacing: { before: 120, after: 60 },
+            children: [
+              new TextRun({
+                text: 'PHẦN I. Bảng đáp án Trắc nghiệm nhiều phương án lựa chọn:',
+                bold: true,
+                size: 22,
+                font: 'Times New Roman',
+              }),
+            ],
+          })
+        );
+
+        const chunkSize = 10;
+        for (let start = 0; start < p1Entries.length; start += chunkSize) {
+          const chunk = p1Entries.slice(start, start + chunkSize);
+          const numRow = new TableRow({
+            children: chunk.map(
+              (e) =>
+                new TableCell({
+                  shading: { fill: 'F2F4F7' },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [
+                        new TextRun({
+                          text: `Câu ${e.displayNumber}`,
+                          bold: true,
+                          size: 18,
+                          font: 'Times New Roman',
+                        }),
+                      ],
+                    }),
+                  ],
+                })
+            ),
+          });
+          const ansRow = new TableRow({
+            children: chunk.map(
+              (e) =>
+                new TableCell({
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [
+                        new TextRun({
+                          text: e.item.correctOption || '-',
+                          bold: true,
+                          size: 19,
+                          color: 'B91C1C',
+                          font: 'Times New Roman',
+                        }),
+                      ],
+                    }),
+                  ],
+                })
+            ),
+          });
+          docChildren.push(
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              rows: [numRow, ansRow],
+            }),
+            new Paragraph({ text: '', spacing: { after: 100 } })
+          );
+        }
+      }
+
+      // Bảng đáp án nhanh Phần II
+      if (p2Entries.length > 0) {
+        docChildren.push(
+          new Paragraph({
+            spacing: { before: 140, after: 60 },
+            children: [
+              new TextRun({
+                text: 'PHẦN II. Bảng đáp án Trắc nghiệm Đúng / Sai:',
+                bold: true,
+                size: 22,
+                font: 'Times New Roman',
+              }),
+            ],
+          })
+        );
+
+        const headerRowP2 = new TableRow({
+          tableHeader: true,
+          children: ['Câu hỏi', 'Ý a)', 'Ý b)', 'Ý c)', 'Ý d)'].map(
+            (col) =>
+              new TableCell({
+                shading: { fill: 'F2F4F7' },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [new TextRun({ text: col, bold: true, size: 18, font: 'Times New Roman' })],
+                  }),
+                ],
+              })
+          ),
+        });
+
+        const rowsP2 = p2Entries.map((e) => {
+          const getVal = (k: string) => {
+            const st = (e.item.trueFalseStatements || []).find((s) => s.key === k);
+            return st ? (st.isCorrect ? 'ĐÚNG' : 'SAI') : '-';
+          };
+          return new TableRow({
+            children: [
+              new TableCell({
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    children: [new TextRun({ text: `Câu ${e.displayNumber}`, bold: true, size: 18, font: 'Times New Roman' })],
+                  }),
+                ],
+              }),
+              ...(['a', 'b', 'c', 'd'] as const).map(
+                (k) =>
+                  new TableCell({
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [new TextRun({ text: getVal(k), bold: true, size: 18, font: 'Times New Roman' })],
+                      }),
+                    ],
+                  })
+              ),
+            ],
+          });
+        });
+
+        docChildren.push(
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [headerRowP2, ...rowsP2],
+          }),
+          new Paragraph({ text: '', spacing: { after: 120 } })
+        );
+      }
+
+      // Bảng đáp án nhanh Phần III (hỗ trợ Word Equation OMML trong từng ô đáp số)
+      if (p3Entries.length > 0) {
+        docChildren.push(
+          new Paragraph({
+            spacing: { before: 140, after: 60 },
+            children: [
+              new TextRun({
+                text: 'PHẦN III. Bảng đáp án Trắc nghiệm Trả lời ngắn:',
+                bold: true,
+                size: 22,
+                font: 'Times New Roman',
+              }),
+            ],
+          })
+        );
+
+        const chunkSize = 6;
+        for (let start = 0; start < p3Entries.length; start += chunkSize) {
+          const chunk = p3Entries.slice(start, start + chunkSize);
+          const numRow = new TableRow({
+            children: chunk.map(
+              (e) =>
+                new TableCell({
+                  shading: { fill: 'F2F4F7' },
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: [new TextRun({ text: `Câu ${e.displayNumber}`, bold: true, size: 18, font: 'Times New Roman' })],
+                    }),
+                  ],
+                })
+            ),
+          });
+          const ansRow = new TableRow({
+            children: chunk.map(
+              (e) =>
+                new TableCell({
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children: createDocxInlineRuns(e.item.shortAnswer || '-', {
+                        bold: true,
+                        size: 19,
+                        color: 'B91C1C',
+                        font: 'Times New Roman',
+                      }),
+                    }),
+                  ],
+                })
+            ),
+          });
+          docChildren.push(
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              rows: [numRow, ansRow],
+            }),
+            new Paragraph({ text: '', spacing: { after: 100 } })
+          );
+        }
+      }
+
+      // Hướng dẫn giải chi tiết cho tất cả các câu có lời giải / Tự luận
+      const p1Detailed = p1Entries.filter((e) => e.item.explanation || e.item.solutionDiagramSvg);
+      const p2Detailed = p2Entries.filter((e) => e.item.explanation || e.item.solutionDiagramSvg);
+      const p3Detailed = p3Entries.filter((e) => e.item.explanation || e.item.solutionDiagramSvg || e.item.shortAnswer);
+
+      if (p1Detailed.length > 0 || p2Detailed.length > 0 || p3Detailed.length > 0) {
+        docChildren.push(
+          new Paragraph({
+            spacing: { before: 180, after: 80 },
+            children: [
+              new TextRun({
+                text: 'HƯỚNG DẪN GIẢI CHI TIẾT CÂU HỎI TRẮC NGHIỆM:',
+                bold: true,
+                size: 22,
+                color: '008080',
+                font: 'Times New Roman',
+              }),
+            ],
+          })
+        );
+
+        if (p1Detailed.length > 0) {
+          docChildren.push(
+            new Paragraph({
+              spacing: { before: 80, after: 40 },
+              children: [
+                new TextRun({
+                  text: '1. Giải chi tiết Phần I (TN 4 lựa chọn):',
+                  bold: true,
+                  size: 20,
+                  font: 'Times New Roman',
+                }),
+              ],
+            })
+          );
+          for (const e of p1Detailed) {
+            await appendQuestionSolution(e, true);
+          }
+        }
+
+        if (p2Detailed.length > 0) {
+          docChildren.push(
+            new Paragraph({
+              spacing: { before: 100, after: 40 },
+              children: [
+                new TextRun({
+                  text: '2. Giải chi tiết Phần II (Đúng / Sai):',
+                  bold: true,
+                  size: 20,
+                  font: 'Times New Roman',
+                }),
+              ],
+            })
+          );
+          for (const e of p2Detailed) {
+            await appendQuestionSolution(e, true);
+          }
+        }
+
+        if (p3Detailed.length > 0) {
+          docChildren.push(
+            new Paragraph({
+              spacing: { before: 100, after: 40 },
+              children: [
+                new TextRun({
+                  text: '3. Giải chi tiết Phần III (Trả lời ngắn):',
+                  bold: true,
+                  size: 20,
+                  font: 'Times New Roman',
+                }),
+              ],
+            })
+          );
+          for (const e of p3Detailed) {
+            await appendQuestionSolution(e, true);
+          }
+        }
+      }
+
+      if (p4Entries.length > 0) {
+        docChildren.push(
+          new Paragraph({
+            spacing: { before: 180, after: 80 },
+            children: [
+              new TextRun({
+                text: 'PHẦN IV. HƯỚNG DẪN GIẢI CHI TIẾT TỰ LUẬN & RUBRIC CHẤM ĐIỂM:',
+                bold: true,
+                size: 22,
+                color: '008080',
+                font: 'Times New Roman',
+              }),
+            ],
+          })
+        );
+        for (const e of p4Entries) {
+          await appendQuestionSolution(e, true);
+        }
+      }
+    }
+
+    const doc = new Document({
+      sections: [createDocxSection(docChildren)],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const safePrefix = fileNamePrefix
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .replace(/[^a-zA-Z0-9_-]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'Ngan_Hang_Cau_Hoi_Toan';
+    const fileName = `${safePrefix}_WordEquation.docx`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 2000);
+  }
+}
+
+export interface QuestionBankWordExportOptions {
+  title?: string;
+  subtitle?: string;
+  answerMode?: 'SEPARATE_SECTION' | 'INLINE' | 'QUESTIONS_ONLY';
+  groupByPart?: boolean;
+  includeMetadataTag?: boolean;
+  fileNamePrefix?: string;
 }
