@@ -17,12 +17,23 @@ export class GeminiService {
   ): Promise<ExamPackage> {
     if (onProgress) onProgress('Đang tạo Prompt chuẩn Công văn 7991/BGDĐT...');
 
-    // Trích xuất các câu hỏi cũ cùng môn & khối lớp để đưa vào chỉ thị chống trùng lặp
+    // Chuẩn hóa metadata luôn là Môn Toán & SGK Kết nối tri thức với cuộc sống
+    const normalizedGrade = ['Khối 6', 'Khối 7', 'Khối 8', 'Khối 9'].includes(metadata.grade)
+      ? metadata.grade
+      : 'Khối 6';
+    const normalizedMetadata: ExamMetadata = {
+      ...metadata,
+      subject: 'Toán',
+      curriculum: 'Kết nối tri thức với cuộc sống',
+      grade: normalizedGrade,
+    };
+
+    // Trích xuất các câu hỏi cũ cùng khối lớp để đưa vào chỉ thị chống trùng lặp
     const existingQuestionsToAvoid: string[] = [];
     try {
       const history = StorageEngine.getExamHistory();
       const sameSubjectExams = history.filter(
-        (p) => p.metadata?.subject === metadata.subject && p.metadata?.grade === metadata.grade
+        (p) => p.metadata?.grade === normalizedMetadata.grade
       );
       for (const p of sameSubjectExams.slice(0, 3)) {
         if (p.exams && p.exams[0]?.questions) {
@@ -36,7 +47,7 @@ export class GeminiService {
     } catch {}
 
     const systemInstruction = PromptEngine.getSystemInstruction();
-    const prompt = PromptEngine.buildGenerationPrompt(metadata, existingQuestionsToAvoid);
+    const prompt = PromptEngine.buildGenerationPrompt(normalizedMetadata, existingQuestionsToAvoid);
     const settings = StorageEngine.getSettings();
     const customApiKey = settings.customApiKey?.trim() || '';
     const rawModel = settings.selectedModel || 'gemini-3.1-flash-lite';
@@ -47,9 +58,9 @@ export class GeminiService {
     if (onProgress) onProgress(`Đang gửi yêu cầu tới Gemini AI (${selectedModel})...`);
 
     const combinedImages = [
-      ...(metadata.referenceImages || []),
-      ...(metadata.customMatrixImages || []),
-      ...(metadata.customSpecImages || []),
+      ...(normalizedMetadata.referenceImages || []),
+      ...(normalizedMetadata.customMatrixImages || []),
+      ...(normalizedMetadata.customSpecImages || []),
     ];
 
     const rawText = await callGeminiApi({
@@ -70,7 +81,7 @@ export class GeminiService {
 
     if (onProgress) onProgress('Đang thẩm định và kiểm tra cấu trúc ma trận, câu hỏi...');
 
-    const validationResult = ValidationEngine.validateAndRepair(rawText, metadata);
+    const validationResult = ValidationEngine.validateAndRepair(rawText, normalizedMetadata);
 
     if (!validationResult.isValid) {
       throw new Error(
@@ -79,12 +90,12 @@ export class GeminiService {
     }
 
     if (onProgress)
-      onProgress(`Đang xáo trộn và sinh ${metadata.codeCount || 1} mã đề kiểm tra...`);
+      onProgress(`Đang xáo trộn và sinh ${normalizedMetadata.codeCount || 1} mã đề kiểm tra...`);
 
     // Xáo trộn và sinh nhiều mã đề (101, 102, 103...)
     const { exams, answerKeys } = ShuffleEngine.generateMultipleExamCodes(
       validationResult.questions,
-      metadata.codeCount || 1
+      normalizedMetadata.codeCount || 1
     );
 
     if (onProgress) onProgress('Đã hoàn tất khởi tạo gói đề thi!');
@@ -92,7 +103,7 @@ export class GeminiService {
     const examPackage: ExamPackage = {
       id: `exam-pack-${Date.now()}`,
       createdAt: new Date().toISOString(),
-      metadata,
+      metadata: normalizedMetadata,
       matrix: validationResult.matrix,
       specification: validationResult.specification,
       exams,
@@ -122,12 +133,22 @@ export class GeminiService {
   }): Promise<Question> {
     const { originalQuestion, metadata, teacherPrompt, existingQuestions = [], onProgress } = params;
 
-    if (onProgress) onProgress('Đang chuẩn bị yêu cầu tái tạo câu hỏi chuẩn Công văn 7991...');
+    const normalizedGrade = ['Khối 6', 'Khối 7', 'Khối 8', 'Khối 9'].includes(metadata.grade)
+      ? metadata.grade
+      : 'Khối 6';
+    const normalizedMetadata: ExamMetadata = {
+      ...metadata,
+      subject: 'Toán',
+      curriculum: 'Kết nối tri thức với cuộc sống',
+      grade: normalizedGrade,
+    };
+
+    if (onProgress) onProgress('Đang chuẩn bị yêu cầu tái tạo câu hỏi Toán KNTT chuẩn Công văn 7991...');
 
     const systemInstruction = PromptEngine.getSystemInstruction();
     const prompt = PromptEngine.buildRegenerateQuestionPrompt(
       originalQuestion,
-      metadata,
+      normalizedMetadata,
       teacherPrompt,
       existingQuestions
     );

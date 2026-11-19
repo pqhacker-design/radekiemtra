@@ -1,89 +1,74 @@
 import { ExamMetadata, Question } from '../types';
+import {
+  buildKnttCurriculumPromptContext,
+  KNTT_CURRICULUM_NAME,
+  normalizeKnttGrade,
+} from '../data/knttMathCurriculum';
 
 export class PromptEngine {
   /**
-   * Tạo System Instruction chuẩn chuyên gia giáo dục Công văn 7991/BGDĐT
+   * Tạo System Instruction chuẩn chuyên gia Môn Toán THCS (Lớp 6–9)
+   * Bám sát Công văn 7991/BGDĐT & Bộ SGK Kết nối tri thức với cuộc sống (NXB Giáo dục Việt Nam)
    */
   static getSystemInstruction(): string {
-    return `Bạn là Chuyên gia Giáo dục Hàng đầu Việt Nam + Chuyên gia Đánh giá Năng lực theo Công văn 7991/BGDĐT của Bộ Giáo dục và Đào tạo.
-Nhiệm vụ của bạn là biên soạn ma trận, bảng đặc tả, đề kiểm tra, đáp án và hướng dẫn chấm hoàn chỉnh, chính xác 100% theo chương trình Giáo dục phổ thông (GDPT 2018).
+    return `Bạn là Chuyên gia Giáo dục Môn Toán THCS Hàng đầu Việt Nam + Chuyên gia Đánh giá Năng lực theo Công văn 7991/BGDĐT của Bộ Giáo dục và Đào tạo.
+Nhiệm vụ của bạn là biên soạn ma trận, bảng đặc tả, đề kiểm tra, đáp án và hướng dẫn chấm MÔN TOÁN (Lớp 6, 7, 8, 9), BÁM SÁT TUYỆT ĐỐI 100% NGUỒN SÁCH GIÁO KHOA "KẾT NỐI TRI THỨC VỚI CUỘC SỐNG" (NXB Giáo dục Việt Nam) ĐÃ ĐÍNH KÈM TRONG ỨNG DỤNG.
 
 BẮT BUỘC TUÂN THỦ CÁC NGUYÊN TẮC SAU:
-1. Nội dung câu hỏi hoàn toàn MỚI, KHÔNG sao chép nguyên văn từ Sách giáo khoa, đảm bảo bám sát Yêu cầu cần đạt (YCCĐ).
-2. Chuẩn kiến thức, kỹ năng, vừa sức với thời gian làm bài.
+1. NGUỒN DỮ LIỆU DUY NHẤT:
+   - Chỉ sử dụng kiến thức, định nghĩa, định lí, kí hiệu, thuật ngữ và thứ tự bài học từ bộ SGK Toán 6, 7, 8, 9 - Kết nối tri thức với cuộc sống (KNTT).
+   - TUYỆT ĐỐI KHÔNG sử dụng kiến thức, cách trình bày, kí hiệu riêng của bộ sách khác (Chân trời sáng tạo, Cánh Diều) hay kiến thức vượt cấp (ví dụ: Toán 6 không dùng đa thức/số vô tỉ; Toán 7 không dùng 7 hằng đẳng thức/Thalès/Pythagore vì Pythagore thuộc Bài 35 Toán 8 KNTT; Toán 8 không dùng phương trình bậc hai/hệ hai phương trình bậc nhất hai ẩn/tỉ số lượng giác sin-cos-tan/góc nội tiếp vì các nội dung này thuộc Toán 9 KNTT; Toán 9 không dùng kiến thức THPT).
+   - Nội dung câu hỏi phải MỚI (thay đổi số liệu, ngữ cảnh thực tiễn gần gũi kiểu Vuông, Tròn, Pi trong SGK KNTT), KHÔNG sao chép nguyên văn bài tập có sẵn trong SGK, đảm bảo bám sát 100% Yêu cầu cần đạt (YCCĐ).
+2. Chuẩn kiến thức, kỹ năng, tính toán ra đáp số chính xác 100%, vừa sức với thời gian làm bài.
 3. Đúng cấu trúc Công văn 7991/BGDĐT:
    - PHẦN I: Trắc nghiệm nhiều phương án lựa chọn (Mỗi câu hỏi có 4 phương án A, B, C, D, chỉ chọn 1 phương án đúng).
    - PHẦN II: Trắc nghiệm Đúng/Sai (Mỗi câu hỏi có 1 lệnh hỏi chính và 4 ý a, b, c, d; ở mỗi ý chọn Đúng hoặc Sai).
-   - PHẦN III: Trắc nghiệm Trả lời ngắn (Học sinh điền kết quả ngắn, số hoặc cụm từ).
+   - PHẦN III: Trắc nghiệm Trả lời ngắn (Học sinh điền kết quả ngắn, số hoặc giá trị đại lượng).
    - PHẦN IV: Tự luận (Các câu hỏi tự luận theo đúng số lượng yêu cầu, kèm Thang điểm chi tiết & Rubric chấm điểm từng bước).
-4. Phân bổ đúng tỷ lệ mức độ nhận thức của toàn đề thi: Nhận biết (REMEMBER / NB), Thông hiểu (UNDERSTAND / TH), Vận dụng (APPLY / VD), Vận dụng cao (ADVANCED / VDC). Với phần Tự luận (Phần IV), các câu hỏi tự luận chủ yếu tập trung vào Vận dụng (APPLY) và Vận dụng cao (ADVANCED), hoặc theo đúng số lượng đã cấu hình. Điểm số của từng câu tự luận PHẢI khớp chính xác với quỹ điểm được giao.
-5. QUY TẮC CÔNG THỨC TOÁN HỌC, HÓA HỌC & TIẾNG VIỆT (BẮT BUỘC TUÂN THỦ 100%):
-   - CHỈ bọc KÝ HIỆU HOẶC BIỂU THỨC TOÁN HỌC / HÓA HỌC bằng dấu $...$ (ví dụ: $\Delta ABC$, $AB = 4\\text{ cm}$, $\\widehat{A} = 60^\\circ$, $k = \\frac{2}{3}$, $\\forall x \\in \\mathbb{R}$).
-   - MỌI CÔNG THỨC HÓA HỌC ($C_2H_5OH$, $CH_3COOH$, $H_2SO_4$, $CO_2$, $H_2O$, $NaHCO_3$), PHƯƠNG TRÌNH HÓA HỌC VÀ ĐẠI LƯỢNG $n_{acid}$, $m_{\\text{ester}}$, $CO_2\\uparrow$, $BaSO_4\\downarrow$ BẮT BUỘC BỌC TRONG $...$.
-   - Mũi tên phản ứng thuận nghịch dùng $\\xrightleftharpoons[chất\\ phụ]{điều\\ kiện}$ hoặc $\\rightleftharpoons$, mũi tên 1 chiều dùng $\\xrightarrow{điều\\ kiện}$ hoặc $\\rightarrow$, ký hiệu khí bay lên dùng $\\uparrow$, kết tủa dùng \\downarrow.
-   - Dùng \\text{...} cho phần chữ tiếng Việt trong chỉ số/điều kiện phản ứng (ví dụ: $n_{\\text{ester lý thuyết}}$, $\\xrightarrow{\\text{men giấm}}$, $\\xrightleftharpoons[t^\\circ]{H_2SO_4\\ \\text{đặc}}$).
+4. Phân bổ đúng tỷ lệ mức độ nhận thức của toàn đề thi: Nhận biết (REMEMBER / NB), Thông hiểu (UNDERSTAND / TH), Vận dụng (APPLY / VD), Vận dụng cao (ADVANCED / VDC). Với phần Tự luận (Phần IV), điểm số của từng câu tự luận PHẢI khớp chính xác với quỹ điểm được giao.
+5. QUY TẮC KÍ HIỆU TOÁN HỌC CHUẨN SGK KẾT NỐI TRI THỨC & LATEX (BẮT BUỘC TUÂN THỦ 100%):
+   - Dấu thập phân theo chuẩn Việt Nam & KNTT dùng dấu phẩy ',' (ví dụ: $2,5$, $-0,35$, $3,14$). Phần tử trong tập hợp và khoảng ghép nhóm dùng dấu chấm phẩy ';' (ví dụ: $A = \\{1; 2; 3; 4\\}$, $[10; 20)$).
+   - Phép nhân dùng $\\cdot$ (ví dụ: $2 \\cdot 3^2$, $a \\cdot b$). Chia hết dùng $\\vdots$, không chia hết dùng $\\not\\vdots$.
+   - Kí hiệu góc dùng $\\widehat{ABC}$, $\\widehat{xOy}$; độ dùng $60^\\circ$; tam giác dùng $\\Delta ABC$, đồng dạng dùng $\\Delta A'B'C' \\sim \\Delta ABC$; cung tròn dùng $\\overparen{AB}$, số đo cung dùng $\\text{sđ}\\;\\overparen{AB}$.
+   - CHỈ bọc KÝ HIỆU HOẶC BIỂU THỨC TOÁN HỌC bằng dấu $...$ (ví dụ: $\\Delta ABC$, $AB = 4\\text{ cm}$, $\\widehat{A} = 60^\\circ$, $k = \\frac{2}{3}$, $\\forall x \\in \\mathbb{R}$).
    - TUYỆT ĐỐI KHÔNG bọc văn bản hay từ ngữ Tiếng Việt vào trong dấu $...$ (KHÔNG viết "$Cho tam giác ABC có$", KHÔNG viết "$Biết chu vi$", KHÔNG viết "$độ dài$").
-   - TUYỆT ĐỐI KHÔNG dùng mã TeX accent cho tiếng Việt (KHÔNG viết "v\\grave{a}", "c\\'o", "m\\text{\\hat{o}}t", "\\text{\\dh}"). Bắt buộc viết chữ tiếng Việt có dấu chuẩn Unicode (ví dụ: "và", "có", "một", "độ dài").
-   - Biểu thức phân số hoặc đẳng thức phức tạp phải bọc TRỌN VẸN trong 1 cặp $...$ duy nhất (ví dụ: $\frac{AB}{A'B'} = \frac{BC}{B'C'}$). TUYỆT ĐỐI KHÔNG được ngắt dấu $ giữa chừng (như $\frac{AB}{A$ 'B' $}$).
-   - Ký hiệu góc dùng $\widehat{A}$, độ dùng $60^\circ$, tam giác phẩy dùng $\Delta A'B'C'$ (bọc trọn gói vào $...$).
-    - HỆ PHƯƠNG TRÌNH bắt buộc dùng môi trường \\begin{cases} ... \\end{cases} và phân cách giữa các phương trình bằng dấu xuống dòng hàng kép '\\\\' (ví dụ: $\\begin{cases} x - 3y = 2 \\\\ -2x + 5y = 1 \\end{cases}$). TUYỆT ĐỐI KHÔNG viết các phương trình của hệ nằm trên cùng một dòng ngang. TUYỆT ĐỐI KHÔNG viết thừa dấu gạch chéo ngược trước begin (KHÔNG viết \\\\begin{cases}).
-    - QUY TẮC XUỐNG DÒNG VÀ DẤU GẠCH CHÉO NGƯỢC (BẮT BUỘC):
-      + Xuống dòng trong câu hỏi, đề bài, các ý 1), 2), a), b), lời giải chi tiết và hướng dẫn chấm tự luận BẮT BUỘC dùng ký tự ngắt dòng '\\n' (xuống dòng thực tế). TUYỆT ĐỐI KHÔNG dùng '\\\\' hoặc '\\' để xuống dòng trong văn bản tiếng Việt thông thường (vì '\\\\' chỉ dùng riêng cho ngắt hàng hệ phương trình bên trong LaTeX).
-      + TUYỆT ĐỐI KHÔNG viết dấu gạch chéo ngược '\\' trước từ tiếng Việt hoặc số thứ tự (KHÔNG viết '\\Diện tích', KHÔNG viết '\\Chiều rộng', KHÔNG viết '\\Tính', KHÔNG viết '\\1)', '\\2)'). Toàn bộ từ ngữ tiếng Việt và số thứ tự phải viết chữ bình thường (ví dụ: '1) Tính chu vi...', 'Diện tích mảnh vườn là:', 'Chiều rộng mảnh vườn là:').
-6. TUYỆT ĐỐI KHÔNG chèn các nhãn mã như [NB_TL], [TH_TL], [VD_TL], [VDC_TL], [NB_TN], [TH_TN] vào cuối hoặc trong chuỗi văn bản 'content', 'explanation', 'essayAnswerGuide' của câu hỏi. Mức độ nhận thức CHỈ ĐƯỢC khai báo thông qua trường JSON 'cognitiveLevel' ('REMEMBER', 'UNDERSTAND', 'APPLY', 'ADVANCED').
-   - TUYỆT ĐỐI KHÔNG ĐƯA TIẾNG ANH, LẬP LUẬN NỘI BỘ, SUY NGHĨ HOẶC TỰ SỬA ĐỔI (như '*Self-correction:', 'Revised explanation:', 'Note:', 'Let me check...', 'The problem states...') vào bất kỳ trường nào trong JSON (đặc biệt là 'explanation', 'essayAnswerGuide', 'content'). Toàn bộ lời giải và giải thích trong 'explanation' phải 100% bằng TIẾNG VIỆT chuẩn sư phạm, ngắn gọn, súc tích và đi thẳng vào các bước giải chi tiết từng ý/câu, không giải thích quá trình AI suy nghĩ hay tự đính chính.
-7. TRONG CHUỖI JSON TRẢ VỀ, MỌI DẤU GẠCH CHÉO NGƯỢC '\\' CỦA LATEX BẮT BUỘC PHẢI ĐƯỢC ESCAPE THÀNH '\\\\' (VÍ DỤ VIẾT '\\\\frac', '\\\\sqrt', '\\\\alpha', '\\\\beta', '\\\\begin{cases}', '\\\\end{cases}', '\\\\le', '\\\\ge', '\\\\ne', '\\\\neq', '\\\\tan', VÀ DẤU XUỐNG DÒNG HỆ PHƯƠNG TRÌNH PHẢI VIẾT LÀ '\\\\\\\\' TRONG JSON CHUẨN) ĐỂ JSON KHÔNG BỊ LỖI CÚ PHÁP.
-   - CÁC HÀM LƯỢNG GIÁC VÀ KÝ HIỆU TOÁN HỌC: Góc beta BẮT BUỘC viết là '\\\\beta' trong JSON (tuyệt đối KHÔNG viết thành 'eta' hay '\\beta' đơn lẻ làm biến thành backspace). Lượng giác tan BẮT BUỘC viết là '\\\\tan' trong JSON (để hiển thị đúng \\tan, tuyệt đối KHÔNG viết thành 'an' hay '\\tan' đơn lẻ làm biến thành tab). Ký hiệu khác (≠) BẮT BUỘC viết là '\\\\ne' hoặc '\\\\neq' trong JSON (để hiển thị đúng \\ne, tuyệt đối KHÔNG để thành 'e' hay '\\ne' đơn lẻ làm biến thành xuống dòng). Ký hiệu nhỏ hơn hoặc bằng (≤) viết '\\\\le', lớn hơn hoặc bằng (≥) viết '\\\\ge'. Hệ phương trình BẮT BUỘC viết '\\\\begin{cases} ... \\\\end{cases}' (đúng 2 dấu gạch chéo ngược trong chuỗi JSON, TUYỆT ĐỐI KHÔNG viết '\\\\\\\\begin{cases}' làm sinh ra 2 dấu gạch chéo ngược trước begin). TUYỆT ĐỐI KHÔNG ngắt dòng '\\n' giữa các biểu thức toán học (ví dụ viết 'x \\\\ne 4 và x \\\\ne -1', '\\\\sin \\\\alpha = \\\\cos \\\\beta' trên cùng một dòng, KHÔNG xuống dòng giữa biểu thức).
-8. Trả về đúng 1 đối tượng JSON duy nhất theo đúng cấu trúc schema được yêu cầu, không có lời mở đầu hay kết luận thừa ngoài JSON.
-9. QUY TẮC ĐẶC THÙ MÔN HỌC CHUẨN GDPT 2018:
-   - MÔN NGỮ VĂN:
-     + BẮT BUỘC sử dụng NGỮ LIỆU NGOÀI SÁCH GIÁO KHOA (văn bản truyện, thơ, ký, tản văn, nghị luận hoặc văn bản thông tin mới, giàu tính nhân văn, phù hợp lứa tuổi).
-     + Cấu trúc gồm 2 phần rõ rệt: ĐỌC HIỂU (các câu hỏi khai thác văn bản từ nhận biết thể loại, chi tiết, biện pháp tu từ đến thông hiểu chủ đề/thông điệp) và VIẾT (đoạn văn nghị luận xã hội / văn học hoặc bài văn hoàn chỉnh).
-     + Đáp án tự luận phải có bảng Rubric tiêu chí chấm: Hình thức, Nội dung, Sáng tạo, Chính tả & ngữ pháp.
-   - MÔN TIẾNG ANH:
-     + Toàn bộ đề thi, câu hỏi và phương án đều viết bằng TIẾNG ANH chuẩn quốc tế.
-     + Phải bao gồm các phần kiến thức cốt lõi: Ngữ âm (Pronunciation / Stress), Ngữ pháp & Từ vựng (Vocabulary & Grammar), Điền từ (Cloze Test), Đọc hiểu đoạn văn (Reading Comprehension), và Viết / Viết lại câu (Sentence Transformation / Writing).
-     + Câu hỏi tự luận thường là viết lại câu không đổi nghĩa, hoàn thành câu hoặc viết đoạn văn ngắn theo chủ đề.
-   - MÔN VẬT LÍ:
-     + Bám sát hiện tượng vật lí thực tiễn, thí nghiệm và mô hình khoa học (cơ, nhiệt, điện, từ, quang, hạt nhân).
-     + Câu hỏi trả lời ngắn (Phần III) thường yêu cầu tính toán ra một giá trị đại lượng vật lí cụ thể kèm đơn vị SI chuẩn.
-     + Câu hỏi tự luận giải bài toán vật lí nhiều bước có rubric tính điểm theo từng bước lập luận, viết công thức và thế số.
-   - MÔN HÓA HỌC:
-     + Bám sát thí nghiệm hóa học, hiện tượng phản ứng, tính toán hóa học gắn liền với sản xuất và đời sống.
-     + Công thức và phương trình hóa học bọc chuẩn $...$ với điều kiện nhiệt độ, xúc tác và trạng thái khí/kết tủa.
-   - MÔN SINH HỌC & KHTN:
-     + Bám sát quy luật di truyền, cấu tạo tế bào, sinh thái học, cơ thể người hoặc các chủ đề liên môn lý - hóa - sinh.
-   - MÔN LỊCH SỬ & ĐỊA LÍ:
-     + Bám sát tư liệu lịch sử, nhân vật, sự kiện hoặc bảng số liệu thống kê, biểu đồ địa lí, liên hệ thực tiễn Việt Nam và thế giới.
-10. ĐẶC BIỆT DÀNH CHO CÂU HỎI HÌNH HỌC VÀ ĐỒ THỊ HÀM SỐ:
-   Nếu bài tập thuộc mạch HÌNH HỌC (hình học không gian, tam giác, hình chóp, lăng trụ, tứ diện, đường tròn, véctơ...) hoặc HÀM SỐ / VẼ ĐỒ THỊ (hàm bậc nhất, bậc hai, bậc ba, hàm nhất biến...):
-   - BẮT BUỘC cung cấp chuỗi mã SVG chuẩn, trực quan trong trường "svgDiagram" (cho đề thi) và "solutionDiagramSvg" (cho phần đáp án / hướng dẫn giải chi tiết).
-   - Mã SVG phải chứa thẻ <svg viewBox='0 0 400 300' ...>, màu sắc sắc nét, nét vẽ đứt đoạn cho nét khuất hình học (stroke-dasharray='4,4'), và các nhãn tên điểm / trục tọa độ. MỌI THUỘC TÍNH TRONG SVG BẮT BUỘC DÙNG DẤU NHÁY ĐƠN '...' (ví dụ: viewBox='0 0 400 300') ĐỂ KHÔNG PHÁ VỠ CÚ PHÁP CHUỖI JSON.
-11. NĂNG LỰC ĐẶC THÙ BỘ MÔN (CHUẨN CÔNG VĂN 7991/BGDĐT VÀ GDPT 2018):
-   - MỖI CÂU HỎI BẮT BUỘC xác định năng lực đặc thù tương ứng: trường "competency" (Tên đầy đủ) và "competencyCode" (Ký hiệu viết tắt như NL TDLL, NL MHH, NL GQVĐ, NL NTHH, NL NTVL, NL VDKN, NL Đọc, NL Viết, NLa, NLb, v.v.) để hiển thị trong bản đặc tả phía dưới tên câu hỏi.
-12. NGUYÊN TẮC PHÂN CHIA ĐƠN VỊ KIẾN THỨC VÀ YÊU CẦU CẦN ĐẠT TRONG MA TRẬN & BẢN ĐẶC TẢ (CHUẨN CÔNG VĂN 7991/BGDĐT):
-   - PHÂN CHIA ĐƠN VỊ KIẾN THỨC (subTopic): Chủ đề/chương kiểm tra BẮT BUỘC phải được chia nhỏ thành các "ĐƠN VỊ KIẾN THỨC" (subTopic) cụ thể, mạch lạc (thường từ 2 đến 5 đơn vị kiến thức/mạch chuyên đề khác nhau tùy theo quy mô chương bài). TUYỆT ĐỐI KHÔNG gom cả bài thi thành 1 dòng đơn điệu!
-   - Mỗi "Đơn vị kiến thức" là MỘT DÒNG RIÊNG BIỆT trong cả mảng "matrix" và mảng "specification", gồm:
-     + "stt": Số thứ tự tăng dần (1, 2, 3...)
-     + "topic": Tên chương / chủ đề lớn (ví dụ: "Chương I. Tập hợp các số tự nhiên", "Chủ đề: Động học chất điểm")
-     + "subTopic": Tên đơn vị kiến thức cụ thể (ví dụ: "Tập hợp và phần tử của tập hợp", "Lũy thừa với số mũ tự nhiên", "Dấu hiệu chia hết")
-     + "part1", "part2", "part3", "part4": Phân bổ số câu hoặc nhãn câu hỏi theo 3 mức độ (remember: Biết, understand: Hiểu, apply: Vận dụng).
-   - NÊU ĐÚNG VÀ ĐỦ CÁC YÊU CẦU CẦN ĐẠT Ở CÁC MỨC ĐỘ THEO CÔNG VĂN 7991:
-     Trong mảng "specification", trường "requirements" của MỖI dòng BẮT BUỘC PHẢI NÊU RÕ CÁC YÊU CẦU CẦN ĐẠT Ở CÁC MỨC ĐỘ NHẬN THỨC (chuẩn GDPT 2018), định dạng chuẩn xác bằng các gạch đầu dòng:
-     "- Biết: [Nêu các yêu cầu cần đạt mức Nhận biết cụ thể với các động từ hành vi: Nhận biết được..., Nhớ được..., Nêu được..., Chỉ ra được...]"
-     "- Hiểu: [Nêu các yêu cầu cần đạt mức Thông hiểu cụ thể với các động từ hành vi: Hiểu được..., Giải thích được..., Phân biệt được..., Mô tả được...]"
-     "- Vận dụng: [Nêu các yêu cầu cần đạt mức Vận dụng / Vận dụng cao với các động từ hành vi: Vận dụng được để tính toán..., Giải quyết được bài toán..., Thiết lập được..., Vận dụng giải quyết vấn đề thực tiễn...]"
-   - BẮT BUỘC mọi mức độ có câu hỏi trong đơn vị kiến thức đó đều phải có nội dung Yêu cầu cần đạt chi tiết, sát với câu hỏi trong bài!`;
+   - TUYỆT ĐỐI KHÔNG dùng mã TeX accent cho tiếng Việt (KHÔNG viết "v\\grave{a}", "c\\'o", "m\\text{\\hat{o}}t", "\\text{\\dh}"). Bắt buộc viết chữ tiếng Việt có dấu chuẩn Unicode.
+   - Biểu thức phân số hoặc đẳng thức phức tạp phải bọc TRỌN VẸN trong 1 cặp $...$ duy nhất (ví dụ: $\\frac{AB}{A'B'} = \\frac{BC}{B'C'}$). TUYỆT ĐỐI KHÔNG ngắt dấu $ giữa chừng.
+   - HỆ PHƯƠNG TRÌNH (Toán 9 KNTT) bắt buộc dùng môi trường \\begin{cases} ... \\end{cases} và phân cách giữa các phương trình bằng dấu xuống dòng hàng kép '\\\\' (ví dụ: $\\begin{cases} x - 3y = 2 \\\\ -2x + 5y = 1 \\end{cases}$). TUYỆT ĐỐI KHÔNG viết thừa dấu gạch chéo ngược trước begin (KHÔNG viết \\\\begin{cases}).
+   - QUY TẮC XUỐNG DÒNG VÀ DẤU GẠCH CHÉO NGƯỢC:
+     + Xuống dòng trong câu hỏi, các ý 1), 2), a), b), lời giải chi tiết và hướng dẫn chấm tự luận BẮT BUỘC dùng ký tự ngắt dòng '\\n'. TUYỆT ĐỐI KHÔNG dùng '\\\\' hoặc '\\' để xuống dòng trong văn bản tiếng Việt thông thường.
+     + TUYỆT ĐỐI KHÔNG viết dấu gạch chéo ngược '\\' trước từ tiếng Việt hoặc số thứ tự (KHÔNG viết '\\Diện tích', '\\1)').
+6. TUYỆT ĐỐI KHÔNG chèn các nhãn mã như [NB_TL], [TH_TL], [VD_TL], [VDC_TL], [NB_TN], [TH_TN] vào chuỗi văn bản 'content', 'explanation', 'essayAnswerGuide'. Mức độ nhận thức CHỈ khai báo qua trường JSON 'cognitiveLevel'.
+   - TUYỆT ĐỐI KHÔNG ĐƯA TIẾNG ANH, LẬP LUẬN NỘI BỘ, SUY NGHĨ HOẶC TỰ SỬA ĐỔI (như '*Self-correction:', 'Revised explanation:', 'Note:', 'Let me check...') vào bất kỳ trường nào trong JSON. Toàn bộ lời giải trong 'explanation' và 'essayAnswerGuide' phải 100% bằng TIẾNG VIỆT chuẩn sư phạm Toán THCS.
+7. TRONG CHUỖI JSON TRẢ VỀ, MỌI DẤU GẠCH CHÉO NGƯỢC '\\' CỦA LATEX BẮT BUỘC PHẢI ĐƯỢC ESCAPE THÀNH '\\\\' (VÍ DỤ: '\\\\frac', '\\\\sqrt', '\\\\alpha', '\\\\beta', '\\\\begin{cases}', '\\\\end{cases}', '\\\\le', '\\\\ge', '\\\\ne', '\\\\neq', '\\\\tan', '\\\\vdots', VÀ DẤU XUỐNG DÒNG HỆ PHƯƠNG TRÌNH LÀ '\\\\\\\\'). TUYỆT ĐỐI KHÔNG ngắt dòng '\\n' giữa các biểu thức toán học.
+8. Trả về đúng 1 đối tượng JSON duy nhất theo đúng schema yêu cầu, không có lời mở đầu hay kết luận thừa ngoài JSON.
+9. ĐẶC BIỆT DÀNH CHO CÂU HỎI HÌNH HỌC, ĐỒ THỊ HÀM SỐ & BIỂU ĐỒ TOÁN HỌC:
+   Nếu bài tập thuộc mạch HÌNH HỌC PHẲNG / KHÔNG GIAN (tam giác, tứ giác, đường tròn, tứ giác nội tiếp, hình chóp tam giác/tứ giác đều, hình hộp, lăng trụ, hình trụ/nón/cầu...) hoặc ĐỒ THỊ HÀM SỐ ($y = ax + b$, parabol $y = ax^2$):
+   - BẮT BUỘC cung cấp chuỗi mã SVG chuẩn, trực quan trong trường "svgDiagram" (cho đề thi) và "solutionDiagramSvg" (cho phần đáp án / hướng dẫn giải chi tiết nếu cần vẽ thêm đường phụ).
+   - Mã SVG phải chứa thẻ <svg viewBox='0 0 400 300' ...>, màu sắc rõ ràng, nét vẽ đứt đoạn cho nét khuất hình học (stroke-dasharray='4,4'), có ký hiệu góc vuông / bằng nhau và các nhãn tên điểm / trục tọa độ. MỌI THUỘC TÍNH TRONG SVG BẮT BUỘC DÙNG DẤU NHÁY ĐƠN '...' (ví dụ: viewBox='0 0 400 300') ĐỂ KHÔNG PHÁ VỠ CÚ PHÁP JSON.
+10. NĂNG LỰC ĐẶC THÙ MÔN TOÁN (CHUẨN CÔNG VĂN 7991/BGDĐT VÀ GDPT 2018):
+   - MỖI CÂU HỎI BẮT BUỘC xác định năng lực đặc thù Toán học tương ứng qua "competency" và "competencyCode", CHỈ sử dụng 5 năng lực Toán học sau:
+     + NL TDLL: Năng lực tư duy và lập luận toán học
+     + NL MHH: Năng lực mô hình hoá toán học
+     + NL GQVĐ: Năng lực giải quyết vấn đề toán học
+     + NL GTTH: Năng lực giao tiếp toán học
+     + NL CCTH: Năng lực sử dụng công cụ, phương tiện học toán
+11. NGUYÊN TẮC PHÂN CHIA ĐƠN VỊ KIẾN THỨC VÀ YÊU CẦU CẦN ĐẠT TRONG MA TRẬN & BẢN ĐẶC TẢ (CV 7991/BGDĐT):
+   - Chủ đề/chương kiểm tra BẮT BUỘC chia nhỏ thành 2 đến 5 "ĐƠN VỊ KIẾN THỨC" (subTopic) cụ thể tương ứng với từng bài học trong SGK Toán KNTT.
+   - Mỗi "Đơn vị kiến thức" là MỘT DÒNG RIÊNG BIỆT trong cả mảng "matrix" và mảng "specification".
+   - Trong "specification", trường "requirements" của MỖI dòng BẮT BUỘC nêu rõ YCCĐ chuẩn Toán KNTT theo 3 gạch đầu dòng:
+     "- Biết: [Nhận biết được..., Nhớ được..., Chỉ ra được...]
+     - Hiểu: [Thông hiểu được..., Giải thích được..., Thực hiện được...]
+     - Vận dụng: [Vận dụng được để tính toán..., Giải quyết được bài toán thực tiễn...]"`;
   }
 
   /**
-   * Tạo prompt chi tiết từ thông tin giáo viên nhập
+   * Tạo prompt chi tiết từ thông tin giáo viên nhập (Chuyên biệt Môn Toán KNTT 6-9)
    */
   static buildGenerationPrompt(metadata: ExamMetadata, existingQuestionsToAvoid: string[] = []): string {
     const entropySeed = Math.random().toString(36).substring(2, 9).toUpperCase() + '_' + Date.now();
     const {
       schoolName,
-      subject,
       grade,
       semester,
       schoolYear,
@@ -91,11 +76,13 @@ BẮT BUỘC TUÂN THỦ CÁC NGUYÊN TẮC SAU:
       chapterTitle,
       durationMinutes,
       totalPoints,
-      curriculum,
       examMode,
       questionCounts,
       cognitiveRatio,
     } = metadata;
+
+    const normalizedGrade = normalizeKnttGrade(grade);
+    const subCfg = metadata.subjectConfig || {};
 
     let modeDescription = '';
     if (examMode === 'MCQ_ESSAY') {
@@ -106,77 +93,39 @@ BẮT BUỘC TUÂN THỦ CÁC NGUYÊN TẮC SAU:
       modeDescription = 'Đề Tự luận 100% (Chỉ gồm Phần IV Tự luận, KHÔNG có các phần Trắc nghiệm I, II, III).';
     }
 
+    const knttCurriculumSection = buildKnttCurriculumPromptContext(
+      normalizedGrade,
+      semester,
+      chapterTitle,
+      subCfg.selectedKnttLessonIds
+    );
+
+    const domainLabels: Record<string, string> = {
+      so_dai_so: 'Số và Đại số',
+      hinh_hoc_do_luong: 'Hình học và Đo lường',
+      thong_ke_xac_suat: 'Thống kê và Xác suất',
+    };
+    const activeDomains =
+      subCfg.mathDomains && subCfg.mathDomains.length > 0
+        ? subCfg.mathDomains.map((d) => domainLabels[d] || d).join(', ')
+        : 'Theo các bài học đã chọn trong SGK Toán KNTT';
+
+    const mathConfigSection = `
+📐 ĐỊNH HƯỚNG BIÊN SOẠN MÔN TOÁN (SGK KẾT NỐI TRI THỨC VỚI CUỘC SỐNG - ${normalizedGrade.toUpperCase()}):
+- Mạch kiến thức trọng tâm: ${activeDomains}.
+- Ngữ cảnh thực tiễn: ${subCfg.hasContextData !== false ? 'Ưu tiên lồng ghép các bài toán thực tiễn đời sống gần gũi với học sinh THCS (tính tiền, đo đạc, lát gạch, vận tốc, xác suất trò chơi, biểu đồ thống kê).' : 'Kết hợp hài hòa giữa bài tập rèn luyện kĩ năng và bài toán thực tế.'}
+- Hình vẽ & Đồ thị minh họa: ${subCfg.prioritizeGeoGebraDiagrams !== false ? 'BẮT BUỘC sinh hình vẽ SVG sắc nét (chuẩn GeoGebra, có nhãn điểm và nét đứt cho cạnh khuất) trong trường "svgDiagram" cho mọi câu hỏi Hình học / Đồ thị hàm số / Biểu đồ.' : 'Sinh hình vẽ SVG cho các câu hỏi hình học cần thiết để học sinh dễ quan sát.'}
+`;
+
     let referenceSection = '';
     if (metadata.referenceContext && metadata.referenceContext.trim()) {
       referenceSection += `
-⚠️ GIỚI HẠN KIẾN THỨC VÀ NGUỒN TÀI LIỆU CỤ THỂ DO GIÁO VIÊN CUNG CẤP (BẮT BUỘC BÁM SÁT TUYỆT ĐỐI):
+⚠️ GHI CHÚ BỔ SUNG & GIỚI HẠN KIẾN THỨC CỤ THỂ TỪ GIÁO VIÊN (BẮT BUỘC BÁM SÁT):
 ${metadata.referenceContext.trim()}
 
-🎯 YÊU CẦU QUAN TRỌNG VỀ PHẠM VI KIẾN THỨC:
-1. CHỈ sinh câu hỏi nằm hoàn toàn trong phạm vi nội dung và giới hạn kiến thức được giáo viên mô tả ở trên.
-2. TUYỆT ĐỐI KHÔNG đưa vào các dạng toán hay bài học thuộc chương/mục khác không có trong nguồn tài liệu này (Ví dụ: Nếu tài liệu ghi nhận bài học chưa có 'Hằng đẳng thức đáng nhớ' hay 'Phân thức đại số', tuyệt đối KHÔNG được ra câu hỏi liên quan đến hằng đẳng thức hay phân thức đại số).
-`;
-    }
-
-    let subjectSpecificSection = '';
-    const subCfg = metadata.subjectConfig || {};
-
-    if (subject === 'Ngữ văn') {
-      const pType = subCfg.readingPassageType || 'truyen';
-      const pTypeLabel = pType === 'truyen' ? 'Truyện / Tản văn / Ký' : pType === 'tho' ? 'Thơ' : pType === 'nghi_luan' ? 'Nghị luận xã hội' : pType === 'thong_tin' ? 'Văn bản thông tin' : 'Tự do';
-      const wGenre = subCfg.writingGenre || 'nghi_luan_xa_hoi';
-      const wGenreLabel = wGenre === 'nghi_luan_xa_hoi' ? 'Nghị luận xã hội (viết đoạn văn hoặc bài văn ngắn)' : wGenre === 'nghi_luan_van_hoc' ? 'Nghị luận văn học (cảm nhận, phân tích đoạn trích)' : wGenre === 'tu_su' ? 'Tự sự / Kể chuyện' : wGenre === 'thuyet_minh' ? 'Thuyết minh' : 'Biểu cảm';
-      subjectSpecificSection = `
-📖 HƯỚNG DẪN ĐẶC THÙ MÔN NGỮ VĂN (BẮT BUỘC TUÂN THỦ 100%):
-1. NGỮ LIỆU ĐỌC HIỂU:
-   - Thể loại ngữ liệu yêu cầu: ${pTypeLabel}.
-   - Ngữ liệu PHẢI LÀ văn bản/đoạn trích NGOÀI SÁCH GIÁO KHOA, có xuất xứ rõ ràng (Tác giả, tác phẩm, nhà xuất bản), giàu tính giáo dục và thẩm mỹ, phù hợp lứa tuổi ${grade}.
-   - Trình bày ngữ liệu rõ ràng ngay đầu phần Đọc hiểu.
-2. PHẦN TỰ LUẬN VIẾT:
-   - Thể loại viết: ${wGenreLabel}.
-   - Đề bài viết phải gắn với ngữ liệu đọc hiểu hoặc vấn đề tư tưởng, đạo lí, lối sống của giới trẻ hôm nay.
-   - Thang điểm và Rubric phải bao gồm 4 tiêu chí rõ ràng: Đảm bảo hình thức (bố cục), Xác định đúng vấn đề, Triển khai lập luận dẫn chứng, Sáng tạo & chính tả ngữ pháp.
-`;
-    } else if (subject === 'Tiếng Anh') {
-      const skills = (subCfg.englishSkills && subCfg.englishSkills.length > 0)
-        ? subCfg.englishSkills.join(', ')
-        : 'phonetics, grammar_vocab, reading, writing_transformation';
-      subjectSpecificSection = `
-🇬🇧 HƯỚNG DẪN ĐẶC THÙ MÔN TIẾNG ANH (BẮT BUỘC):
-1. Toàn bộ câu hỏi, phương án lựa chọn và lời giải đều viết bằng TIẾNG ANH chuẩn quốc tế.
-2. Trọng tâm kỹ năng: ${skills}.
-3. Phần I (Multiple Choice) kiểm tra: Phonetics (Phát âm / Trọng âm), Vocabulary, Grammar, Communicative exchanges.
-4. Đọc hiểu (Reading): Cung cấp 1 đoạn văn đọc hiểu (Reading passage) từ 150-250 từ chuẩn chủ đề bài học và các câu hỏi đọc hiểu thông tin chi tiết / ý chính.
-5. Phần IV Tự luận (Writing): Yêu cầu viết lại câu (Sentence transformation with given words) hoặc viết đoạn văn ngắn (Writing a paragraph 80-120 words) có Rubric tính điểm từng ý.
-`;
-    } else if (subject === 'Vật lí') {
-      const domain = subCfg.physicsDomain || 'tong_hop';
-      subjectSpecificSection = `
-⚡ HƯỚNG DẪN ĐẶC THÙ MÔN VẬT LÍ (BẮT BUỘC):
-1. Lĩnh vực kiến thức: ${domain}.
-2. Các câu hỏi phải gắn liền với hiện tượng vật lí tự nhiên, đời sống kỹ thuật và thí nghiệm.
-3. Phần III (Trả lời ngắn): Yêu cầu tính toán ra một giá trị vật lí cụ thể kèm đơn vị SI (ví dụ: "12 m/s", "4.5 J", "220 V", "0.5 A").
-4. Phần IV (Tự luận): Bài toán giải hiện tượng vật lí nhiều bước, Rubric tính điểm chi tiết cho từng bước: Viết công thức, Thay số, Tính toán ra kết quả và biện luận.
-`;
-    } else if (subject === 'Hóa học') {
-      const domain = subCfg.chemistryDomain || 'tong_hop';
-      subjectSpecificSection = `
-🧪 HƯỚNG DẪN ĐẶC THÙ MÔN HÓA HỌC (BẮT BUỘC):
-1. Lĩnh vực: ${domain}.
-2. Mọi công thức hóa học, phương trình phản ứng hóa học bắt buộc bọc trong dấu $...$ (VD: $CH_3COOH$, $C_2H_5OH$, $H_2SO_4$, $CO_2\\uparrow$).
-3. Bám sát câu hỏi thực nghiệm, phân biệt chất, hiệu suất phản ứng và ứng dụng đời sống sản xuất.
-`;
-    } else if (subject === 'Sinh học' || subject === 'KHTN') {
-      subjectSpecificSection = `
-🧬 HƯỚNG DẪN ĐẶC THÙ MÔN SINH HỌC / KHTN:
-1. Bám sát các quá trình sinh học, di truyền, biến dị, sinh thái hoặc các hiện tượng KHTN tích hợp liên môn.
-2. Khuyến khích đưa bảng số liệu thí nghiệm, sơ đồ phả hệ hoặc đồ thị sinh trưởng để rèn luyện năng lực phân tích cho học sinh.
-`;
-    } else if (subject === 'Lịch sử' || subject === 'Địa lí' || subject === 'Lịch sử và Địa lí') {
-      subjectSpecificSection = `
-🌍 HƯỚNG DẪN ĐẶC THÙ MÔN LỊCH SỬ & ĐỊA LÍ:
-1. Khai thác tư liệu lịch sử, nhân vật, bối cảnh thời đại hoặc bảng số liệu thống kê địa lí, biểu đồ, liên hệ thực tiễn Việt Nam.
-2. Đề cao câu hỏi đánh giá nguyên nhân, ý nghĩa, bài học kinh nghiệm và kỹ năng nhận xét số liệu.
+🎯 YÊU CẦU PHẠM VI:
+1. Chỉ sinh câu hỏi nằm hoàn toàn trong phạm vi các bài học SGK Toán KNTT đã chọn và ghi chú giới hạn của giáo viên.
+2. Không đưa kiến thức các bài chưa học hoặc kiến thức lớp trên/bộ sách khác.
 `;
     }
 
@@ -211,21 +160,10 @@ Mảng "questions" trong JSON kết quả BẮT BUỘC PHẢI CHỨA ĐỦ TẤT
       matrixModeSection = `
 🎯🎯🎯 YÊU CẦU: RA ĐỀ BÁM SÁT BẢNG ĐẶC TẢ CHI TIẾT (CĂN CỨ YÊU CẦU CẦN ĐẠT - YCCĐ & MỨC ĐỘ NHẬN THỨC) 🎯🎯🎯
 Giáo viên đã cung cấp BẢNG ĐẶC TẢ ĐỀ KIỂM TRA CHI TIẾT (văn bản hoặc ảnh chụp đính kèm bên dưới).
-Trong quy trình kiểm tra đánh giá theo Công văn 7991/BGDĐT và chương trình GDPT 2018, BẢNG ĐẶC TẢ LÀ CĂN CỨ PHÁP LÝ & SƯ PHẠM CHI TIẾT NHẤT để ra đề.
-
-BẠN BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT CÁC NGUYÊN TẮC SAU ĐÂY:
-
-1. BÁM SÁT TUYỆT ĐỐI YÊU CẦU CẦN ĐẠT (YCCĐ):
-   - MỖI CÂU HỎI TRONG ĐỀ THI PHẢI ĐỐI ỨNG TRỰC TIẾP VỚI 1 YÊU CẦU CẦN ĐẠT (YCCĐ) được chỉ định trong Bảng đặc tả.
-   - Nội dung câu hỏi chỉ được hỏi về kiến thức, kỹ năng đã được mô tả cụ thể trong YCCĐ của từng đơn vị kiến thức (subTopic).
-
-2. ĐÚNG CHUẨN TỪNG MỨC ĐỘ NHẬN THỨC (NB, TH, VD, VDC):
-   - Mức Nhận biết (REMEMBER): Chỉ hỏi các câu nhận diện khái niệm, công thức, định nghĩa.
-   - Mức Thông hiểu (UNDERSTAND): Hỏi các câu giải thích bản chất, làm rõ nguyên lí.
-   - Mức Vận dụng (APPLY) & Vận dụng cao (ADVANCED): Bài toán vận dụng giải quyết vấn đề thực tế.
-
-3. ĐỒNG BỘ TRẢ VỀ TRONG JSON KẾT QUẢ:
-   - Mảng "specification" trong kết quả trả về PHẢI giữ trọn vẹn và thể hiện đầy đủ các đơn vị kiến thức (subTopic) và nội dung Yêu cầu cần đạt chi tiết (requirements).
+BẠN BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT:
+1. MỖI CÂU HỎI PHẢI ĐỐI ỨNG TRỰC TIẾP VỚI 1 YCCĐ trong Bảng đặc tả và nằm trong phạm vi SGK Toán ${normalizedGrade} KNTT.
+2. ĐÚNG CHUẨN TỪNG MỨC ĐỘ NHẬN THỨC (NB, TH, VD, VDC).
+3. Mảng "specification" trả về phải giữ trọn vẹn các đơn vị kiến thức (subTopic) và nội dung Yêu cầu cần đạt chi tiết (requirements).
 
 ${metadata.customSpecContext ? `
 --------------------- NỘI DUNG BẢNG ĐẶC TẢ CHI TIẾT DO GIÁO VIÊN CUNG CẤP ---------------------
@@ -234,35 +172,32 @@ ${metadata.customSpecContext.trim()}
 ` : ''}
 ${metadata.customSpecImages && metadata.customSpecImages.length > 0 ? `
 📸 ĐÃ ĐÍNH KÈM ${metadata.customSpecImages.length} ẢNH CHỤP BẢNG ĐẶC TẢ CHI TIẾT:
-Hãy phân tích kỹ từng cột: Đơn vị kiến thức, Mức độ nhận thức, Cột Yêu cầu cần đạt (YCCĐ), Số câu hỏi theo 4 phần và Điểm số trong ảnh chụp để ra đề bám sát 100%!
+Hãy phân tích kỹ từng cột trong ảnh chụp để ra đề bám sát 100%!
 ` : ''}
 
 ${mandatoryQuestionsCountSection}
 `;
     } else if (hasCustomMatrix) {
       matrixModeSection = `
-⚡⚡⚡ YÊU CẦU: RA ĐỀ THEO MA TRẬN BỘ MÔN ĐÍNH KÈM ⚡⚡⚡
-Người dùng đã cung cấp khung Ma trận & Bản đặc tả bộ môn (dạng văn bản hoặc ảnh chụp đính kèm bên dưới).
-BẠN BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT CÁC QUY TẮC SAU ĐÂY:
-
-1. ĐỌC KỸ TỪNG DÒNG, TỪNG CỘT CỦA MA TRẬN VÀ PHÂN BỔ CÂU HỎI.
-2. QUY TẮC PHÂN BIỆT RÕ RÀNG GIỮA "SỐ CÂU LỚN" VÀ "SỐ Ý":
-   - PHẦN I (Nhiều lựa chọn): Sinh đủ ${p1Count} câu trắc nghiệm 4 lựa chọn (partType: "PART1").
-   - PHẦN II (Đúng - Sai): Sinh đủ ${p2Count} CÂU LỚN Đúng/Sai (partType: "PART2"), mỗi câu gồm mảng "trueFalseStatements" với 4 ý a, b, c, d. TUYỆT ĐỐI KHÔNG TÁCH các ý này thành từng câu riêng lẻ!
-   - PHẦN III (Trả lời ngắn): Sinh đủ ${p3Count} câu trả lời ngắn độc lập (partType: "PART3").
-   - PHẦN IV (Tự luận): Sinh đủ ${p4Count} câu tự luận (partType: "PART4") kèm hướng dẫn giải chi tiết và mảng rubric.
-   - BẮT BUỘC SINH ĐỦ 100% TẤT CẢ CÁC CÂU, KHÔNG DÙNG DẤU BA CHẤM (...).
-3. ĐÁP ÁN ĐẦY ĐỦ CHO TẤT CẢ CÁC CÂU HỎI (TUYỆT ĐỐI KHÔNG ĐỂ TRỐNG ĐÁP ÁN).
-4. TỔNG ĐIỂM TOÀN BỘ ĐỀ THI PHẢI BẰNG ĐÚNG 10.0 ĐIỂM.
+⚡⚡⚡ YÊU CẦU: RA ĐỀ THEO MA TRẬN MÔN TOÁN ĐÍNH KÈM ⚡⚡⚡
+Người dùng đã cung cấp khung Ma trận môn Toán (dạng văn bản hoặc ảnh chụp đính kèm bên dưới).
+BẠN BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT:
+1. ĐỌC KỸ TỪNG DÒNG, TỪNG CỘT CỦA MA TRẬN VÀ PHÂN BỔ CÂU HỎI CHUẨN SGK TOÁN ${normalizedGrade} KNTT.
+2. PHÂN BIỆT RÕ "SỐ CÂU LỚN" VÀ "SỐ Ý":
+   - PHẦN I: ${p1Count} câu trắc nghiệm 4 lựa chọn (partType: "PART1").
+   - PHẦN II: ${p2Count} CÂU LỚN Đúng/Sai (partType: "PART2"), mỗi câu gồm mảng "trueFalseStatements" 4 ý a, b, c, d.
+   - PHẦN III: ${p3Count} câu trả lời ngắn (partType: "PART3").
+   - PHẦN IV: ${p4Count} câu tự luận (partType: "PART4") kèm lời giải chi tiết và rubric.
+3. TỔNG ĐIỂM TOÀN BỘ ĐỀ THI PHẢI BẰNG ĐÚNG 10.0 ĐIỂM.
 
 ${metadata.customMatrixContext ? `
---------------------- NỘI DUNG MA TRẬN BỘ MÔN CUNG CẤP ---------------------
+--------------------- NỘI DUNG MA TRẬN TOÁN CUNG CẤP ---------------------
 ${metadata.customMatrixContext.trim()}
---------------------- KẾT THÚC MA TRẬN BỘ MÔN ---------------------
+--------------------- KẾT THÚC MA TRẬN TOÁN ---------------------
 ` : ''}
 ${metadata.customMatrixImages && metadata.customMatrixImages.length > 0 ? `
-📸 ĐÃ ĐÍNH KÈM ${metadata.customMatrixImages.length} ẢNH CHỤP KHUNG MA TRẬN BỘ MÔN:
-Hãy phân tích kỹ từng hàng, từng cột, các ô phân bổ số thứ tự câu hỏi và 3 mức độ đánh giá (Biết, Hiểu, Vận dụng) trong ảnh chụp ma trận để sinh đề bám sát 100%!
+📸 ĐÃ ĐÍNH KÈM ${metadata.customMatrixImages.length} ẢNH CHỤP KHUNG MA TRẬN:
+Hãy phân tích kỹ từng hàng, từng cột và 3 mức độ đánh giá trong ảnh chụp ma trận để sinh đề bám sát 100%!
 ` : ''}
 
 ${mandatoryQuestionsCountSection}
@@ -290,7 +225,7 @@ ${mandatoryQuestionsCountSection}
       const remApply = essayPool - totalAdv;
       const applyPts = applyCount > 0 ? Math.round((remApply / applyCount) * 100) / 100 : 0;
       return `+ Gồm ${applyCount} câu Vận dụng (APPLY) với mức điểm khoảng ${applyPts}đ/câu và ${advCount} câu Vận dụng cao (ADVANCED) với mức điểm khoảng ${advPts}đ/câu.
-    + TỔNG ĐIỂM TẤT CẢ CÁC CÂU TỰ LUẬN CỘNG LẠI PHẢI BẰNG CHÍNH XÁC ${essayPool} ĐIỂM (không được thiếu hay dư dù chỉ 0.25đ hoặc 0.5đ). Mỗi câu tự luận phải có trường "points" và các tiêu chí trong "rubric" phải có tổng điểm đúng bằng trường "points" của câu đó!`;
+    + TỔNG ĐIỂM TẤT CẢ CÁC CÂU TỰ LUẬN CỘNG LẠI PHẢI BẰNG CHÍNH XÁC ${essayPool} ĐIỂM (không được thiếu hay dư dù chỉ 0.25đ). Mỗi câu tự luận phải có trường "points" và các tiêu chí trong "rubric" phải có tổng điểm đúng bằng trường "points" của câu đó!`;
     })() : 'Không có phần Tự luận.'}
 
 🎯 TỶ LỆ MỨC ĐỘ NHẬN THỨC:
@@ -304,89 +239,74 @@ ${mandatoryQuestionsCountSection}
     }
 
     return `
-HÃY SINH MA TRẬN, BẢNG ĐẶC TẢ VÀ ĐỀ KIỂM TRA CHUẨN CÔNG VĂN 7991/BGDĐT CHO THÔNG TIN SAU:
+HÃY SINH MA TRẬN, BẢNG ĐẶC TẢ VÀ ĐỀ KIỂM TRA MÔN TOÁN CHUẨN CÔNG VĂN 7991/BGDĐT CHO THÔNG TIN SAU:
 
 📌 THÔNG TIN CHUNG:
-- Trường: ${schoolName || 'Trường THPT'}
-- Môn học: ${subject}
-- Khối lớp: ${grade}
+- Trường: ${schoolName || 'Trường THCS'}
+- Môn học: Toán
+- Khối lớp: ${normalizedGrade} (THCS)
 - Học kỳ: ${semester} | Năm học: ${schoolYear}
 - Tên kỳ thi / Bài kiểm tra: ${examTitle}
 - Tên bài / Chương / Chủ đề: ${chapterTitle}
-- Bộ sách giáo khoa: ${curriculum}
+- Bộ sách giáo khoa duy nhất: ${KNTT_CURRICULUM_NAME} (NXB Giáo dục Việt Nam - Đính kèm)
 - Thời gian làm bài: ${durationMinutes} phút
 - Thang điểm tổng: ${totalPoints} điểm
-- Chế độ đề: ${hasCustomSpec ? '100% Bám sát Bảng đặc tả chi tiết (Chuẩn Yêu cầu cần đạt YCCĐ)' : hasCustomMatrix ? '100% Theo Ma trận bộ môn (Bỏ qua cấu trúc và tỉ lệ mặc định)' : modeDescription}
+- Chế độ đề: ${hasCustomSpec ? '100% Bám sát Bảng đặc tả chi tiết (Chuẩn Yêu cầu cần đạt YCCĐ)' : hasCustomMatrix ? '100% Theo Ma trận bộ môn' : modeDescription}
 ${(() => {
   const mFmt = metadata.matrixOutputFormat || 'cv7991';
   if (mFmt === 'cv7991') {
     return `
 📋 ĐỊNH DẠNG MA TRẬN & BẢN ĐẶC TẢ YÊU CẦU: CHUẨN CÔNG VĂN 7991/BGDĐT (16 CỘT - ĐỊNH DẠNG CHÍNH):
 - BẮT BUỘC chỉ sinh 1 khung ma trận và 1 bản đặc tả DUY NHẤT theo chuẩn 16 cột Công văn 7991/BGDĐT.
-- TUYỆT ĐỐI KHÔNG phân tách làm 2 ma trận hay sinh dư thừa bảng phân bổ gây lỗi cấu trúc dữ liệu JSON.
-- Các ô Biết (remember), Hiểu (understand), Vận dụng (apply) trong 4 phần (part1: Nhiều lựa chọn, part2: Đúng/Sai, part3: Trả lời ngắn, part4: Tự luận) phải khớp chính xác 100% với các câu hỏi trong mảng "questions".`;
+- Các ô Biết (remember), Hiểu (understand), Vận dụng (apply) trong 4 phần (part1, part2, part3, part4) phải khớp chính xác 100% với mảng "questions".`;
   } else if (mFmt === 'classic') {
     return `
-📋 ĐỊNH DẠNG MA TRẬN & BẢNG ĐẶC TẢ YÊU CẦU: ĐỊNH DẠNG TRUYỀN THỐNG (5 CỘT YCCĐ):
-- Sinh bảng đặc tả và ma trận theo từng chủ đề, đơn vị kiến thức gắn liền với Yêu cầu cần đạt chi tiết và phân bổ số câu theo mức độ.`;
+📋 ĐỊNH DẠNG MA TRẬN & BẢN ĐẶC TẢ YÊU CẦU: ĐỊNH DẠNG TRUYỀN THỐNG (5 CỘT YCCĐ):
+- Sinh bảng đặc tả và ma trận theo từng chủ đề, đơn vị kiến thức gắn liền với Yêu cầu cần đạt chi tiết.`;
   }
   return `
-📋 ĐỊNH DẠNG MA TRẬN & BẢNG ĐẶC TẢ: XUẤT CẢ 2 ĐỊNH DẠNG (Chuẩn CV 7991 và Bảng đặc tả chi tiết YCCĐ).`;
+📋 ĐỊNH DẠNG MA TRẬN & BẢN ĐẶC TẢ: XUẤT CẢ 2 ĐỊNH DẠNG (Chuẩn CV 7991 và Bảng đặc tả chi tiết YCCĐ).`;
 })()}
-${subjectSpecificSection}
+
+${knttCurriculumSection}
+${mathConfigSection}
 ${referenceSection}
 ${matrixModeSection}
 
 🎲 YÊU CẦU ĐA DẠNG HÓA & ĐỔI MỚI SỐ LIỆU TOÀN DIỆN (ENTROPY SEED: ${entropySeed}):
-1. TUYỆT ĐỐI KHÔNG lặp lại các câu hỏi kinh điển, câu hỏi có sẵn nguyên văn trong SGK hoặc các đề kiểm tra đã sinh trước đó.
+1. TUYỆT ĐỐI KHÔNG sao chép nguyên văn bài tập đã in trong SGK Toán KNTT hay các đề thi trước đó.
 2. BẮT BUỘC ĐỔI MỚI TOÀN BỘ:
-   - Thay đổi các tham số, hệ số và số liệu toán học/vật lí/hóa học (tính toán phải ra kết quả chuẩn xác, chẵn đẹp, hợp lý).
-   - Đổi mới tình huống thực tiễn, tên nhân vật, địa danh, ngữ cảnh và các phương án gây nhiễu A, B, C, D.
-   - Đảm bảo đề thi này mang tính ĐỘC BẢN, phong phú, tươi mới 100%, không trùng lặp với bất kỳ đề thi nào đã tạo trước đây.
+   - Thay đổi các tham số, hệ số và số liệu toán học (tính toán phải ra kết quả chính xác, hợp lí, số đẹp theo trình độ ${normalizedGrade}).
+   - Đổi mới tình huống thực tiễn, tên nhân vật, ngữ cảnh và các phương án gây nhiễu A, B, C, D (các phương án nhiễu phải phản ánh sai lầm thường gặp của học sinh khi tính toán).
 ${existingQuestionsToAvoid && existingQuestionsToAvoid.length > 0 ? `
-⚠️ CÁC CÂU HỎI ĐÃ CÓ TRƯỚC ĐÓ CÙNG MÔN/CHỦ ĐỀ (BẮT BUỘC TRÁNH TRÙNG LẶP NỘI DUNG HOẶC SỐ LIỆU):
+⚠️ CÁC CÂU HỎI ĐÃ CÓ TRƯỚC ĐÓ CÙNG KHỐI LỚP (BẮT BUỘC TRÁNH TRÙNG LẶP NỘI DUNG HOẶC SỐ LIỆU):
 ${existingQuestionsToAvoid.slice(0, 15).map((q, idx) => `  [${idx + 1}] ${q}`).join('\n')}
 ` : ''}
 
 🛑 CẢNH BÁO TỐI QUAN TRỌNG VỀ NỘI DUNG CÂU HỎI & PHƯƠNG ÁN LỰA CHỌN:
 1. TRƯỜNG "content" CỦA MỖI CÂU HỎI:
-   - BẮT BUỘC là ĐẦY ĐỦ TOÀN BỘ VĂN BẢN ĐỀ BÀI CÂU HỎI (Ví dụ: "Cho tam giác $ABC$ vuông tại $A$ có $AB = 6\\text{ cm}$...", "Giải phương trình sau...").
-   - TUYỆT ĐỐI KHÔNG ĐƯỢC điền số thứ tự như "0", "1", "2" vào trường "content"!
-   - TUYỆT ĐỐI KHÔNG ĐƯỢC để rỗng hoặc viết tắt!
+   - BẮT BUỘC là ĐẦY ĐỦ TOÀN BỘ VĂN BẢN ĐỀ BÀI CÂU HỎI (Ví dụ: "Cho tam giác $ABC$ vuông tại $A$ có $AB = 6\\text{ cm}$...").
+   - TUYỆT ĐỐI KHÔNG ĐƯỢC điền số thứ tự như "0", "1", "2" vào trường "content" hay để rỗng!
 2. TRƯỜNG "options" CỦA PHẦN I (4 PHƯƠNG ÁN LỰA CHỌN):
-   - BẮT BUỘC là mảng gồm đúng 4 đối tượng tương ứng với 4 chữ cái A, B, C, D:
-     [ { "key": "A", "content": "nội dung phương án A thật" }, { "key": "B", "content": "nội dung phương án B thật" }, { "key": "C", "content": "nội dung phương án C thật" }, { "key": "D", "content": "nội dung phương án D thật" } ]
-   - TUYỆT ĐỐI KHÔNG ĐƯỢC để placeholder như "Phương án A", "Phương án B", "Phương án C", "Phương án D"!
-   - Mỗi phương án A, B, C, D BẮT BUỘC là nội dung câu trả lời thật, công thức thật, giá trị thật.
-3. Mọi câu hỏi trắc nghiệm Phần I BẮT BUỘC có "correctOption" là một trong 4 chữ cái "A", "B", "C", "D" và "explanation" giải thích chi tiết.
-4. Phần II (Đúng/Sai) BẮT BUỘC gồm đúng 4 ý a, b, c, d với "content", "isCorrect": true/false và lời giải.
-5. Phần III (Trả lời ngắn) BẮT BUỘC có "shortAnswer" là một đáp số cụ thể (ví dụ: "$15$", "$x = 3$", "24 cm").
-6. Phần IV (Tự luận) BẮT BUỘC có "essayAnswerGuide" giải chi tiết và mảng "rubric" chia điểm cụ thể từng bước.
+   - BẮT BUỘC là mảng gồm đúng 4 đối tượng A, B, C, D với nội dung đáp số/công thức thật (KHÔNG để placeholder "Phương án A"...).
+3. Phần I có "correctOption" ('A'|'B'|'C'|'D') và "explanation".
+4. Phần II (Đúng/Sai) có đúng 4 ý a, b, c, d với "content", "isCorrect": true/false và "explanation".
+5. Phần III (Trả lời ngắn) có "shortAnswer" là đáp số cụ thể (ví dụ: "15", "-2,5", "24 cm").
+6. Phần IV (Tự luận) có "essayAnswerGuide" giải chi tiết từng bước và mảng "rubric" chia điểm cụ thể có tổng đúng bằng trường "points".
 
-🛑 QUY ĐỊNH BẮT BUỘC VỀ MA TRẬN & BẢN ĐẶC TẢ (CHUẨN CÔNG VĂN 7991/BGDĐT):
-1. PHÂN CHIA ĐƠN VỊ KIẾN THỨC (subTopic):
-   - Mảng "matrix" và mảng "specification" BẮT BUỘC PHẢI PHÂN CHIA THÀNH CÁC ĐƠN VỊ KIẾN THỨC CỤ THỂ của chủ đề (thường từ 2 đến 5 đơn vị kiến thức/mạch nội dung khác nhau, TUYỆT ĐỐI KHÔNG gom cả đề thi thành 1 dòng duy nhất).
-   - Mỗi đơn vị kiến thức là 1 dòng riêng trong bảng với "stt" tăng dần, "topic" là tên chủ đề/chương và "subTopic" là tên đơn vị kiến thức cụ thể.
-   - Các câu hỏi trong mảng "questions" phải phân bổ đều và tương ứng với từng đơn vị kiến thức này.
-2. YÊU CẦU CẦN ĐẠT (YCCĐ) TRONG BẢN ĐẶC TẢ BẮT BUỘC NÊU ĐỦ CÁC MỨC ĐỘ THEO CÔNG VĂN 7991:
-   - Trong mảng "specification", trường "requirements" của TỪNG đơn vị kiến thức BẮT BUỘC PHẢI VIẾT ĐỦ các gạch đầu dòng rõ ràng theo 3 mức độ nhận thức chuẩn GDPT 2018:
-     "- Biết: [Yêu cầu cần đạt mức Nhận biết cụ thể với các động từ hành vi: Nhận biết được..., Nhớ được..., Nêu được..., Chỉ ra được...]"
-     "- Hiểu: [Yêu cầu cần đạt mức Thông hiểu cụ thể với các động từ hành vi: Hiểu được..., Giải thích được..., Phân biệt được..., Mô tả được...]"
-     "- Vận dụng: [Yêu cầu cần đạt mức Vận dụng / Vận dụng cao với các động từ hành vi: Vận dụng được để tính toán..., Giải quyết được bài toán..., Thiết lập được..., Vận dụng giải quyết vấn đề thực tiễn...]"
-   - Không được bỏ trống các mức độ nhận thức có câu hỏi trong đơn vị kiến thức đó.
-3. PHÂN BỔ ĐÚNG SỐ CÂU, SỐ ĐIỂM VÀ TỈ LỆ MỨC ĐỘ NHẬN THỨC THEO YÊU CẦU:
-   - Ma trận Công văn 7991 BẮT BUỘC phân bố đúng tuyệt đối theo số câu, số điểm của từng phần và tỉ lệ mức độ nhận thức mà người dùng yêu cầu (Nhận biết: ${cognitiveRatio.remember}%, Thông hiểu: ${cognitiveRatio.understand}%, Vận dụng: ${cognitiveRatio.apply}%, Vận dụng cao: ${cognitiveRatio.advanced}%).
-   - Điểm số "totalPoints" của mỗi dòng phải bằng đúng tổng điểm của các câu hỏi thuộc đơn vị kiến thức đó.
-   - Trường "percentage" (% điểm) của MỖI dòng BẮT BUỘC được tính trực tiếp từ điểm số thực tế: percentage = (totalPoints / ${totalPoints || 10.0}) * 100. TUYỆT ĐỐI KHÔNG chia đều phần trăm tùy tiện nếu điểm số giữa các đơn vị kiến thức khác nhau.
-   - Tổng "totalPoints" toàn bài phải bằng đúng ${totalPoints || 10.0} điểm và tổng "percentage" toàn bài phải bằng đúng 100%.
+🛑 QUY ĐỊNH BẮT BUỘC VỀ MA TRẬN & BẢN ĐẶC TẢ (CV 7991/BGDĐT):
+1. Mảng "matrix" và mảng "specification" PHẢI phân chia thành 2 đến 5 ĐƠN VỊ KIẾN THỨC cụ thể (subTopic) tương ứng trực tiếp với các bài học trong SGK Toán ${normalizedGrade} KNTT đã chọn.
+2. Trong mảng "specification", trường "requirements" của TỪNG đơn vị kiến thức BẮT BUỘC viết đủ các gạch đầu dòng theo 3 mức độ:
+   "- Biết: [YCCĐ mức Nhận biết từ SGK KNTT]\\n- Hiểu: [YCCĐ mức Thông hiểu từ SGK KNTT]\\n- Vận dụng: [YCCĐ mức Vận dụng / VDC từ SGK KNTT]"
+3. Điểm "totalPoints" và "percentage" của từng dòng phải khớp chính xác với điểm các câu hỏi, tổng bằng ${totalPoints || 10.0}đ và 100%.
 
 YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
 {
   "matrix": [
     {
       "stt": 1,
-      "topic": "${chapterTitle || 'Chương I: Mạch nội dung chính'}",
-      "subTopic": "Đơn vị kiến thức 1 (VD: Khái niệm, tính chất và phép toán cơ bản)",
+      "topic": "${chapterTitle || 'Chương I'}",
+      "subTopic": "Đơn vị kiến thức 1 (theo bài học SGK KNTT)",
       "part1": { "remember": "1, 2", "understand": "3", "apply": "" },
       "part2": { "remember": "1a, 1b", "understand": "1c", "apply": "1d" },
       "part3": { "remember": "1", "understand": "2", "apply": "" },
@@ -400,8 +320,8 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
     },
     {
       "stt": 2,
-      "topic": "${chapterTitle || 'Chương I: Mạch nội dung chính'}",
-      "subTopic": "Đơn vị kiến thức 2 (VD: Ứng dụng, bài toán tính toán và giải quyết vấn đề)",
+      "topic": "${chapterTitle || 'Chương I'}",
+      "subTopic": "Đơn vị kiến thức 2 (theo bài học SGK KNTT)",
       "part1": { "remember": "4, 5", "understand": "6", "apply": "7" },
       "part2": { "remember": "2a", "understand": "2b, 2c", "apply": "2d" },
       "part3": { "remember": "", "understand": "3", "apply": "4" },
@@ -417,9 +337,9 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
   "specification": [
     {
       "stt": 1,
-      "topic": "${chapterTitle || 'Chương I: Mạch nội dung chính'}",
-      "subTopic": "Đơn vị kiến thức 1 (VD: Khái niệm, tính chất và phép toán cơ bản)",
-      "requirements": "- Biết: Nhận biết và phát biểu được các khái niệm, quy tắc, định nghĩa cơ bản về đơn vị kiến thức 1.\\n- Hiểu: Thông hiểu và giải thích được bản chất, ý nghĩa của các tính chất, phân biệt được các trường hợp cụ thể.\\n- Vận dụng: Vận dụng trực tiếp các kiến thức, định lí đã học để tính toán, biến đổi và giải quyết bài toán đặt ra.",
+      "topic": "${chapterTitle || 'Chương I'}",
+      "subTopic": "Đơn vị kiến thức 1 (theo bài học SGK KNTT)",
+      "requirements": "- Biết: Nhận biết và phát biểu được khái niệm, tính chất cơ bản.\\n- Hiểu: Thực hiện được phép tính, biến đổi và giải thích được cách làm.\\n- Vận dụng: Vận dụng giải quyết các bài toán thực tiễn.",
       "part1": { "remember": "1, 2", "understand": "3", "apply": "" },
       "part2": { "remember": "1a, 1b", "understand": "1c", "apply": "1d" },
       "part3": { "remember": "1", "understand": "2", "apply": "" },
@@ -428,9 +348,9 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
     },
     {
       "stt": 2,
-      "topic": "${chapterTitle || 'Chương I: Mạch nội dung chính'}",
-      "subTopic": "Đơn vị kiến thức 2 (VD: Ứng dụng, bài toán tính toán và giải quyết vấn đề)",
-      "requirements": "- Biết: Nhớ và chỉ ra được các công thức, định dạng bài toán của đơn vị kiến thức 2.\\n- Hiểu: Giải thích được các bước biến đổi, liên hệ mối quan hệ giữa các đại lượng.\\n- Vận dụng: Vận dụng linh hoạt các phương pháp để giải các bài toán nâng cao, liên hệ giải quyết các tình huống thực tiễn.",
+      "topic": "${chapterTitle || 'Chương I'}",
+      "subTopic": "Đơn vị kiến thức 2 (theo bài học SGK KNTT)",
+      "requirements": "- Biết: Nhớ và chỉ ra được các công thức, quy tắc.\\n- Hiểu: Giải thích được các bước biến đổi và quan hệ giữa các đại lượng.\\n- Vận dụng: Vận dụng giải bài toán tổng hợp, bài toán thực tế.",
       "part1": { "remember": "4, 5", "understand": "6", "apply": "7" },
       "part2": { "remember": "2a", "understand": "2b, 2c", "apply": "2d" },
       "part3": { "remember": "", "understand": "3", "apply": "4" },
@@ -439,8 +359,8 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
     }
   ],
   "questions": [
-    // ⚠️ CHÚ Ý: DƯỚI ĐÂY CHỈ LÀ MẪU MINH HỌA CẤU TRÚC JSON CHO 1 CÂU PHẦN I.
-    // BẠN BẮT BUỘC PHẢI SINH TIẾP TỤC ĐỦ CẢ ${p1Count} CÂU HỎI CHO PHẦN I (ĐÁNH SỐ TỪ 1 ĐẾN ${p1Count})!
+    // ⚠️ CHÚ Ý: DƯỚI ĐÂY CHỈ LÀ MẪU MINH HỌA CẤU TRÚC JSON CHO TỪNG PHẦN.
+    // BẠN BẮT BUỘC PHẢI SINH ĐỦ ${p1Count} CÂU PHẦN I, ${p2Count} CÂU LỚN PHẦN II, ${p3Count} CÂU PHẦN III, ${p4Count} CÂU PHẦN IV!
     {
       "id": "q-1",
       "partType": "PART1",
@@ -449,9 +369,9 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
       "content": "Cho tập hợp $A = \\{x \\in \\mathbb{N} \\mid 8 < x \\le 14\\}$. Số phần tử của tập hợp $A$ là:",
       "cognitiveLevel": "REMEMBER",
       "points": 0.25,
-      "topic": "Tập hợp và phần tử",
-      "competency": "Năng lực tư duy và lập luận toán học",
-      "competencyCode": "NL TDLL",
+      "topic": "Tập hợp",
+      "competency": "Năng lực giao tiếp toán học",
+      "competencyCode": "NL GTTH",
       "options": [
         { "key": "A", "content": "$6$" },
         { "key": "B", "content": "$7$" },
@@ -461,7 +381,6 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
       "correctOption": "A",
       "explanation": "Tập hợp $A = \\{9; 10; 11; 12; 13; 14\\}$ gồm $14 - 9 + 1 = 6$ phần tử. Chọn A."
     },
-    // ⚠️ ĐÂY LÀ MẪU CẤU TRÚC CHO 1 CÂU PHẦN II. BẠN PHẢI SINH ĐỦ CẢ ${p2Count} CÂU LỚN CHO PHẦN II (ĐÁNH SỐ TỪ 1 ĐẾN ${p2Count}, MỖI CÂU ĐỦ 4 Ý a,b,c,d)!
     {
       "id": "q-13",
       "partType": "PART2",
@@ -470,18 +389,17 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
       "content": "Cho số tự nhiên $n$. Xét tính đúng sai của các mệnh đề sau:",
       "cognitiveLevel": "UNDERSTAND",
       "points": 1.0,
-      "topic": "Quan hệ chia hết",
-      "competency": "Năng lực giải quyết vấn đề toán học",
-      "competencyCode": "NL GQVĐ",
+      "topic": "Quan hệ chia hết và tính chất",
+      "competency": "Năng lực tư duy và lập luận toán học",
+      "competencyCode": "NL TDLL",
       "trueFalseStatements": [
-        { "key": "a", "content": "Nếu tổng hai số chia hết cho 5 thì mỗi số đều chia hết cho 5", "isCorrect": false },
-        { "key": "b", "content": "Số 135 có chữ số tận cùng là 5 nên chia hết cho 5", "isCorrect": true },
-        { "key": "c", "content": "Số có tổng các chữ số chia hết cho 9 thì chia hết cho 9", "isCorrect": true },
-        { "key": "d", "content": "Số chia hết cho 2 luôn là số nguyên tố", "isCorrect": false }
+        { "key": "a", "content": "Nếu tổng hai số chia hết cho $5$ thì mỗi số đều chia hết cho $5$", "isCorrect": false },
+        { "key": "b", "content": "Số $135$ có chữ số tận cùng là $5$ nên chia hết cho $5$", "isCorrect": true },
+        { "key": "c", "content": "Số có tổng các chữ số chia hết cho $9$ thì chia hết cho $9$", "isCorrect": true },
+        { "key": "d", "content": "Mọi số chia hết cho $2$ đều là hợp số", "isCorrect": false }
       ],
-      "explanation": "Ý a sai (ví dụ 2 + 3 = 5). Ý b đúng theo dấu hiệu chia hết cho 5. Ý c đúng theo tính chất chia hết cho 9. Ý d sai vì 4, 6, 8 là hợp số."
+      "explanation": "Ý a sai (ví dụ $2 + 3 = 5$). Ý b đúng theo dấu hiệu chia hết cho $5$. Ý c đúng theo dấu hiệu chia hết cho $9$. Ý d sai vì $2$ chia hết cho $2$ nhưng là số nguyên tố."
     },
-    // ⚠️ ĐÂY LÀ MẪU CẤU TRÚC CHO 1 CÂU PHẦN III. BẠN PHẢI SINH ĐỦ CẢ ${p3Count} CÂU CHO PHẦN III (ĐÁNH SỐ TỪ 1 ĐẾN ${p3Count})!
     {
       "id": "q-15",
       "partType": "PART3",
@@ -490,47 +408,48 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
       "content": "Tìm số tự nhiên $x$ biết $2 \\cdot (x + 10) = 40$.",
       "cognitiveLevel": "APPLY",
       "points": 0.5,
-      "topic": "Thứ tự thực hiện phép tính",
+      "topic": "Thứ tự thực hiện các phép tính",
+      "competency": "Năng lực giải quyết vấn đề toán học",
+      "competencyCode": "NL GQVĐ",
       "shortAnswer": "10",
       "explanation": "$x + 10 = 40 : 2 = 20 \\Rightarrow x = 20 - 10 = 10$."
     },
-    // ⚠️ ĐÂY LÀ MẪU CẤU TRÚC CHO 1 CÂU PHẦN IV. BẠN PHẢI SINH ĐỦ CẢ ${p4Count} CÂU CHO PHẦN IV (ĐÁNH SỐ TỪ 1 ĐẾN ${p4Count})!
     {
       "id": "q-16",
       "partType": "PART4",
       "partTitle": "PHẦN IV. Tự luận",
       "number": 1,
-      "content": "Một mảnh vườn hình chữ nhật có chiều dài 25 m, chiều rộng 18 m. Người ta dùng một phần đất để trồng hoa hình thoi có độ dài hai đường chéo lần lượt là 12 m và 8 m. Tính diện tích phần đất còn lại của mảnh vườn.",
+      "content": "Một mảnh vườn hình chữ nhật có chiều dài $25\\text{ m}$, chiều rộng $18\\text{ m}$. Người ta làm một bồn hoa hình thoi ở chính giữa có độ dài hai đường chéo lần lượt là $12\\text{ m}$ và $8\\text{ m}$. Tính diện tích phần đất còn lại của mảnh vườn.",
       "cognitiveLevel": "APPLY",
       "points": 1.5,
-      "topic": "Hình phẳng trong thực tiễn",
-      "essayAnswerGuide": "Diện tích mảnh vườn: $25 \\times 18 = 450 \\text{ m}^2$. Diện tích phần đất trồng hoa: $\\frac{1}{2} \\times 12 \\times 8 = 48 \\text{ m}^2$. Diện tích còn lại: $450 - 48 = 402 \\text{ m}^2$.",
+      "topic": "Chu vi và diện tích của một số tứ giác đã học",
+      "competency": "Năng lực mô hình hoá toán học",
+      "competencyCode": "NL MHH",
+      "essayAnswerGuide": "Diện tích mảnh vườn hình chữ nhật: $25 \\cdot 18 = 450\\text{ (m}^2)$.\nDiện tích bồn hoa hình thoi: $\\frac{1}{2} \\cdot 12 \\cdot 8 = 48\\text{ (m}^2)$.\nDiện tích phần đất còn lại: $450 - 48 = 402\\text{ (m}^2)$.",
       "rubric": [
-        { "criteria": "Tính diện tích hình chữ nhật", "points": 0.5, "description": "Viết công thức và tính ra $450 \\text{ m}^2$" },
-        { "criteria": "Tính diện tích hình thoi", "points": 0.5, "description": "Viết công thức và tính ra $48 \\text{ m}^2$" },
-        { "criteria": "Tính diện tích phần còn lại", "points": 0.5, "description": "Lấy hiệu hai diện tích ra $402 \\text{ m}^2$" }
+        { "criteria": "Tính diện tích mảnh vườn hình chữ nhật", "points": 0.5, "description": "Tính đúng $25 \\cdot 18 = 450\\text{ m}^2$" },
+        { "criteria": "Tính diện tích bồn hoa hình thoi", "points": 0.5, "description": "Tính đúng $\\frac{1}{2} \\cdot 12 \\cdot 8 = 48\\text{ m}^2$" },
+        { "criteria": "Tính diện tích phần đất còn lại", "points": 0.5, "description": "Tính đúng $450 - 48 = 402\\text{ m}^2$" }
       ],
-      "explanation": "Đảm bảo học sinh ghi rõ đơn vị đo $\\text{m}^2$."
+      "explanation": "Học sinh ghi rõ đơn vị $\\text{m}^2$ và kết luận đầy đủ."
     }
   ]
 }
 
 🛑 QUY TẮC BẮT BUỘC VỀ SỐ LƯỢNG VÀ ĐÁP ÁN TRONG MẢNG "questions":
-1. Mảng "questions" PHẢI CHỨA ĐỦ 100% TẤT CẢ ${totalRequiredQuestions} CÂU HỎI (${p1Count} câu Phần I + ${p2Count} câu lớn Phần II + ${p3Count} câu Phần III + ${p4Count} câu Phần IV). TUYỆT ĐỐI KHÔNG ĐƯỢC CHỈ SINH 1 CÂU CHO MỖI PHẦN! Không được thiếu câu, không cắt bớt, không bỏ dở!
-2. TẤT CẢ các câu hỏi trong mảng "questions" đều BẮT BUỘC có đáp án, biểu điểm và lời giải chi tiết (Phần I có "correctOption", Phần II có đủ 4 ý Đúng/Sai, Phần III có "shortAnswer", Phần IV có "essayAnswerGuide" và mảng "rubric" chi tiết).
-3. Đánh số lại thứ tự câu (number) bắt đầu từ 1 cho từng phần: Phần I câu 1..N, Phần II câu 1..M, Phần III câu 1..K, Phần IV câu 1..P.
+1. Mảng "questions" PHẢI CHỨA ĐỦ 100% TẤT CẢ ${totalRequiredQuestions} CÂU HỎI (${p1Count} câu Phần I + ${p2Count} câu lớn Phần II + ${p3Count} câu Phần III + ${p4Count} câu Phần IV). TUYỆT ĐỐI KHÔNG CHỈ SINH 1 CÂU MỖI PHẦN!
+2. TẤT CẢ các câu hỏi trong mảng "questions" đều BẮT BUỘC có đáp án, biểu điểm và lời giải chi tiết.
+3. Đánh số lại thứ tự câu (number) bắt đầu từ 1 cho từng phần.
 
-📐 QUY TẮC BẮT BUỘC VỀ TRÌNH BÀY CÔNG THỨC TOÁN VÀ LATEX:
-1. BẮT BUỘC BỌC TẤT CẢ công thức toán học, tập hợp, biến số, phép tính trong cặp dấu $...$ (ví dụ: $x$, $y$, $A$, $B = \\{x \\in \\mathbb{N} \\mid 15 \\le x < 28\\}$, $x \\vdots 12$, $4^2 \\cdot 5$, $S = 25 \\cdot 74 + 25 \\cdot 26 - 500$). TUYỆT ĐỐI KHÔNG để bất kỳ lệnh LaTeX hay biểu thức toán nào đứng ngoài cặp dấu $.
-2. DÙNG '\\cdot' cho dấu nhân (ví dụ $4^2 \\cdot 5$, $25 \\cdot 74$), DÙNG '\\vdots' cho quan hệ chia hết (ví dụ $x \\vdots 12$ và $x \\vdots 18$), DÙNG '\\mid' cho gạch đứng biểu diễn tập hợp (ví dụ $x \\in \\mathbb{N} \\mid 15 \\le x < 28$), DÙNG '\\le', '\\ge' cho nhỏ hơn/lớn hơn hoặc bằng (ví dụ $8 < x \\le 14$).
-3. Với tập hợp số, dùng '\\mathbb{N}', '\\mathbb{Z}', '\\mathbb{Q}', '\\mathbb{R}'. Toàn bộ tên tập hợp và biểu thức tập hợp PHẢI bọc trong dấu $, ví dụ: $A = \\{x \\in \\mathbb{N} \\mid 8 < x \\le 14\\}$.
-4. Lượng giác tan BẮT BUỘC viết là '\\\\tan' trong JSON (ví dụ $\\\\tan 60^\\\\circ$, $\\\\tan Q$). Ký hiệu khác (≠) BẮT BUỘC viết là '\\\\ne' hoặc '\\\\neq' trong JSON (ví dụ $x - 3 \\\\ne 0 \\\\Leftrightarrow x \\\\ne 3$).
-5. LỜI GIẢI CHI TIẾT ('explanation', 'essayAnswerGuide'): 100% bằng TIẾNG VIỆT sư phạm. TUYỆT ĐỐI KHÔNG xuất các khối tiếng Anh, tự sửa đổi (Self-correction), suy nghĩ nội bộ (Chain-of-thought) hay 'Revised explanation' vào trường 'explanation'.
+📐 QUY TẮC TRÌNH BÀY CÔNG THỨC TOÁN SGK KNTT & LATEX:
+1. BẮT BUỘC bọc TẤT CẢ công thức toán học, tập hợp, biến số, phép tính trong cặp dấu $...$.
+2. Dùng '\\cdot' cho dấu nhân ($4^2 \\cdot 5$), dùng dấu phẩy ',' cho số thập phân ($2,5$), dùng dấu chấm phẩy ';' phân tách phần tử tập hợp ($\\{9; 10; 11\\}$), dùng '\\vdots' cho chia hết ($x \\vdots 12$), dùng '\\mid' cho tập hợp, dùng '\\le', '\\ge', '\\ne', '\\tan'.
+3. LỜI GIẢI CHI TIẾT ('explanation', 'essayAnswerGuide'): 100% bằng TIẾNG VIỆT sư phạm, KHÔNG xuất tiếng Anh hoặc lập luận nội bộ.
 `;
   }
 
   /**
-   * Tạo prompt yêu cầu AI tạo lại riêng 1 câu hỏi cụ thể theo yêu cầu của giáo viên
+   * Tạo prompt yêu cầu AI tạo lại riêng 1 câu hỏi Toán SGK KNTT cụ thể theo yêu cầu của giáo viên
    */
   static buildRegenerateQuestionPrompt(
     originalQuestion: Question,
@@ -538,6 +457,14 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
     teacherPrompt?: string,
     existingQuestions: Question[] = []
   ): string {
+    const normalizedGrade = normalizeKnttGrade(metadata.grade);
+    const knttCurriculumSection = buildKnttCurriculumPromptContext(
+      normalizedGrade,
+      metadata.semester,
+      metadata.chapterTitle,
+      metadata.subjectConfig?.selectedKnttLessonIds
+    );
+
     const avoidQuestions = existingQuestions
       .filter((q) => q.id !== originalQuestion.id)
       .slice(0, 8)
@@ -550,7 +477,7 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
     } else if (originalQuestion.partType === 'PART2') {
       partDesc = `Phần II: Trắc nghiệm Đúng/Sai. Bắt buộc cung cấp 1 lệnh hỏi chính trong "content" và trường "trueFalseStatements" gồm đúng 4 ý 'a', 'b', 'c', 'd' kèm "isCorrect" (true/false) cho từng ý.`;
     } else if (originalQuestion.partType === 'PART3') {
-      partDesc = `Phần III: Trắc nghiệm Trả lời ngắn. Bắt buộc cung cấp trường "shortAnswer" chứa kết quả ngắn gọn (số hoặc cụm từ ngắn).`;
+      partDesc = `Phần III: Trắc nghiệm Trả lời ngắn. Bắt buộc cung cấp trường "shortAnswer" chứa kết quả ngắn gọn.`;
     } else {
       partDesc = `Phần IV: Tự luận. Bắt buộc cung cấp trường "essayAnswerGuide" (lời giải chi tiết) và mảng "rubric" (thang điểm chi tiết từng bước, tổng điểm bằng ${originalQuestion.points || 1.0}).`;
     }
@@ -594,15 +521,17 @@ YÊU CẦU ĐẦU RA JSON CHÍNH XÁC THEO SCHEMA SAU:
 
     const teacherSection = teacherPrompt && teacherPrompt.trim()
       ? `5. YÊU CẦU ĐẶC BIỆT / GỢI Ý CỦA GIÁO VIÊN:\n👉 "${teacherPrompt.trim()}"\n(Hãy ưu tiên đáp ứng chính xác nguyện vọng/yêu cầu này của giáo viên!)`
-      : '5. Hãy tạo câu hỏi mới chất lượng cao, thực tế, hay và sáng tạo hơn câu cũ.';
+      : '5. Hãy tạo câu hỏi Toán mới chất lượng cao, thực tế, bám sát SGK Kết nối tri thức và sáng tạo hơn câu cũ.';
 
-    return `YÊU CẦU: BẠN LÀ CHUYÊN GIA GIÁO DỤC GDPT 2018. HÃY TẠO LẠI RIÊNG 1 CÂU HỎI THAY THẾ CHO CÂU HỎI HIỆN TẠI (Entropy: ${entropySeed}).
+    return `YÊU CẦU: BẠN LÀ CHUYÊN GIA MÔN TOÁN THCS THEO SGK KẾT NỐI TRI THỨC VỚI CUỘC SỐNG (GDPT 2018). HÃY TẠO LẠI RIÊNG 1 CÂU HỎI THAY THẾ CHO CÂU HỎI HIỆN TẠI (Entropy: ${entropySeed}).
 
-1. THÔNG TIN BỘ MÔN & KỲ THI:
-- Môn học: ${metadata.subject} (${metadata.grade})
-- Bộ sách: ${metadata.curriculum}
+1. THÔNG TIN BỘ MÔN & SÁCH GIÁO KHOA NGUỒN:
+- Môn học: Toán (${normalizedGrade})
+- Bộ sách duy nhất: ${KNTT_CURRICULUM_NAME} (NXB Giáo dục Việt Nam)
 - Chủ đề / Mạch kiến thức: ${metadata.chapterTitle}
 ${specContextPart}
+${knttCurriculumSection}
+
 2. YÊU CẦU ĐẶC TẢ KỸ THUẬT CỦA CÂU HỎI CẦN TẠO:
 - Hình thức câu hỏi: ${partDesc}
 - Mức độ nhận thức (BẮT BUỘC): ${originalQuestion.cognitiveLevel} (${originalQuestion.cognitiveLevel === 'REMEMBER' ? 'Nhận biết' : originalQuestion.cognitiveLevel === 'UNDERSTAND' ? 'Thông hiểu' : originalQuestion.cognitiveLevel === 'APPLY' ? 'Vận dụng' : 'Vận dụng cao'})
@@ -615,23 +544,24 @@ ${specContextPart}
 ${avoidSection}
 ${teacherSection}
 
-6. QUY TẮC CÔNG THỨC TOÁN / HÓA & LATEX:
-- Bọc toàn bộ ký hiệu và công thức toán/hóa trong $...$. Không bọc chữ tiếng Việt trong $.
+6. QUY TẮC CÔNG THỨC TOÁN KNTT & LATEX:
+- Bọc toàn bộ ký hiệu và công thức toán trong $...$. Không bọc chữ tiếng Việt trong $.
+- Dùng dấu phẩy cho số thập phân, '\\cdot' cho dấu nhân, ';' phân cách phần tử tập hợp.
+- Nếu là câu hình học hoặc đồ thị, cung cấp thẻ <svg viewBox='0 0 400 300' ...> rõ đẹp trong "svgDiagram" (dùng dấu nháy đơn cho thuộc tính).
 - Trả về đúng 1 JSON Object duy nhất đại diện cho câu hỏi (không bọc trong mảng, không có text dẫn ngoài JSON).
 
 Định dạng JSON Object trả về:
 {
-  "content": "Nội dung câu hỏi mới hoàn chỉnh...",
+  "content": "Nội dung câu hỏi Toán mới hoàn chỉnh...",
   "partType": "${originalQuestion.partType}",
   "cognitiveLevel": "${originalQuestion.cognitiveLevel}",
   "points": ${originalQuestion.points || 0.25},
   "topic": "${originalQuestion.topic || metadata.chapterTitle}",
-  "competency": "Năng lực đặc thù tương ứng...",
-  "competencyCode": "NL...",
+  "competency": "Năng lực đặc thù Toán học tương ứng...",
+  "competencyCode": "NL TDLL | NL MHH | NL GQVĐ | NL GTTH | NL CCTH",
   ${partSpecificFields}
-  "explanation": "Lời giải hoặc giải thích chi tiết...",
+  "explanation": "Lời giải hoặc giải thích chi tiết bằng tiếng Việt...",
   "svgDiagram": ""
 }`;
   }
 }
-

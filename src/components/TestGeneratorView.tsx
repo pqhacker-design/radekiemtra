@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertCircle,
   BookOpen,
+  Calculator,
   Check,
   CheckCircle,
   Clock,
+  Compass,
   Copy,
+  Eye,
   FileSpreadsheet,
   FileText,
   GraduationCap,
@@ -41,6 +45,15 @@ import {
   SubjectConfig,
   calculateExamScores,
 } from '../types';
+import {
+  KNTT_CURRICULUM_NAME,
+  KNTT_GRADES,
+  getDefaultChapterTitleForGrade,
+  getKnttChaptersByGrade,
+  getKnttLessonById,
+  getKnttTextbooksByGrade,
+  normalizeKnttGrade,
+} from '../data/knttMathCurriculum';
 
 interface TestGeneratorViewProps {
   settings: AppSettings;
@@ -64,7 +77,7 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
   const [pendingMetadata, setPendingMetadata] = useState<ExamMetadata | null>(null);
   const [restoredToast, setRestoredToast] = useState<string | null>(null);
   const [lastSavedSession, setLastSavedSession] = useState<ExamMetadata | null>(() => StorageEngine.getLastGeneratorState());
-  // 1. Thông tin hành chính
+  // 1. Thông tin hành chính (Chuyên biệt Môn Toán THCS - SGK Kết nối tri thức với cuộc sống)
   const [schoolName, setSchoolName] = useState(settings.defaultSchoolName || 'Trường THCS Bình San');
   const [departmentName, setDepartmentName] = useState(settings.defaultDepartmentName || 'Sở Giáo dục và Đào tạo');
   const [subject, setSubject] = useState<SubjectType>('Toán');
@@ -73,22 +86,30 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
   const [semester, setSemester] = useState('Học kỳ I');
   const [schoolYear, setSchoolYear] = useState('2026 - 2027');
   const [examTitle, setExamTitle] = useState('Kiểm tra Giữa học kỳ I');
-  const [chapterTitle, setChapterTitle] = useState('Chương I: Tập hợp số tự nhiên');
+  const [chapterTitle, setChapterTitle] = useState('Chương I. Tập hợp các số tự nhiên');
   const [durationMinutes, setDurationMinutes] = useState(45);
   const [totalPoints, setTotalPoints] = useState(10);
-  const [curriculum, setCurriculum] = useState<CurriculumType>('Kết nối tri thức với cuộc sống');
+  const [curriculum, setCurriculum] = useState<CurriculumType>(KNTT_CURRICULUM_NAME);
 
-  // Cấu hình đặc thù môn học
+  // Cấu hình đặc thù Môn Toán KNTT (SGK đính kèm)
   const [subjectConfig, setSubjectConfig] = useState<SubjectConfig>({
-    readingPassageType: 'truyen',
-    writingGenre: 'nghi_luan_xa_hoi',
-    englishSkills: ['phonetics', 'grammar_vocab', 'reading', 'writing_transformation'],
-    physicsDomain: 'tong_hop',
-    chemistryDomain: 'tong_hop',
-    biologyDomain: 'tong_hop',
+    mathDomains: ['so_dai_so', 'hinh_hoc_do_luong', 'thong_ke_xac_suat'],
+    selectedKnttLessonIds: [],
+    prioritizeGeoGebraDiagrams: true,
+    strictKnttTextbookOnly: true,
+    hasContextData: true,
   });
 
-  // 1b. Nguồn tài liệu & Giới hạn kiến thức tham khảo (tùy chọn)
+  // Trình xem nhanh SGK PDF đính kèm & chế độ hiển thị mục lục SGK
+  const [previewPdf, setPreviewPdf] = useState<{
+    title: string;
+    url: string;
+    fileName: string;
+    pageCount: number;
+  } | null>(null);
+  const [showAllSemestersInPicker, setShowAllSemestersInPicker] = useState(false);
+
+  // 1b. Nguồn tài liệu & Giới hạn kiến thức tham khảo (tùy chọn bổ sung ngoài mục lục SGK)
   const [referenceContext, setReferenceContext] = useState('');
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [showRefHelp, setShowRefHelp] = useState(false);
@@ -188,16 +209,16 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     { label: string; text: string; defaultP1?: number; defaultP2?: number; defaultP3?: number; defaultP4?: number; defaultP3Pts?: number; defaultP4Pts?: number }
   > = {
     toan_thcs_18: {
-      label: '📐 Toán THCS (18 câu - 29 ý)',
-      text: `### MA TRẬN ĐỀ KIỂM TRA MÔN TOÁN THCS (18 CÂU / 29 Ý - CHUẨN 7991)
-| TT | Mạch kiến thức / Chủ đề | Phần I (TN 4 lựa chọn) | Phần II (TN Đúng/Sai - 4 ý) | Phần III (TN Trả lời ngắn) | Phần IV (Tự luận) | Tổng số câu | Điểm |
+      label: '📐 Toán THCS KNTT (18 câu - 29 ý)',
+      text: `### MA TRẬN ĐỀ KIỂM TRA MÔN TOÁN THCS - KNTT (18 CÂU / 29 Ý - CHUẨN 7991)
+| TT | Mạch kiến thức / Chủ đề SGK KNTT | Phần I (TN 4 lựa chọn) | Phần II (TN Đúng/Sai - 4 ý) | Phần III (TN Trả lời ngắn) | Phần IV (Tự luận) | Tổng số câu | Điểm |
 |---|---|---|---|---|---|---|---|
-| 1 | Số & Phép tính / Số học | 4 câu (Câu 1, 2, 3, 4: NB) | 1 câu (Câu 13: 4 ý a,b,c,d - 2 NB, 2 VD) | 2 câu (Câu 15a: NB, 15b: VD) | 2 câu (Câu 16a: TH, 16b: VD; Câu 17: VD) | 9 câu | 4.75đ |
-| 2 | Tính chất số học / Chia hết | 3 câu (Câu 5, 6: NB; Câu 7: TH) | 0 | 2 câu (Câu 15c: NB, 15d: TH) | 0 | 5 câu | 1.75đ |
-| 3 | Hình học phẳng thực tiễn | 5 câu (Câu 8, 10: NB; Câu 9, 11, 12: TH) | 1 câu (Câu 14: 4 ý a,b,c,d - 3 NB, 1 TH) | 0 | 1 câu (Câu 18: 2 ý 18.1: TH, 18.2: VD) | 7 câu | 3.50đ |
+| 1 | Số & Đại số (Số học / Đa thức / Phương trình) | 5 câu (Câu 1-4: NB; Câu 5: TH) | 1 câu (Câu 13: 4 ý a,b,c,d - 2 NB, 1 TH, 1 VD) | 2 câu (Câu 15a: NB, 15b: VD) | 2 câu (Câu 16: TH+VD; Câu 17: VD) | 10 câu | 5.25đ |
+| 2 | Hình học & Đo lường (Hình phẳng / Hình khối) | 5 câu (Câu 6-8: NB; Câu 9-10: TH) | 1 câu (Câu 14: 4 ý a,b,c,d - 2 NB, 1 TH, 1 VD) | 1 câu (Câu 15c: TH) | 1 câu (Câu 18: 2 ý 18.1 TH, 18.2 VD/VDC) | 8 câu | 3.75đ |
+| 3 | Thống kê & Xác suất | 2 câu (Câu 11: NB; Câu 12: TH) | 0 | 1 câu (Câu 15d: TH) | 0 | 3 câu | 1.00đ |
 | **CỘNG** | | **12 câu (3.0đ)** | **2 câu lớn (2.0đ)** | **4 câu (2.0đ)** | **3 câu (3.0đ)** | **18 câu (29 ý)** | **10.0đ** |
 
-🎯 ĐỊNH HƯỚNG CẤU TRÚC ĐỀ CHO AI BÁM SÁT 100%:
+🎯 ĐỊNH HƯỚNG CẤU TRÚC ĐỀ BÁM SÁT SGK TOÁN KNTT:
 1. Phần I: 12 câu trắc nghiệm 4 lựa chọn (Câu 1 đến 12 | mỗi câu 0.25đ = 3.0đ).
 2. Phần II: 2 câu hỏi Đúng/Sai (Câu 13 và Câu 14, mỗi câu gồm 4 ý a, b, c, d chia đều 0.25đ/ý = 2.0đ).
 3. Phần III: 4 câu trả lời ngắn độc lập (15a, 15b, 15c, 15d | mỗi câu 0.5đ = 2.0đ).
@@ -209,77 +230,51 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
       defaultP3Pts: 0.5,
       defaultP4Pts: 1.0,
     },
-    toan: {
-      label: '📐 Toán (Chuẩn 7991)',
-      text: `### MA TRẬN ĐỀ KIỂM TRA MÔN TOÁN (CHUẨN BGD&ĐT)
-| TT | Mạch kiến thức / Chủ đề | Phần I (TN 4 lựa chọn) | Phần II (TN Đúng/Sai - 4 ý) | Phần III (TN Trả lời ngắn) | Phần IV (Tự luận) | Tổng số câu | Điểm |
+    toan_can_ban: {
+      label: '📐 Toán THCS KNTT (20 câu chuẩn 7991)',
+      text: `### MA TRẬN ĐỀ KIỂM TRA MÔN TOÁN THCS - KNTT (20 CÂU CHUẨN BGD&ĐT)
+| TT | Mạch kiến thức / Chủ đề SGK KNTT | Phần I (TN 4 lựa chọn) | Phần II (TN Đúng/Sai - 4 ý) | Phần III (TN Trả lời ngắn) | Phần IV (Tự luận) | Tổng số câu | Điểm |
 |---|---|---|---|---|---|---|---|
-| 1 | Mạch Số & Đại số (Đơn thức, đa thức, phương trình) | 6 câu (4 NB, 2 TH) | 1 câu (2 NB, 1 TH, 1 VD) | 2 câu (1 TH, 1 VD) | 1 câu (VD: 2.0đ) | 10 câu | 5.0đ |
-| 2 | Mạch Hình học & Đo lường (Tam giác, tứ giác, khối hình) | 4 câu (2 NB, 2 TH) | 1 câu (1 NB, 2 TH, 1 VD) | 1 câu (VD: 1.0đ) | 1 câu (VDC: 2.0đ) | 7 câu | 3.5đ |
-| 3 | Mạch Thống kê & Xác suất thực nghiệm | 2 câu (1 NB, 1 TH) | 0 | 1 câu (TH: 1.0đ) | 0 | 3 câu | 1.5đ |
+| 1 | Mạch Số và Đại số (theo SGK KNTT đang chọn) | 6 câu (4 NB, 2 TH) | 1 câu (2 NB, 1 TH, 1 VD) | 2 câu (1 TH, 1 VD) | 1 câu (VD: 2.0đ) | 10 câu | 5.0đ |
+| 2 | Mạch Hình học và Đo lường (theo SGK KNTT đang chọn) | 4 câu (2 NB, 2 TH) | 1 câu (1 NB, 2 TH, 1 VD) | 1 câu (TH: 0.25đ) | 1 câu (VDC: 2.0đ) | 7 câu | 4.25đ |
+| 3 | Mạch Thống kê và Xác suất (theo SGK KNTT đang chọn) | 2 câu (1 NB, 1 TH) | 0 | 1 câu (TH: 0.25đ) | 0 | 3 câu | 0.75đ |
 | **CỘNG** | | **12 câu (3.0đ)** | **2 câu (2.0đ)** | **4 câu (1.0đ)** | **2 câu (4.0đ)** | **20 câu** | **10.0đ** |
 * Tỷ lệ nhận thức: Nhận biết 40% (4.0đ) - Thông hiểu 30% (3.0đ) - Vận dụng 20% (2.0đ) - Vận dụng cao 10% (1.0đ).`,
       defaultP1: 12,
       defaultP2: 2,
       defaultP3: 4,
       defaultP4: 2,
+      defaultP3Pts: 0.25,
+      defaultP4Pts: 2.0,
     },
-    van: {
-      label: '📖 Ngữ văn (Đọc hiểu & Viết)',
-      text: `### MA TRẬN ĐỀ KIỂM TRA MÔN NGỮ VĂN
-| TT | Kỹ năng / Đơn vị kiến thức | Nhận biết (NB) | Thông hiểu (TH) | Vận dụng (VD) | Vận dụng cao (VDC) | Tổng điểm / Tỷ lệ |
+    toan_trac_nghiem: {
+      label: '⚡ Toán THCS KNTT (100% Trắc nghiệm • 31 câu)',
+      text: `### MA TRẬN ĐỀ KIỂM TRA TRẮC NGHIỆM MÔN TOÁN THCS - KNTT (31 CÂU)
+| TT | Mạch kiến thức / Chủ đề SGK KNTT | Phần I (TN 4 lựa chọn) | Phần II (TN Đúng/Sai - 4 ý) | Phần III (TN Trả lời ngắn) | Tổng số câu | Điểm |
 |---|---|---|---|---|---|---|
-| 1 | **I. ĐỌC HIỂU** (Ngữ liệu văn bản truyện / thơ ngoài SGK) | 4 câu TN (1.0đ) | 4 câu TN (1.0đ) | 2 câu TN/TL ngắn (1.0đ) | 1 câu TL ngắn (1.0đ) | **4.0 điểm** (40%) |
-| 2 | **II. VIẾT** (Tạo lập văn bản) | - | - | 1 bài Nghị luận XH/Đoạn văn (2.0đ) | 1 bài Nghị luận VH/Bài viết (4.0đ) | **6.0 điểm** (60%) |
-| **TỔNG CỘNG** | | **1.0đ (10%)** | **1.0đ (10%)** | **3.0đ (30%)** | **5.0đ (50%)** | **10.0 điểm (100%)** |
-* Bảng đặc tả: Phần Đọc hiểu kiểm tra nhận diện thể loại, phương thức biểu đạt, phân tích chi tiết, thông điệp tư tưởng. Phần Viết yêu cầu lập dàn ý, luận điểm chặt chẽ, dẫn chứng xác thực, cảm xúc chân thực.`,
-      defaultP1: 8,
+| 1 | Mạch Số và Đại số | 10 câu (6 NB, 4 TH) | 2 câu (4 NB, 2 TH, 2 VD) | 4 câu (2 TH, 2 VD) | 16 câu | 5.5đ |
+| 2 | Mạch Hình học và Đo lường | 7 câu (4 NB, 3 TH) | 1 câu (1 NB, 2 TH, 1 VD) | 3 câu (1 TH, 2 VD/VDC) | 11 câu | 3.5đ |
+| 3 | Mạch Thống kê và Xác suất | 3 câu (2 NB, 1 TH) | 0 | 1 câu (TH) | 4 câu | 1.0đ |
+| **CỘNG** | | **20 câu (5.0đ)** | **3 câu (3.0đ)** | **8 câu (2.0đ)** | **31 câu** | **10.0đ** |`,
+      defaultP1: 20,
+      defaultP2: 3,
+      defaultP3: 8,
+      defaultP4: 0,
+      defaultP3Pts: 0.25,
+    },
+    toan_tu_luan: {
+      label: '✍️ Toán THCS KNTT (100% Tự luận • 5 câu)',
+      text: `### MA TRẬN ĐỀ KIỂM TRA TỰ LUẬN MÔN TOÁN THCS - KNTT (5 CÂU)
+| TT | Mạch kiến thức / Chủ đề SGK KNTT | Nhận biết (NB) | Thông hiểu (TH) | Vận dụng (VD) | Vận dụng cao (VDC) | Tổng điểm |
+|---|---|---|---|---|---|---|
+| 1 | Bài toán Số học / Đại số (Tính hợp lí, rút gọn, tìm x / giải bài toán) | 1 câu (2.0đ) | 1 câu (2.0đ) | 1 câu (2.0đ) | 0 | **6.0 điểm** |
+| 2 | Bài toán Hình học phẳng / Thực tiễn (có hình vẽ GeoGebra) & Bất đẳng thức / Cực trị | 0 | 0 | 1 câu (2.0đ) | 1 câu (2.0đ) | **4.0 điểm** |
+| **CỘNG** | | **2.0đ** | **2.0đ** | **4.0đ** | **2.0đ** | **10.0 điểm** |`,
+      defaultP1: 0,
       defaultP2: 0,
-      defaultP3: 2,
-      defaultP4: 2,
-    },
-    anh: {
-      label: '🇬🇧 Tiếng Anh (Kỹ năng)',
-      text: `### MATRIX SPECIFICATION FOR ENGLISH EXAMINATION
-| TT | Language Component / Skill | Remember (NB) | Understand (TH) | Apply (VD) | Advanced (VDC) | Total Qs / Points |
-|---|---|---|---|---|---|---|
-| 1 | Phonetics (Pronunciation & Stress) | 4 MCQs (1.0 pt) | - | - | - | 4 Qs (1.0 pt) |
-| 2 | Language Focus (Grammar & Vocabulary) | 6 MCQs (1.5 pts) | 4 MCQs (1.0 pt) | - | - | 10 Qs (2.5 pts) |
-| 3 | Reading Comprehension (Passage reading) | 2 MCQs (0.5 pt) | 4 MCQs (1.0 pt) | 2 MCQs (0.5 pt) | - | 8 Qs (2.0 pts) |
-| 4 | Writing (Sentence transformation & Paragraph) | - | 2 Qs (1.0 pt) | 2 Qs (1.5 pts) | 1 Q (2.0 pts) | 5 Qs (4.5 pts) |
-| **TOTAL** | | **3.0 pts (30%)** | **3.0 pts (30%)** | **2.0 pts (20%)** | **2.0 pts (20%)** | **27 Qs (10.0 pts)** |`,
-      defaultP1: 18,
-      defaultP2: 2,
-      defaultP3: 2,
-      defaultP4: 2,
-    },
-    khtn: {
-      label: '🔬 KHTN / Vật lí / Hóa học',
-      text: `### MA TRẬN ĐỀ KIỂM TRA KHOA HỌC TỰ NHIÊN / VẬT LÍ / HÓA HỌC
-| TT | Mạch nội dung kiến thức | Phần I (TN 4 lựa chọn) | Phần II (TN Đúng/Sai - 4 ý) | Phần III (TN Trả lời ngắn) | Phần IV (Tự luận bài toán) | Tổng điểm |
-|---|---|---|---|---|---|---|
-| 1 | Chủ đề 1: Khái niệm & Nguyên lí cốt lõi | 6 câu (4 NB, 2 TH) | 1 câu (2 NB, 2 TH) | 1 câu (TH: 1) | 1 câu (VD: 1.5đ) | 4.0 điểm |
-| 2 | Chủ đề 2: Tính toán & Phương trình hiện tượng | 4 câu (2 NB, 2 TH) | 1 câu (1 TH, 2 VD, 1 VDC) | 2 câu (1 TH, 1 VD) | 1 câu (VDC: 1.5đ) | 4.0 điểm |
-| 3 | Chủ đề 3: Thực nghiệm & Ứng dụng công nghệ | 2 câu (1 NB, 1 TH) | 0 | 1 câu (VD: 1) | 0 | 2.0 điểm |
-| **CỘNG** | | **12 câu (3.0đ)** | **2 câu (2.0đ)** | **4 câu (1.0đ)** | **2 câu (4.0đ)** | **10.0 điểm** |
-* Mức độ nhận thức: Nhận biết 40% (4.0đ) - Thông hiểu 30% (3.0đ) - Vận dụng 20% (2.0đ) - Vận dụng cao 10% (1.0đ).`,
-      defaultP1: 12,
-      defaultP2: 2,
-      defaultP3: 4,
-      defaultP4: 2,
-    },
-    suDia: {
-      label: '🌏 Lịch sử - Địa lí / GDCD',
-      text: `### MA TRẬN ĐỀ KIỂM TRA LỊCH SỬ - ĐỊA LÍ / XÃ HỘI
-| TT | Mạch chuyên đề | Phần I (TN Nhiều lựa chọn) | Phần II (TN Đúng/Sai) | Phần III (Trả lời ngắn) | Phần IV (Tự luận phân tích) | Tổng điểm |
-|---|---|---|---|---|---|---|
-| 1 | Chủ đề trọng tâm 1 | 6 câu (4 NB, 2 TH) | 1 câu (2 NB, 2 TH) | 2 câu (1 TH, 1 VD) | 1 câu (VD: 2.0đ) | 5.0 điểm |
-| 2 | Chủ đề trọng tâm 2 | 6 câu (2 NB, 4 TH) | 1 câu (1 TH, 2 VD, 1 VDC) | 2 câu (1 TH, 1 VD) | 1 câu (VDC: 2.0đ) | 5.0 điểm |
-| **CỘNG** | | **12 câu (3.0đ)** | **2 câu (2.0đ)** | **4 câu (1.0đ)** | **2 câu (4.0đ)** | **10.0 điểm** |`,
-      defaultP1: 12,
-      defaultP2: 2,
-      defaultP3: 4,
-      defaultP4: 2,
+      defaultP3: 0,
+      defaultP4: 5,
+      defaultP4Pts: 2.0,
     },
   };
 
@@ -308,15 +303,15 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     }
   };
 
-  const handleInsertStructurePrompt = (type: 'thcs_18' | 'thpt_22' | 'van') => {
+  const handleInsertStructurePrompt = (type: 'thcs_18' | 'mcq_only' | 'essay_5') => {
     let snippet = '';
     if (type === 'thcs_18') {
-      snippet = `\n\n### CẤU TRÚC ĐỀ BÁM SÁT MA TRẬN TRÊN (18 CÂU - 29 Ý | TỔNG 10.0 ĐIỂM):
+      snippet = `\n\n### CẤU TRÚC ĐỀ TOÁN THCS BÁM SÁT MA TRẬN TRÊN (18 CÂU - 29 Ý | TỔNG 10.0 ĐIỂM):
 - Phần I (Câu 1 -> 12): Đúng 12 câu trắc nghiệm 4 lựa chọn (8 Biết, 4 Hiểu - mỗi câu 0.25đ = 3.0đ).
 - Phần II (Câu 13, 14): Đúng 2 câu lớn Đúng/Sai (Câu 13 gồm 4 ý a,b,c,d; Câu 14 gồm 4 ý a,b,c,d - mỗi câu 1.0đ = 2.0đ).
 - Phần III (Câu 15a, 15b, 15c, 15d): Đúng 4 câu trả lời ngắn độc lập (2 Biết, 1 Hiểu, 1 Vận dụng - mỗi câu 0.5đ = 2.0đ).
 - Phần IV (Câu 16, 17, 18): Đúng 3 câu tự luận (Câu 16 gồm ý a, b; Câu 17; Câu 18 gồm ý 18.1, 18.2 - Tổng = 3.0đ).
-* YÊU CẦU AI: Ra đủ 100% 18 câu hỏi trên, không gộp và không bỏ sót bất kỳ câu nào!`;
+* YÊU CẦU AI: Ra đủ 100% 18 câu hỏi Toán KNTT trên, không gộp và không bỏ sót bất kỳ câu nào!`;
       setQuestionCounts((prev) => ({
         ...prev,
         part1_MCQSingle: 12,
@@ -331,37 +326,36 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
         part4_AdvancedCount: 1,
         part4_AdvancedPoints: 1.0,
       }));
-    } else if (type === 'thpt_22') {
-      snippet = `\n\n### CẤU TRÚC ĐỀ CHUẨN THPT/ĐGNL (22 CÂU | TỔNG 10.0 ĐIỂM):
-- Phần I: 12 câu trắc nghiệm 4 lựa chọn (Câu 1-12 | 0.25đ/câu = 3.0đ).
-- Phần II: 4 câu trắc nghiệm Đúng/Sai (Câu 1-4 | mỗi câu 4 ý a,b,c,d = 4.0đ).
-- Phần III: 6 câu trắc nghiệm Trả lời ngắn (Câu 1-6 | 0.5đ/câu = 3.0đ).
+    } else if (type === 'mcq_only') {
+      snippet = `\n\n### CẤU TRÚC ĐỀ TOÁN THCS 100% TRẮC NGHIỆM (31 CÂU | TỔNG 10.0 ĐIỂM):
+- Phần I: 20 câu trắc nghiệm 4 lựa chọn (Câu 1-20 | 0.25đ/câu = 5.0đ).
+- Phần II: 3 câu trắc nghiệm Đúng/Sai (Câu 1-3 | mỗi câu 4 ý a,b,c,d = 3.0đ).
+- Phần III: 8 câu trắc nghiệm Trả lời ngắn (Câu 1-8 | 0.25đ/câu = 2.0đ).
 * Phần IV: 0 câu Tự luận.`;
       setQuestionCounts((prev) => ({
         ...prev,
-        part1_MCQSingle: 12,
+        part1_MCQSingle: 20,
         part1_PointsPerQuestion: 0.25,
-        part2_MCQTrueFalse: 4,
+        part2_MCQTrueFalse: 3,
         part2_PointsPerQuestion: 1.0,
-        part3_MCQShort: 6,
-        part3_PointsPerQuestion: 0.5,
+        part3_MCQShort: 8,
+        part3_PointsPerQuestion: 0.25,
         part4_Essay: 0,
       }));
-    } else if (type === 'van') {
-      snippet = `\n\n### CẤU TRÚC ĐỀ MÔN NGỮ VĂN (ĐỌC HIỂU & VIẾT | TỔNG 10.0 ĐIỂM):
-- Phần I Đọc hiểu: 8 câu (Câu 1-8 | 4.0đ).
-- Phần II Viết (Tự luận): 2 câu (Câu 1: Viết đoạn văn nghị luận 2.0đ; Câu 2: Bài văn 4.0đ).`;
+    } else if (type === 'essay_5') {
+      snippet = `\n\n### CẤU TRÚC ĐỀ TOÁN THCS 100% TỰ LUẬN (5 CÂU | TỔNG 10.0 ĐIỂM):
+- Phần I, II, III: 0 câu trắc nghiệm.
+- Phần IV (Tự luận): 5 câu (Câu 1-3: Số học / Đại số; Câu 4: Hình học có hình vẽ; Câu 5: Vận dụng thực tế / Nâng cao | mỗi câu 2.0đ = 10.0đ).`;
       setQuestionCounts((prev) => ({
         ...prev,
-        part1_MCQSingle: 8,
-        part1_PointsPerQuestion: 0.5,
+        part1_MCQSingle: 0,
         part2_MCQTrueFalse: 0,
         part3_MCQShort: 0,
-        part4_Essay: 2,
-        part4_ApplyCount: 1,
+        part4_Essay: 5,
+        part4_ApplyCount: 3,
         part4_ApplyPoints: 2.0,
-        part4_AdvancedCount: 1,
-        part4_AdvancedPoints: 4.0,
+        part4_AdvancedCount: 2,
+        part4_AdvancedPoints: 2.0,
       }));
     }
 
@@ -458,29 +452,22 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     setCustomMatrixImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // CÁC MẪU BẢNG ĐẶC TẢ CHI TIẾT GỢI Ý CHUẨN CÔNG VĂN 7991/BGDĐT (MỤC C)
+  // CÁC MẪU BẢNG ĐẶC TẢ CHI TIẾT MÔN TOÁN THCS - KNTT CHUẨN CÔNG VĂN 7991/BGDĐT (MỤC C)
   const SPEC_TEMPLATES: Record<
     string,
     { label: string; text: string; defaultP1?: number; defaultP2?: number; defaultP3?: number; defaultP4?: number; defaultP3Pts?: number; defaultP4Pts?: number }
   > = {
     spec_toan_thcs_18: {
-      label: '📐 Bảng đặc tả Toán THCS (18 câu/29 ý - Chuẩn 7991)',
-      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA MÔN TOÁN THCS (CHUẨN CÔNG VĂN 7991/BGDĐT - 18 CÂU / 29 Ý)
-| TT | Chủ đề / Mạch kiến thức | Đơn vị kiến thức | Mức độ nhận thức | Yêu cầu cần đạt (YCCĐ) chi tiết | Số câu & Dạng thức theo 4 phần | Điểm số |
+      label: '📐 Đặc tả Toán THCS KNTT (18 câu/29 ý - Chuẩn 7991)',
+      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA MÔN TOÁN THCS - KNTT (CHUẨN CÔNG VĂN 7991/BGDĐT - 18 CÂU / 29 Ý)
+| TT | Chủ đề / Mạch kiến thức | Đơn vị kiến thức (SGK KNTT) | Mức độ nhận thức | Yêu cầu cần đạt (YCCĐ) chi tiết | Số câu & Dạng thức theo 4 phần | Điểm số |
 |---|---|---|---|---|---|---|
-| 1 | Số & Đại số | Đơn thức và Đa thức nhiều biến | **Nhận biết (NB)** | - Nhận biết được đơn thức, đa thức nhiều biến.<br>- Nhận biết được các hạng tử, bậc của đơn thức và đa thức.<br>- Chỉ ra được các đơn thức đồng dạng. | 4 câu Phần I (Câu 1, 2, 3, 4)<br>1 ý Phần II (Câu 13a) | 1.25đ |
-| 1 | Số & Đại số | Các phép toán cộng, trừ, nhân, chia đa thức | **Thông hiểu (TH)** | - Thực hiện được phép nhân đơn thức với đa thức, đa thức với đa thức.<br>- Thu gọn được đa thức nhiều biến và tính giá trị của đa thức tại giá trị cho trước của biến. | 2 câu Phần I (Câu 5, 6)<br>2 ý Phần II (Câu 13b, 13c)<br>1 câu Phần III (Câu 15a) | 1.50đ |
-| 1 | Số & Đại số | Vận dụng biểu thức đại số giải bài toán thực tiễn | **Vận dụng (VD)** | - Vận dụng được quy tắc nhân chia đa thức để tính toán diện tích, chu vi, thể tích hình học biểu diễn qua biểu thức đại số.<br>- Tìm điều kiện của biến thỏa mãn biểu thức. | 1 ý Phần II (Câu 13d)<br>1 câu Phần III (Câu 15b)<br>1 câu Phần IV (Câu 16: gồm 2 ý a, b) | 1.75đ |
-| 2 | Hình học & Đo lường | Tứ giác & Các hình đặc biệt (Hình thang cân, Hình bình hành, Hình chữ nhật, Hình thoi, Hình vuông) | **Nhận biết (NB)** | - Nhận biết được định nghĩa, tính chất về cạnh, góc, đường chéo của hình chữ nhật, hình thoi, hình bình hành.<br>- Nhận biết dấu hiệu nhận biết một tứ giác là hình thang cân, hình thoi, hình chữ nhật. | 4 câu Phần I (Câu 7, 8, 9, 10)<br>2 ý Phần II (Câu 14a, 14b) | 1.50đ |
-| 2 | Hình học & Đo lường | Chứng minh tứ giác đặc biệt & Tính độ dài, góc | **Thông hiểu (TH)** | - Giải thích và chứng minh được một tứ giác là hình bình hành, hình thoi hoặc hình chữ nhật.<br>- Tính được độ dài đoạn thẳng, số đo góc trong hình học thực nghiệm. | 2 câu Phần I (Câu 11, 12)<br>1 ý Phần II (Câu 14c)<br>1 câu Phần III (Câu 15c) | 1.25đ |
-| 2 | Hình học & Đo lường | Vận dụng hình học giải quyết vấn đề thực tế & Cực trị | **Vận dụng & VDC** | - Vận dụng tính chất hình học giải bài toán đo đạc thực tế đời sống.<br>- Vận dụng cao: Chứng minh hệ thức hình học hoặc tìm vị trí điểm để biểu thức khoảng cách đạt giá trị nhỏ nhất. | 1 ý Phần II (Câu 14d)<br>1 câu Phần III (Câu 15d)<br>2 câu Phần IV (Câu 17: 1.0đ; Câu 18: gồm 2 ý 18.1, 18.2 - 1.0đ) | 2.75đ |
-| **CỘNG** | | | | **Bám sát 100% YCCĐ phân theo 4 mức độ: NB 40% (4.0đ) - TH 30% (3.0đ) - VD 20% (2.0đ) - VDC 10% (1.0đ)** | **18 câu lớn (29 ý)** | **10.0đ** |
-
-🎯 CẤU TRÚC ĐỀ VÀ PHÂN BỔ ĐIỂM BÁM SÁT BẢNG ĐẶC TẢ:
-1. Phần I: 12 câu trắc nghiệm nhiều lựa chọn (Câu 1 -> 12 | mỗi câu 0.25đ = 3.0đ).
-2. Phần II: 2 câu hỏi Đúng/Sai (Câu 13 và Câu 14, mỗi câu gồm 4 ý a,b,c,d chia đều 0.25đ/ý = 2.0đ).
-3. Phần III: 4 câu trả lời ngắn (15a, 15b, 15c, 15d | mỗi câu 0.5đ = 2.0đ).
-4. Phần IV: 3 câu tự luận (Câu 16 gồm ý a, b; Câu 17; Câu 18 gồm ý 18.1, 18.2 | Tổng = 3.0đ).`,
+| 1 | Số & Đại số | Khái niệm, kí hiệu & tính chất cơ bản trong bài học đã chọn | **Nhận biết (NB)** | - Nhận biết được các khái niệm, kí hiệu toán học đúng quy ước SGK Toán KNTT.<br>- Thực hiện được các phép tính đơn giản một bước. | 5 câu Phần I (Câu 1 - 5)<br>2 ý Phần II (Câu 13a, 13b) | 1.75đ |
+| 1 | Số & Đại số | Quy tắc biến đổi, tìm thành phần chưa biết | **Thông hiểu (TH)** | - Thực hiện được các phép biến đổi, tính giá trị biểu thức hợp lí.<br>- Giải thích được quy tắc tính toán, dấu hiệu chia hết hoặc lập tỉ số. | 2 câu Phần I (Câu 6, 7)<br>1 ý Phần II (Câu 13c)<br>1 câu Phần III (Câu 15a) | 1.25đ |
+| 1 | Số & Đại số | Vận dụng giải bài toán thực tiễn đời sống | **Vận dụng (VD)** | - Vận dụng kiến thức số học / đại số để giải quyết các tình huống mua bán, đo đạc, tính chi phí trong thực tiễn. | 1 ý Phần II (Câu 13d)<br>1 câu Phần III (Câu 15b)<br>2 câu Phần IV (Câu 16: 2 ý a,b; Câu 17) | 2.75đ |
+| 2 | Hình học & Đo lường | Hình phẳng trực quan / Hình học phẳng & Hình khối | **Nhận biết & Thông hiểu** | - Nhận biết được đỉnh, cạnh, góc, đường chéo, trục/tâm đối xứng (theo lớp).<br>- Tính được chu vi, diện tích, thể tích hoặc số đo góc cơ bản. | 5 câu Phần I (Câu 8 - 12)<br>3 ý Phần II (Câu 14a, 14b, 14c)<br>2 câu Phần III (Câu 15c, 15d) | 3.00đ |
+| 2 | Hình học & Đo lường | Chứng minh hình học & Bài toán đo đạc thực tiễn | **Vận dụng & VDC** | - Vận dụng tính chất hình học chứng minh quan hệ song song, vuông góc, bằng nhau/đồng dạng.<br>- Vận dụng cao: Bài toán thực tế hoặc cực trị hình học / số học. | 1 ý Phần II (Câu 14d)<br>1 câu Phần IV (Câu 18: gồm ý 18.1, 18.2) | 1.25đ |
+| **CỘNG** | | | | **Bám sát 100% YCCĐ SGK Toán KNTT theo 4 mức độ: NB 40% - TH 30% - VD 20% - VDC 10%** | **18 câu lớn (29 ý)** | **10.0đ** |`,
       defaultP1: 12,
       defaultP2: 2,
       defaultP3: 4,
@@ -488,51 +475,16 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
       defaultP3Pts: 0.5,
       defaultP4Pts: 1.0,
     },
-    spec_toan_thpt_22: {
-      label: '📐 Bảng đặc tả Toán THPT (22 câu - Cấu trúc mới Bộ GD&ĐT)',
-      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA MÔN TOÁN THPT (CHUẨN BỘ GIÁO DỤC VÀ ĐÀO TẠO - 22 CÂU)
-| TT | Chủ đề / Mạch kiến thức | Đơn vị kiến thức | Mức độ nhận thức | Yêu cầu cần đạt (YCCĐ) chi tiết | Số câu & Dạng thức theo 4 phần | Điểm số |
+    spec_toan6_hk1: {
+      label: '📘 Đặc tả Toán 6 KNTT (Số tự nhiên - Số nguyên - Hình phẳng)',
+      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA TOÁN 6 - SGK KẾT NỐI TRI THỨC VỚI CUỘC SỐNG
+| TT | Chủ đề (SGK Toán 6 Tập Một) | Đơn vị kiến thức | Mức độ | Yêu cầu cần đạt (YCCĐ) chuẩn SGK Toán 6 KNTT | Số câu & Dạng thức | Điểm số |
 |---|---|---|---|---|---|---|
-| 1 | Hàm số & Đạo hàm | Tính đơn điệu, cực trị, GTLN & GTNN, Tiệm cận của hàm số | **Nhận biết (NB)** | - Nhận biết được tính đồng biến, nghịch biến của hàm số trên khoảng cho trước qua bảng biến thiên hoặc đồ thị.<br>- Nhận biết điểm cực trị, giá trị cực trị của hàm số.<br>- Nhận biết đường tiệm cận đứng, tiệm cận ngang của đồ thị hàm phân thức. | 6 câu Phần I (Câu 1 - 6)<br>1 câu Phần II (Câu 1: ý a, b) | 2.0đ |
-| 1 | Hàm số & Đạo hàm | Khảo sát hàm số & Ứng dụng đạo hàm giải toán thực tế | **Thông hiểu & Vận dụng** | - Tìm được tham số m để hàm số đơn điệu hoặc đạt cực trị.<br>- Tìm được GTLN, GTNN của hàm số trên đoạn.<br>- Vận dụng đạo hàm giải quyết bài toán tối ưu hóa kinh tế / hình học thực tế (chi phí nhỏ nhất, thể tích lớn nhất). | 3 câu Phần I (Câu 7, 8, 9)<br>1 câu Phần II (Câu 1: ý c, d)<br>2 câu Phần III (Câu 1, 2) | 2.25đ |
-| 2 | Hình học & Tọa độ | Vectơ và hệ tọa độ trong không gian Oxyz | **Nhận biết & Thông hiểu** | - Nhận biết tọa độ điểm, vectơ, độ dài vectơ, tích vô hướng trong không gian Oxyz.<br>- Viết được phương trình mặt cầu, phương trình mặt phẳng đi qua các điểm cơ bản.<br>- Tính được khoảng cách từ điểm đến mặt phẳng, góc giữa hai mặt phẳng. | 3 câu Phần I (Câu 10, 11, 12)<br>1 câu Phần II (Câu 2: 4 ý a,b,c,d)<br>2 câu Phần III (Câu 3, 4) | 2.75đ |
-| 3 | Thống kê & Xác suất | Số đặc trưng đo mức độ phân tán & Xác suất có điều kiện | **Thông hiểu, VD & VDC** | - Tính được phương sai, độ lệch chuẩn của mẫu số liệu ghép nhóm.<br>- Vận dụng công thức xác suất toàn phần và công thức Bayes giải bài toán thực tiễn y học/sản xuất.<br>- Bài toán thực tế liên môn tối ưu hóa xác suất. | 2 câu Phần II (Câu 3, 4: mỗi câu 4 ý a,b,c,d)<br>2 câu Phần III (Câu 5, 6) | 3.0đ |
-| **CỘNG** | | | | **Bám sát 100% YCCĐ phân theo 4 mức độ: NB 40% - TH 30% - VD 20% - VDC 10%** | **22 câu (12 câu P.I + 4 câu P.II + 6 câu P.III)** | **10.0đ** |`,
-      defaultP1: 12,
-      defaultP2: 4,
-      defaultP3: 6,
-      defaultP4: 0,
-      defaultP3Pts: 0.5,
-    },
-    spec_van_thcs_thpt: {
-      label: '📖 Bảng đặc tả Ngữ văn (Đọc hiểu & Viết chuẩn YCCĐ)',
-      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA MÔN NGỮ VĂN (CHUẨN GDPT 2018 - ĐỌC HIỂU & VIẾT)
-| TT | Kỹ năng | Đơn vị kiến thức / Thể loại | Mức độ | Yêu cầu cần đạt (YCCĐ) chi tiết | Số câu & Dạng thức | Điểm số |
-|---|---|---|---|---|---|---|
-| 1 | **ĐỌC HIỂU** (Ngữ liệu ngoài SGK) | Nhận diện thể loại, phương thức biểu đạt & chi tiết | **Nhận biết (NB)** | - Nhận biết được thể loại truyện/thơ, phương thức biểu đạt chính, ngôi kể.<br>- Nhận diện được từ ngữ, hình ảnh đặc sắc, bối cảnh không gian thời gian và nhân vật trong đoạn trích. | 4 câu Trắc nghiệm (Câu 1, 2, 3, 4) | 1.0đ |
-| 1 | **ĐỌC HIỂU** | Phân tích chi tiết, biện pháp tu từ & tư tưởng chủ đề | **Thông hiểu (TH)** | - Hiểu và phân tích được tác dụng của biện pháp tu từ (so sánh, ẩn dụ, điệp ngữ...) trong ngữ cảnh.<br>- Giải thích được ý nghĩa hình tượng, diễn biến tâm trạng nhân vật hoặc nhan đề văn bản.<br>- Nêu và làm rõ chủ đề, tư tưởng chính của đoạn trích. | 4 câu Trắc nghiệm (Câu 5, 6, 7, 8) | 1.0đ |
-| 1 | **ĐỌC HIỂU** | Rút ra thông điệp, bài học & Thể hiện quan điểm | **Vận dụng (VD)** | - Rút ra được thông điệp sâu sắc, bài học về nhận thức và hành động cho bản thân từ văn bản.<br>- Bày tỏ được quan điểm đồng tình hoặc không đồng tình với tư tưởng của tác giả và lí giải hợp lí. | 2 câu Trả lời ngắn / Tự luận ngắn (Câu 9, 10) | 2.0đ |
-| 2 | **VIẾT** | Viết đoạn văn nghị luận xã hội (khoảng 200 chữ) | **Vận dụng (VD)** | - Viết đoạn văn nghị luận xã hội hoàn chỉnh bàn về một vấn đề đạo lí, lối sống hoặc hiện tượng đời sống rút ra từ phần Đọc hiểu.<br>- Đảm bảo cấu trúc đoạn văn, xác định đúng vấn đề, triển khai luận điểm rõ ràng, dẫn chứng xác thực, cảm xúc chân thực. | 1 câu Tự luận (Câu 1 Phần Viết) | 2.0đ |
-| 2 | **VIẾT** | Viết bài văn hoàn chỉnh (Nghị luận văn học / Phân tích) | **Vận dụng cao (VDC)** | - Viết bài văn nghị luận hoàn chỉnh phân tích đặc sắc nội dung và nghệ thuật của đoạn trích truyện/thơ hoặc bàn luận sâu sắc về một vấn đề văn học - đời sống.<br>- Bố cục ba phần mở - thân - kết rõ ràng, lập luận sắc bén, có phát hiện mới mẻ, sáng tạo trong hành văn và từ ngữ. | 1 câu Tự luận (Câu 2 Phần Viết) | 4.0đ |
-| **CỘNG** | | | | **Đầy đủ 100% YCCĐ Đọc hiểu (4.0đ) & Viết (6.0đ)** | **12 câu** | **10.0đ** |`,
-      defaultP1: 8,
-      defaultP2: 0,
-      defaultP3: 2,
-      defaultP4: 2,
-      defaultP3Pts: 1.0,
-      defaultP4Pts: 2.0,
-    },
-    spec_khtn_vatli: {
-      label: '🔬 Bảng đặc tả KHTN / Vật lí (Thực nghiệm & Ứng dụng)',
-      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA KHOA HỌC TỰ NHIÊN / VẬT LÍ (CHUẨN 7991)
-| TT | Mạch nội dung | Đơn vị kiến thức | Mức độ | Yêu cầu cần đạt (YCCĐ) chi tiết | Số câu & Dạng thức theo 4 phần | Điểm số |
-|---|---|---|---|---|---|---|
-| 1 | Chuyển động & Lực | Tốc độ, Quãng đường, Đồ thị quãng đường - thời gian | **Nhận biết (NB)** | - Nhận biết được khái niệm tốc độ, đơn vị đo tốc độ trong hệ SI.<br>- Nhận biết hình dạng đồ thị quãng đường - thời gian của chuyển động đều. | 4 câu Phần I (Câu 1 - 4)<br>1 ý Phần II (Câu 13a) | 1.25đ |
-| 1 | Chuyển động & Lực | Tính toán tốc độ, đọc đồ thị & Lực ma sát | **Thông hiểu (TH)** | - Tính được tốc độ trung bình từ công thức v = s / t.<br>- Đọc và mô tả được trạng thái chuyển động từ đồ thị quãng đường - thời gian.<br>- Giải thích được tác dụng của lực ma sát trong đời sống và kỹ thuật. | 2 câu Phần I (Câu 5, 6)<br>2 ý Phần II (Câu 13b, 13c)<br>1 câu Phần III (Câu 15a) | 1.50đ |
-| 1 | Chuyển động & Lực | Vận dụng tính an toàn giao thông & Tính toán nhiều bước | **Vận dụng (VD)** | - Vận dụng hiểu biết về tốc độ và khoảng cách an toàn để giải thích quy tắc an toàn giao thông.<br>- Giải bài toán chuyển động của hai vật ngược chiều/cùng chiều gặp nhau. | 1 ý Phần II (Câu 13d)<br>1 câu Phần III (Câu 15b)<br>1 câu Phần IV (Câu 16) | 1.75đ |
-| 2 | Năng lượng & Sự biến đổi | Động năng, Thế năng & Bảo toàn năng lượng | **Nhận biết & Thông hiểu** | - Nhận biết được dạng năng lượng (cơ năng, nhiệt năng, hóa năng, điện năng).<br>- Lấy được ví dụ về sự chuyển hóa năng lượng từ dạng này sang dạng khác.<br>- Tính được động năng hoặc thế năng của vật trong các trường hợp đơn giản. | 6 câu Phần I (Câu 7 - 12)<br>2 ý Phần II (Câu 14a, 14b)<br>1 câu Phần III (Câu 15c) | 2.50đ |
-| 2 | Năng lượng & Sự biến đổi | Vận dụng định luật bảo toàn năng lượng & Hiệu suất | **Vận dụng & VDC** | - Tính được công cơ học, công suất và hiệu suất của máy móc thiết bị.<br>- Vận dụng định luật bảo toàn cơ năng giải bài toán vật rơi tự do hoặc trượt có ma sát. | 2 ý Phần II (Câu 14c, 14d)<br>1 câu Phần III (Câu 15d)<br>2 câu Phần IV (Câu 17, Câu 18) | 3.0đ |
-| **CỘNG** | | | | **Bám sát 100% YCCĐ phân theo 4 mức độ: NB 40% - TH 30% - VD 20% - VDC 10%** | **18 câu lớn (29 ý)** | **10.0đ** |`,
+| 1 | Chương I. Tập hợp các số tự nhiên | Tập hợp, thứ tự thực hiện phép tính, lũy thừa với số mũ tự nhiên | **NB & TH** | - Sử dụng đúng kí hiệu $\\in, \\notin$, viết tập hợp bằng dấu chấm phẩy (;).<br>- Thực hiện phép cộng, trừ, nhân, chia, nâng lên lũy thừa và thứ tự thực hiện phép tính. | 4 câu Phần I + 2 ý Phần II + 1 câu Phần III + 1 câu Phần IV | 3.0đ |
+| 2 | Chương II. Tính chia hết | Dấu hiệu chia hết 2,3,5,9; Số nguyên tố; ƯCLN, BCNN | **NB, TH & VD** | - Nhận biết số nguyên tố, hợp số; phân tích ra thừa số nguyên tố.<br>- Vận dụng ƯCLN, BCNN giải bài toán chia nhóm, lịch trực thực tế. | 3 câu Phần I + 2 ý Phần II + 1 câu Phần III + 1 câu Phần IV | 3.0đ |
+| 3 | Chương III. Số nguyên | Số nguyên âm, cộng trừ nhân chia số nguyên, quy tắc dấu ngoặc | **NB, TH & VDC** | - Biểu diễn số nguyên trên trục số; so sánh, tìm số đối.<br>- Vận dụng tính chất chia hết trong $\\mathbb{Z}$ hoặc tính hợp lí dãy số có quy luật. | 2 câu Phần I + 2 ý Phần II + 1 câu Phần III | 1.75đ |
+| 4 | Chương IV. Hình phẳng trực quan | Tam giác đều, hình vuông, lục giác đều, HCN, hình thoi, HBH, hình thang cân | **NB, TH & VD** | - Mô tả cạnh, góc, đường chéo; tính chu vi, diện tích ghép hình thực tiễn (lát gạch, làm hàng rào). | 3 câu Phần I + 2 ý Phần II + 1 câu Phần III + 1 câu Phần IV | 2.25đ |
+| **CỘNG** | | | | **100% đúng phạm vi SGK Toán 6 KNTT Tập Một (Không vượt cấp Toán 7)** | **18 câu (29 ý)** | **10.0đ** |`,
       defaultP1: 12,
       defaultP2: 2,
       defaultP3: 4,
@@ -540,36 +492,51 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
       defaultP3Pts: 0.5,
       defaultP4Pts: 1.0,
     },
-    spec_hoa_hoc: {
-      label: '🧪 Bảng đặc tả Hóa học (Công thức, Phương trình & Thí nghiệm)',
-      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA MÔN HÓA HỌC (CHUẨN BỘ GIÁO DỤC VÀ ĐÀO TẠO)
-| TT | Mạch kiến thức | Đơn vị kiến thức | Mức độ | Yêu cầu cần đạt (YCCĐ) chi tiết | Số câu & Dạng thức theo 4 phần | Điểm số |
+    spec_toan7_hk1: {
+      label: '📗 Đặc tả Toán 7 KNTT (Số hữu tỉ - Số thực - Tam giác bằng nhau)',
+      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA TOÁN 7 - SGK KẾT NỐI TRI THỨC VỚI CUỘC SỐNG
+| TT | Chủ đề (SGK Toán 7 Tập Một) | Đơn vị kiến thức | Mức độ | Yêu cầu cần đạt (YCCĐ) chuẩn SGK Toán 7 KNTT | Số câu & Dạng thức | Điểm số |
 |---|---|---|---|---|---|---|
-| 1 | Cấu tạo chất | Nguyên tử, Nguyên tố hóa học & Bảng tuần hoàn | **Nhận biết (NB)** | - Nhận biết thành phần cấu tạo nguyên tử (p, n, e), số hiệu nguyên tử, số khối.<br>- Nhận biết vị trí của nguyên tố trong bảng tuần hoàn (ô, chu kì, nhóm). | 6 câu Phần I (Câu 1 - 6)<br>2 ý Phần II (Câu 13a, 13b) | 2.0đ |
-| 2 | Phản ứng hóa học | Liên kết hóa học & Phản ứng Oxi hóa - Khử | **Thông hiểu (TH)** | - Phân biệt liên kết ion và liên kết cộng hóa trị.<br>- Xác định số oxi hóa, chất khử, chất oxi hóa và cân bằng phương trình phản ứng oxi hóa - khử theo phương pháp thăng bằng electron. | 4 câu Phần I (Câu 7 - 10)<br>2 ý Phần II (Câu 13c, 13d)<br>2 câu Phần III (Câu 1, 2) | 2.50đ |
-| 3 | Thực nghiệm & Tính toán | Nồng độ dung dịch, Hiệu suất phản ứng & Bài toán hóa học | **Vận dụng & VDC** | - Tính nồng độ phần trăm, nồng độ mol của dung dịch sau phản ứng.<br>- Tính lượng chất tham gia/sản phẩm theo phương trình hóa học có tính hiệu suất phản ứng.<br>- Vận dụng cao: Biện luận xác định công thức phân tử hoặc bài toán hỗn hợp nhiều phản ứng phức tạp. | 2 câu Phần I (Câu 11, 12)<br>1 câu Phần II (Câu 14: 4 ý a,b,c,d)<br>2 câu Phần III (Câu 3, 4)<br>2 câu Phần IV (Câu 1, 2) | 5.50đ |
-| **CỘNG** | | | | **Bám sát 100% YCCĐ phân theo 4 mức độ: NB 40% - TH 30% - VD 20% - VDC 10%** | **20 câu** | **10.0đ** |`,
+| 1 | Chương I & II. Số hữu tỉ & Số thực | Phép tính $\\mathbb{Q}$, căn bậc hai số học, số vô tỉ, làm tròn số | **NB, TH & VD** | - Nhận biết số hữu tỉ, số vô tỉ, căn bậc hai số học, giá trị tuyệt đối.<br>- Thực hiện phép tính lũy thừa, làm tròn số với độ chính xác cho trước. | 6 câu Phần I + 1 câu Phần II + 2 câu Phần III + 1 câu Phần IV | 4.5đ |
+| 2 | Chương III & IV. Góc, đường thẳng // & Tam giác bằng nhau | Góc kề bù, đối đỉnh, Tiên đề Euclid; c.c.c, c.g.c, g.c.g, tam giác cân | **NB, TH & VD** | - Tính số đo góc tạo bởi 1 đường thẳng cắt 2 đường thẳng song song.<br>- Chứng minh hai tam giác bằng nhau, hai đoạn thẳng/góc bằng nhau, tam giác cân. | 4 câu Phần I + 1 câu Phần II + 1 câu Phần III + 2 câu Phần IV | 4.5đ |
+| 3 | Chương V. Thu thập và biểu diễn dữ liệu | Biểu đồ hình quạt tròn, biểu đồ đoạn thẳng | **NB & TH** | - Đọc và phân tích số liệu từ biểu đồ quạt tròn, biểu đồ đoạn thẳng. | 2 câu Phần I + 1 câu Phần III | 1.0đ |
+| **CỘNG** | | | | **100% đúng phạm vi SGK Toán 7 KNTT Tập Một (Không dùng Thalès/Pythagore)** | **18 câu (29 ý)** | **10.0đ** |`,
       defaultP1: 12,
       defaultP2: 2,
       defaultP3: 4,
-      defaultP4: 2,
+      defaultP4: 3,
       defaultP3Pts: 0.5,
-      defaultP4Pts: 1.5,
+      defaultP4Pts: 1.0,
     },
-    spec_tieng_anh: {
-      label: '🇬🇧 Bảng đặc tả Tiếng Anh (Kỹ năng ngôn ngữ chuẩn CEFR)',
-      text: `### SPECIFICATION TABLE FOR ENGLISH EXAMINATION (CV 7991 FORMAT)
-| No | Language Skill / Component | Learning Objectives & Competencies (YCCĐ) | Cognitive Level | Question Formats | Points |
-|---|---|---|---|---|---|
-| 1 | Pronunciation & Stress | - Identify correct pronunciation of vowels/consonants (-s/es, -ed, vowels).<br>- Identify primary stress in 2-syllable and 3-syllable words. | Remember (NB) | 4 MCQs Part I (Qs 1 - 4) | 1.0 pt |
-| 2 | Grammar & Vocabulary | - Recognize and apply correct tenses, prepositions, phrasal verbs, collocations.<br>- Choose appropriate communicative exchanges in everyday contexts. | Remember & Understand (NB/TH) | 8 MCQs Part I (Qs 5 - 12)<br>Part II (TF 4 statements) | 3.0 pts |
-| 3 | Reading Comprehension | - Read a passage (150-250 words) to find main idea and specific factual details.<br>- Infer word meaning from context and author's tone/attitude. | Understand & Apply (TH/VD) | 6 MCQs Part I (Qs 13 - 18)<br>2 Short-Answer Qs Part III | 2.5 pts |
-| 4 | Writing (Transformations & Paragraph) | - Rewrite sentences using given prompt words without changing the original meaning.<br>- Write a coherent paragraph (80-120 words) with clear topic sentence, supporting ideas and correct mechanics. | Apply & Advanced (VD/VDC) | 2 Short-Answer Part III (Sentence completion)<br>2 Writing Prompts Part IV | 3.5 pts |
-| **TOTAL** | | **Comprehensive 4 Skills assessment strictly adhering to CV 7991** | | **28 Items** | **10.0 pts** |`,
-      defaultP1: 18,
+    spec_toan8_hk1: {
+      label: '📙 Đặc tả Toán 8 KNTT (Đa thức - HĐT - Tứ giác & Thalès)',
+      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA TOÁN 8 - SGK KẾT NỐI TRI THỨC VỚI CUỘC SỐNG
+| TT | Chủ đề (SGK Toán 8 Tập Một) | Đơn vị kiến thức | Mức độ | Yêu cầu cần đạt (YCCĐ) chuẩn SGK Toán 8 KNTT | Số câu & Dạng thức | Điểm số |
+|---|---|---|---|---|---|---|
+| 1 | Chương I & II. Đa thức & Hằng đẳng thức đáng nhớ | Đơn thức, đa thức nhiều biến, 7 HĐT, phân tích đa thức thành nhân tử | **NB, TH, VD & VDC** | - Thu gọn đơn/đa thức; khai triển và áp dụng 7 hằng đẳng thức đáng nhớ.<br>- Phân tích đa thức thành nhân tử và tìm GTLN/GTNN. | 6 câu Phần I + 1 câu Phần II + 2 câu Phần III + 2 câu Phần IV | 5.25đ |
+| 2 | Chương III & IV. Tứ giác & Định lí Thalès | Hình thang cân, HBH, HCN, hình thoi, hình vuông; Thalès, đường TB, phân giác | **NB, TH & VD** | - Chứng minh tứ giác đặc biệt; vận dụng định lí Thalès, đường trung bình và phân giác tính độ dài thực tế. | 4 câu Phần I + 1 câu Phần II + 1 câu Phần III + 1 câu Phần IV | 3.75đ |
+| 3 | Chương V. Dữ liệu và biểu đồ | Phân loại dữ liệu, lựa chọn và phân tích biểu đồ cột/đoạn thẳng/quạt | **NB & TH** | - Nhận biết dữ liệu hợp lí và phân tích xu hướng từ biểu đồ. | 2 câu Phần I + 1 câu Phần III | 1.0đ |
+| **CỘNG** | | | | **100% đúng phạm vi SGK Toán 8 KNTT (Không dùng sin/cos, PT bậc hai)** | **18 câu (29 ý)** | **10.0đ** |`,
+      defaultP1: 12,
       defaultP2: 2,
       defaultP3: 4,
-      defaultP4: 2,
+      defaultP4: 3,
+      defaultP3Pts: 0.5,
+      defaultP4Pts: 1.0,
+    },
+    spec_toan9_hk1: {
+      label: '📕 Đặc tả Toán 9 KNTT (Hệ PT - Căn thức - Lượng giác & Đường tròn)',
+      text: `### BẢNG ĐẶC TẢ ĐỀ KIỂM TRA TOÁN 9 - SGK KẾT NỐI TRI THỨC VỚI CUỘC SỐNG
+| TT | Chủ đề (SGK Toán 9 Tập Một) | Đơn vị kiến thức | Mức độ | Yêu cầu cần đạt (YCCĐ) chuẩn SGK Toán 9 KNTT | Số câu & Dạng thức | Điểm số |
+|---|---|---|---|---|---|---|
+| 1 | Chương I & II. Hệ PT bậc nhất hai ẩn & BPT bậc nhất một ẩn | Giải hệ PT bằng thế/cộng đại số; giải bài toán lập hệ PT; BĐT và BPT | **NB, TH & VD** | - Giải được hệ phương trình bậc nhất hai ẩn và bất phương trình bậc nhất một ẩn.<br>- Lập hệ phương trình giải bài toán năng suất, chuyển động, phần trăm. | 5 câu Phần I + 1 câu Phần II + 2 câu Phần III + 1 câu Phần IV | 4.25đ |
+| 2 | Chương III. Căn bậc hai và căn bậc ba | Khai căn bậc hai/ba, trục căn thức ở mẫu, rút gọn biểu thức chứa căn | **NB, TH & VDC** | - Tìm điều kiện xác định của căn thức; rút gọn biểu thức và tìm giá trị nguyên/GTLN/GTNN. | 3 câu Phần I + 1 câu Phần III + 1 câu Phần IV | 2.25đ |
+| 3 | Chương IV & V. Tỉ số lượng giác & Đường tròn | $\\sin, \\cos, \\tan, \\cot$, giải tam giác vuông; dây, tiếp tuyến, độ dài cung, quạt tròn | **NB, TH & VD** | - Tính chiều cao, khoảng cách thực tế bằng tỉ số lượng giác.<br>- Chứng minh tiếp tuyến, tính chất hai tiếp tuyến cắt nhau, độ dài cung, diện tích quạt tròn. | 4 câu Phần I + 1 câu Phần II + 1 câu Phần III + 1 câu Phần IV | 3.50đ |
+| **CỘNG** | | | | **100% đúng phạm vi SGK Toán 9 KNTT Tập Một (Không đưa kiến thức THPT)** | **18 câu (29 ý)** | **10.0đ** |`,
+      defaultP1: 12,
+      defaultP2: 2,
+      defaultP3: 4,
+      defaultP4: 3,
       defaultP3Pts: 0.5,
       defaultP4Pts: 1.0,
     },
@@ -600,15 +567,15 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     }
   };
 
-  const handleInsertSpecStructurePrompt = (type: 'thcs_18' | 'thpt_22' | 'van') => {
+  const handleInsertSpecStructurePrompt = (type: 'thcs_18' | 'mcq_only' | 'essay_5') => {
     let snippet = '';
     if (type === 'thcs_18') {
-      snippet = `\n\n### CẤU TRÚC ĐỀ BÁM SÁT BẢNG ĐẶC TẢ TRÊN (18 CÂU - 29 Ý | TỔNG 10.0 ĐIỂM):
+      snippet = `\n\n### CẤU TRÚC ĐỀ TOÁN THCS BÁM SÁT BẢNG ĐẶC TẢ TRÊN (18 CÂU - 29 Ý | TỔNG 10.0 ĐIỂM):
 - Phần I (Câu 1 -> 12): Đúng 12 câu trắc nghiệm 4 lựa chọn (8 Biết, 4 Hiểu - mỗi câu 0.25đ = 3.0đ).
 - Phần II (Câu 13, 14): Đúng 2 câu lớn Đúng/Sai (Câu 13 gồm 4 ý a,b,c,d; Câu 14 gồm 4 ý a,b,c,d - mỗi câu 1.0đ = 2.0đ).
 - Phần III (Câu 15a, 15b, 15c, 15d): Đúng 4 câu trả lời ngắn độc lập (2 Biết, 1 Hiểu, 1 Vận dụng - mỗi câu 0.5đ = 2.0đ).
 - Phần IV (Câu 16, 17, 18): Đúng 3 câu tự luận (Câu 16 gồm ý a, b; Câu 17; Câu 18 gồm ý 18.1, 18.2 - Tổng = 3.0đ).
-* YÊU CẦU AI: Ra đủ 100% 18 câu hỏi trên khớp với từng Yêu cầu cần đạt (YCCĐ) trong Bảng đặc tả, không gộp và không bỏ sót!`;
+* YÊU CẦU AI: Ra đủ 100% 18 câu hỏi Toán KNTT trên khớp với từng Yêu cầu cần đạt (YCCĐ) trong Bảng đặc tả, không gộp và không bỏ sót!`;
       setQuestionCounts((prev) => ({
         ...prev,
         part1_MCQSingle: 12,
@@ -623,38 +590,37 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
         part4_AdvancedCount: 1,
         part4_AdvancedPoints: 1.0,
       }));
-    } else if (type === 'thpt_22') {
-      snippet = `\n\n### CẤU TRÚC ĐỀ CHUẨN THPT/ĐGNL BÁM SÁT BẢNG ĐẶC TẢ (22 CÂU | TỔNG 10.0 ĐIỂM):
-- Phần I: 12 câu trắc nghiệm 4 lựa chọn (Câu 1-12 | 0.25đ/câu = 3.0đ).
-- Phần II: 4 câu trắc nghiệm Đúng/Sai (Câu 1-4 | mỗi câu 4 ý a,b,c,d = 4.0đ).
-- Phần III: 6 câu trắc nghiệm Trả lời ngắn (Câu 1-6 | 0.5đ/câu = 3.0đ).
+    } else if (type === 'mcq_only') {
+      snippet = `\n\n### CẤU TRÚC ĐỀ TOÁN THCS 100% TRẮC NGHIỆM BÁM SÁT BẢNG ĐẶC TẢ (31 CÂU | TỔNG 10.0 ĐIỂM):
+- Phần I: 20 câu trắc nghiệm 4 lựa chọn (Câu 1-20 | 0.25đ/câu = 5.0đ).
+- Phần II: 3 câu trắc nghiệm Đúng/Sai (Câu 1-3 | mỗi câu 4 ý a,b,c,d = 3.0đ).
+- Phần III: 8 câu trắc nghiệm Trả lời ngắn (Câu 1-8 | 0.25đ/câu = 2.0đ).
 * Phần IV: 0 câu Tự luận.
-* YÊU CẦU AI: Mỗi câu hỏi đo lường chính xác 1 Yêu cầu cần đạt trong Bảng đặc tả, đúng mức độ nhận thức.`;
+* YÊU CẦU AI: Mỗi câu hỏi đo lường chính xác 1 Yêu cầu cần đạt trong Bảng đặc tả SGK Toán KNTT.`;
       setQuestionCounts((prev) => ({
         ...prev,
-        part1_MCQSingle: 12,
+        part1_MCQSingle: 20,
         part1_PointsPerQuestion: 0.25,
-        part2_MCQTrueFalse: 4,
+        part2_MCQTrueFalse: 3,
         part2_PointsPerQuestion: 1.0,
-        part3_MCQShort: 6,
-        part3_PointsPerQuestion: 0.5,
+        part3_MCQShort: 8,
+        part3_PointsPerQuestion: 0.25,
         part4_Essay: 0,
       }));
-    } else if (type === 'van') {
-      snippet = `\n\n### CẤU TRÚC ĐỀ MÔN NGỮ VĂN BÁM SÁT BẢNG ĐẶC TẢ (ĐỌC HIỂU & VIẾT | TỔNG 10.0 ĐIỂM):
-- Phần I Đọc hiểu: 8 câu (Câu 1-8 | 4.0đ) bám sát YCCĐ thể loại, biện pháp nghệ thuật và nội dung tư tưởng.
-- Phần II Viết (Tự luận): 2 câu (Câu 1: Viết đoạn văn nghị luận 2.0đ; Câu 2: Bài văn 4.0đ) bám sát YCCĐ tạo lập văn bản.`;
+    } else if (type === 'essay_5') {
+      snippet = `\n\n### CẤU TRÚC ĐỀ TOÁN THCS 100% TỰ LUẬN BÁM SÁT BẢNG ĐẶC TẢ (5 CÂU | TỔNG 10.0 ĐIỂM):
+- Phần I, II, III: 0 câu trắc nghiệm.
+- Phần IV (Tự luận): 5 câu (Câu 1-3: Số học / Đại số; Câu 4: Hình học có hình vẽ; Câu 5: Vận dụng thực tế / Nâng cao | mỗi câu 2.0đ = 10.0đ).`;
       setQuestionCounts((prev) => ({
         ...prev,
-        part1_MCQSingle: 8,
-        part1_PointsPerQuestion: 0.5,
+        part1_MCQSingle: 0,
         part2_MCQTrueFalse: 0,
         part3_MCQShort: 0,
-        part4_Essay: 2,
-        part4_ApplyCount: 1,
+        part4_Essay: 5,
+        part4_ApplyCount: 3,
         part4_ApplyPoints: 2.0,
-        part4_AdvancedCount: 1,
-        part4_AdvancedPoints: 4.0,
+        part4_AdvancedCount: 2,
+        part4_AdvancedPoints: 2.0,
       }));
     }
 
@@ -846,17 +812,32 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     if (!meta) return;
     if (meta.schoolName) setSchoolName(meta.schoolName);
     if (meta.departmentName) setDepartmentName(meta.departmentName);
-    if (meta.subject) setSubject(meta.subject);
-    if (meta.grade) setGrade(meta.grade);
-    if (meta.className) setClassName(meta.className);
+    const normalizedGrade = normalizeKnttGrade(meta.grade);
+    setSubject('Toán');
+    setGrade(normalizedGrade);
+    setCurriculum(KNTT_CURRICULUM_NAME);
+    if (meta.className) {
+      setClassName(meta.className);
+    } else {
+      setClassName(`${normalizedGrade.replace('Khối ', '')}A1`);
+    }
     if (meta.semester) setSemester(meta.semester);
     if (meta.schoolYear) setSchoolYear(meta.schoolYear);
     if (meta.examTitle) setExamTitle(meta.examTitle);
-    if (meta.chapterTitle) setChapterTitle(meta.chapterTitle);
+    setChapterTitle(meta.chapterTitle || getDefaultChapterTitleForGrade(normalizedGrade));
     if (typeof meta.durationMinutes === 'number') setDurationMinutes(meta.durationMinutes);
     if (typeof meta.totalPoints === 'number') setTotalPoints(meta.totalPoints);
-    if (meta.curriculum) setCurriculum(meta.curriculum);
-    if (meta.subjectConfig) setSubjectConfig(meta.subjectConfig);
+    setSubjectConfig({
+      mathDomains: meta.subjectConfig?.mathDomains?.length
+        ? meta.subjectConfig.mathDomains
+        : ['so_dai_so', 'hinh_hoc_do_luong', 'thong_ke_xac_suat'],
+      selectedKnttLessonIds: Array.isArray(meta.subjectConfig?.selectedKnttLessonIds)
+        ? meta.subjectConfig!.selectedKnttLessonIds
+        : [],
+      prioritizeGeoGebraDiagrams: meta.subjectConfig?.prioritizeGeoGebraDiagrams ?? true,
+      strictKnttTextbookOnly: true,
+      hasContextData: meta.subjectConfig?.hasContextData ?? true,
+    });
     if (meta.referenceContext !== undefined) setReferenceContext(meta.referenceContext || '');
     if (Array.isArray(meta.referenceImages)) setReferenceImages(meta.referenceImages);
     
@@ -988,17 +969,16 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     setSemester('Học kỳ I');
     setSchoolYear('2026 - 2027');
     setExamTitle('Kiểm tra Giữa học kỳ I');
-    setChapterTitle('Chương I: Tập hợp số tự nhiên');
+    setChapterTitle('Chương I. Tập hợp các số tự nhiên');
     setDurationMinutes(45);
     setTotalPoints(10);
-    setCurriculum('Kết nối tri thức với cuộc sống');
+    setCurriculum(KNTT_CURRICULUM_NAME);
     setSubjectConfig({
-      readingPassageType: 'truyen',
-      writingGenre: 'nghi_luan_xa_hoi',
-      englishSkills: ['phonetics', 'grammar_vocab', 'reading', 'writing_transformation'],
-      physicsDomain: 'tong_hop',
-      chemistryDomain: 'tong_hop',
-      biologyDomain: 'tong_hop',
+      mathDomains: ['so_dai_so', 'hinh_hoc_do_luong', 'thong_ke_xac_suat'],
+      selectedKnttLessonIds: [],
+      prioritizeGeoGebraDiagrams: true,
+      strictKnttTextbookOnly: true,
+      hasContextData: true,
     });
     setReferenceContext('');
     setReferenceImages([]);
@@ -1222,12 +1202,14 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     e.preventDefault();
     setErrorMsg('');
 
+    const normalizedGrade = normalizeKnttGrade(grade);
+
     if (!settings.customApiKey || !settings.customApiKey.trim()) {
       setPendingMetadata({
         schoolName,
         departmentName,
-        subject,
-        grade,
+        subject: 'Toán',
+        grade: normalizedGrade,
         className,
         semester,
         schoolYear,
@@ -1235,16 +1217,19 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
         chapterTitle,
         durationMinutes,
         totalPoints,
-        curriculum,
+        curriculum: KNTT_CURRICULUM_NAME,
         examMode,
         questionCounts,
         cognitiveRatio,
         codeCount,
-        subjectConfig,
+        subjectConfig: { ...subjectConfig, strictKnttTextbookOnly: true },
         referenceContext,
         referenceImages,
+        matrixInputMode,
         customMatrixContext: customMatrixContext.trim() || undefined,
         customMatrixImages: customMatrixImages.length > 0 ? customMatrixImages : undefined,
+        customSpecContext: customSpecContext.trim() || undefined,
+        customSpecImages: customSpecImages.length > 0 ? customSpecImages : undefined,
         matrixOutputFormat,
       });
       setShowApiKeyModal(true);
@@ -1298,8 +1283,8 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
     const metadata: ExamMetadata = {
       schoolName,
       departmentName,
-      subject,
-      grade,
+      subject: 'Toán',
+      grade: normalizedGrade,
       className,
       semester,
       schoolYear,
@@ -1307,12 +1292,12 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
       chapterTitle,
       durationMinutes,
       totalPoints,
-      curriculum,
+      curriculum: KNTT_CURRICULUM_NAME,
       examMode,
       questionCounts,
       cognitiveRatio,
       codeCount,
-      subjectConfig,
+      subjectConfig: { ...subjectConfig, strictKnttTextbookOnly: true },
       referenceContext,
       referenceImages,
       matrixInputMode: resolvedMatrixInputMode,
@@ -1480,86 +1465,52 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Môn Học
+                Môn Học (Chuyên biệt)
               </label>
-              <select
-                value={subject}
-                onChange={(e) => {
-                  const newSub = e.target.value as SubjectType;
-                  setSubject(newSub);
-                  // Tự động gợi ý tên chương / chủ đề theo môn học
-                  if (newSub === 'Ngữ văn') {
-                    setChapterTitle('Đọc hiểu văn bản truyện/thơ và Viết đoạn văn nghị luận xã hội');
-                  } else if (newSub === 'Tiếng Anh') {
-                    setChapterTitle('Unit 1 - Unit 3: Pronunciation, Grammar, Reading Comprehension & Writing');
-                  } else if (newSub === 'Vật lí') {
-                    setChapterTitle('Chương I: Động học & Động lực học chất điểm');
-                  } else if (newSub === 'Hóa học') {
-                    setChapterTitle('Chương I: Cấu tạo nguyên tử & Bảng tuần hoàn');
-                  } else if (newSub === 'Sinh học') {
-                    setChapterTitle('Chương I: Cơ sở di truyền học & Biến dị');
-                  } else if (newSub === 'Lịch sử') {
-                    setChapterTitle('Chủ đề: Lịch sử Việt Nam thời cận - hiện đại');
-                  } else if (newSub === 'Địa lí') {
-                    setChapterTitle('Địa lí tự nhiên & Dân cư Việt Nam');
-                  }
-                }}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500 outline-none font-medium"
-              >
-                <option value="Toán">Toán học</option>
-                <option value="Ngữ văn">Ngữ văn</option>
-                <option value="Tiếng Anh">Tiếng Anh</option>
-                <option value="Vật lí">Vật lí</option>
-                <option value="Hóa học">Hóa học</option>
-                <option value="Sinh học">Sinh học</option>
-                <option value="KHTN">KHTN (Khoa học tự nhiên THCS)</option>
-                <option value="Lịch sử">Lịch sử</option>
-                <option value="Địa lí">Địa lí</option>
-                <option value="Lịch sử và Địa lí">Lịch sử và Địa lí (THCS)</option>
-                <option value="GDCD / GDKT&PL">GDCD / GD Kinh tế & Pháp luật</option>
-                <option value="Tin học">Tin học</option>
-                <option value="Công nghệ">Công nghệ</option>
-                <option value="Mỹ thuật">Mỹ thuật</option>
-                <option value="Âm nhạc">Âm nhạc</option>
-                <option value="Giáo dục thể chất">Giáo dục thể chất</option>
-                <option value="Khác">Môn học khác</option>
-              </select>
+              <div className="w-full px-3 py-2 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/70 dark:bg-teal-950/40 text-teal-800 dark:text-teal-200 text-sm font-bold flex items-center justify-between">
+                <span className="flex items-center space-x-1.5">
+                  <Calculator className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                  <span>Toán học (THCS)</span>
+                </span>
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-teal-600 text-white">
+                  KNTT
+                </span>
+              </div>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Khối Lớp
+                Khối Lớp (SGK Toán KNTT 6–9)
               </label>
               <select
                 value={grade}
-                onChange={(e) => setGrade(e.target.value)}
+                onChange={(e) => {
+                  const newGrade = normalizeKnttGrade(e.target.value);
+                  setGrade(newGrade);
+                  setClassName(`${newGrade.replace('Khối ', '')}A1`);
+                  setChapterTitle(getDefaultChapterTitleForGrade(newGrade));
+                  setSubjectConfig((prev) => ({
+                    ...prev,
+                    selectedKnttLessonIds: [],
+                  }));
+                }}
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500 outline-none font-medium"
               >
-                <option value="Khối 6">Khối 6 (THCS)</option>
-                <option value="Khối 7">Khối 7 (THCS)</option>
-                <option value="Khối 8">Khối 8 (THCS)</option>
-                <option value="Khối 9">Khối 9 (THCS)</option>
-                <option value="Khối 10">Khối 10 (THPT)</option>
-                <option value="Khối 11">Khối 11 (THPT)</option>
-                <option value="Khối 12">Khối 12 (THPT)</option>
+                {KNTT_GRADES.map((g) => (
+                  <option key={g} value={g}>
+                    {g} (Toán KNTT Tập 1 &amp; 2)
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Bộ Sách / Chương Trình
+                Nguồn Sách Giáo Khoa Duy Nhất
               </label>
-              <select
-                value={curriculum}
-                onChange={(e) => setCurriculum(e.target.value as CurriculumType)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500 outline-none font-medium text-teal-700 dark:text-teal-300"
-              >
-                <option value="Kết nối tri thức với cuộc sống">Kết nối tri thức với cuộc sống</option>
-                <option value="Chân trời sáng tạo">Chân trời sáng tạo</option>
-                <option value="Cánh Diều">Cánh Diều</option>
-                <option value="Bộ SGK thống nhất 2026">Bộ SGK thống nhất 2026</option>
-                <option value="Chương trình GDPT 2018 khác">Chương trình GDPT 2018 khác</option>
-              </select>
+              <div className="w-full px-3 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 text-sm font-bold truncate" title="Kết nối tri thức với cuộc sống (NXB Giáo dục Việt Nam) - Đính kèm PDF">
+                Kết nối tri thức với cuộc sống (PDF đính kèm)
+              </div>
             </div>
 
             <div>
@@ -1578,220 +1529,254 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
 
             <div className="md:col-span-2 lg:col-span-3">
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Tên Bài / Tên Chương / Mạch Nội Dung Kiến Thức (Nhiều bài hoặc chương nhập cách nhau bởi dấu phẩy ",")
+                Tên Bài / Tên Chương / Mạch Nội Dung Kiến Thức SGK KNTT (Hoặc tích chọn nhanh các bài học ở khung SGK bên dưới)
               </label>
               <input
                 type="text"
                 value={chapterTitle}
                 onChange={(e) => setChapterTitle(e.target.value)}
-                placeholder="VD: Chương I. Đa thức"
+                placeholder="VD: Chương I. Tập hợp các số tự nhiên"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500 outline-none font-medium"
                 required
               />
             </div>
 
-            {/* BẢNG CẤU HÌNH ĐẶC THÙ MÔN HỌC (THEO ĐỊNH HƯỚNG BỘ GD&ĐT GDPT 2018) */}
-            {subject === 'Ngữ văn' && (
-              <div className="md:col-span-2 lg:col-span-3 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/60 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center space-x-2 text-amber-800 dark:text-amber-300 font-bold text-xs uppercase tracking-wide">
-                  <BookOpen className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  <span>Cấu hình Đặc thù Môn Ngữ văn (Chuẩn GDPT 2018 - Ngữ liệu ngoài SGK)</span>
+            {/* KHO NGUỒN SGK TOÁN KNTT ĐÍNH KÈM & CHỌN BÀI HỌC TRỰC TIẾP */}
+            <div className="md:col-span-2 lg:col-span-3 bg-teal-50/60 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900/60 rounded-2xl p-4 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center space-x-2 text-teal-900 dark:text-teal-200 font-bold text-xs uppercase tracking-wide">
+                  <BookOpen className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+                  <span>
+                    Kho SGK Toán {grade.replace('Khối ', '')} — Kết nối tri thức với cuộc sống (Nguồn PDF đính kèm duy nhất)
+                  </span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Thể loại ngữ liệu Đọc hiểu:
-                    </label>
-                    <select
-                      value={subjectConfig.readingPassageType || 'truyen'}
-                      onChange={(e) => setSubjectConfig((prev) => ({ ...prev, readingPassageType: e.target.value as any }))}
-                      className="w-full px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-800 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium outline-none focus:ring-2 focus:ring-amber-500"
-                    >
-                      <option value="truyen">Văn bản Truyện / Tản văn / Ký ngoài SGK</option>
-                      <option value="tho">Văn bản Thơ / Thơ tự do ngoài SGK</option>
-                      <option value="nghi_luan">Văn bản Nghị luận xã hội / Văn học ngoài SGK</option>
-                      <option value="thong_tin">Văn bản Thông tin / Báo chí khoa học</option>
-                      <option value="tu_do">Tự do do AI lựa chọn phù hợp lứa tuổi</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Dạng bài Viết (Phần Tự luận):
-                    </label>
-                    <select
-                      value={subjectConfig.writingGenre || 'nghi_luan_xa_hoi'}
-                      onChange={(e) => setSubjectConfig((prev) => ({ ...prev, writingGenre: e.target.value as any }))}
-                      className="w-full px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-800 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium outline-none focus:ring-2 focus:ring-amber-500"
-                    >
-                      <option value="nghi_luan_xa_hoi">Đoạn văn / Bài văn Nghị luận xã hội (200 chữ)</option>
-                      <option value="nghi_luan_van_hoc">Nghị luận văn học (Phân tích, cảm nhận đoạn trích)</option>
-                      <option value="thuyet_minh">Bài văn Thuyết minh về một hiện tượng / danh lam</option>
-                      <option value="tu_su">Bài văn Tự sự / Kể lại một trải nghiệm ý nghĩa</option>
-                      <option value="bieu_cam">Bài văn Biểu cảm về con người, cuộc sống</option>
-                    </select>
-                  </div>
-                </div>
-                <p className="text-[11px] text-amber-700 dark:text-amber-400 italic">
-                  * Hệ thống sẽ tự động chỉ đạo AI trích dẫn văn bản ngoài SGK kèm nguồn xuất bản và tạo Rubric chấm 4 tiêu chí (Hình thức, Nội dung, Lập luận, Sáng tạo & chính tả).
-                </p>
+                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800">
+                  Không dùng bộ sách khác
+                </span>
               </div>
-            )}
 
-            {subject === 'Tiếng Anh' && (
-              <div className="md:col-span-2 lg:col-span-3 bg-sky-50/60 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-900/60 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center space-x-2 text-sky-800 dark:text-sky-300 font-bold text-xs uppercase tracking-wide">
-                  <GraduationCap className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                  <span>Cấu hình Đặc thù Môn Tiếng Anh (English Exam Blueprint)</span>
+              {/* 2 cuốn SGK PDF đính kèm của khối đang chọn */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {getKnttTextbooksByGrade(grade).map((vol) => (
+                  <div
+                    key={vol.id}
+                    className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-teal-200/80 dark:border-teal-800/60 shadow-2xs"
+                  >
+                    <div className="flex items-start space-x-2.5 min-w-0">
+                      <div className="w-9 h-9 rounded-lg bg-teal-600/10 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+                          {vol.title}
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          {vol.semester} • {vol.pageCount} trang • {vol.publisher}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPreviewPdf({
+                          title: vol.title,
+                          url: vol.pdfUrl,
+                          fileName: vol.fileName,
+                          pageCount: vol.pageCount,
+                        })
+                      }
+                      className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center space-x-1 shrink-0 cursor-pointer transition-colors"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Xem SGK</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Chọn bài học trực tiếp từ mục lục SGK KNTT */}
+              <div className="space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Chọn Bài Học Cụ Thể Từ SGK Toán {grade.replace('Khối ', '')} KNTT
+                    {(subjectConfig.selectedKnttLessonIds?.length || 0) > 0 && (
+                      <span className="ml-2 px-2 py-0.5 rounded-md bg-teal-600 text-white text-[11px] font-bold">
+                        Đã chọn {subjectConfig.selectedKnttLessonIds?.length} bài
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAllSemestersInPicker((prev) => !prev)}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-teal-500 cursor-pointer"
+                    >
+                      {showAllSemestersInPicker ? `Chỉ hiện ${semester}` : 'Hiện cả 2 tập (HK1 & HK2)'}
+                    </button>
+                    {(subjectConfig.selectedKnttLessonIds?.length || 0) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSubjectConfig((prev) => ({ ...prev, selectedKnttLessonIds: [] }));
+                          setChapterTitle(getDefaultChapterTitleForGrade(grade));
+                        }}
+                        className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 hover:bg-rose-100 cursor-pointer"
+                      >
+                        Bỏ chọn bài
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Kỹ năng & Mảng ngôn ngữ tích hợp trong đề:
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-xs">
+
+                <div className="max-h-64 overflow-y-auto pr-1 space-y-2.5">
+                  {getKnttChaptersByGrade(grade, showAllSemestersInPicker ? 'Cả năm' : semester).map((ch) => (
+                    <div
+                      key={ch.id}
+                      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                        <span className="text-xs font-extrabold text-teal-800 dark:text-teal-300">
+                          {ch.title}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-500 shrink-0">
+                          {ch.volumeLabel} ({ch.semester})
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        {ch.lessons.map((lesson) => {
+                          const currentIds = subjectConfig.selectedKnttLessonIds || [];
+                          const isChecked = currentIds.includes(lesson.id);
+                          return (
+                            <label
+                              key={lesson.id}
+                              title={lesson.yccd}
+                              className={`flex items-start space-x-2 p-2 rounded-lg border text-xs cursor-pointer transition-all ${
+                                isChecked
+                                  ? 'bg-teal-50 dark:bg-teal-950/60 border-teal-500 text-teal-900 dark:text-teal-100 font-semibold'
+                                  : 'bg-slate-50/70 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/70 text-slate-700 dark:text-slate-300 hover:border-teal-400'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  const nextIds = e.target.checked
+                                    ? [...currentIds, lesson.id]
+                                    : currentIds.filter((id) => id !== lesson.id);
+                                  setSubjectConfig((prev) => ({
+                                    ...prev,
+                                    selectedKnttLessonIds: nextIds,
+                                  }));
+                                  if (nextIds.length > 0) {
+                                    const titles = nextIds
+                                      .map((id) => getKnttLessonById(id))
+                                      .filter(Boolean)
+                                      .map((found) => `${found!.lesson.lessonNumber}. ${found!.lesson.title}`);
+                                    if (titles.length > 0) {
+                                      setChapterTitle(titles.join(', '));
+                                    }
+                                  } else {
+                                    setChapterTitle(getDefaultChapterTitleForGrade(grade));
+                                  }
+                                }}
+                                className="mt-0.5 rounded text-teal-600 focus:ring-teal-500 shrink-0"
+                              />
+                              <div className="min-w-0 leading-snug">
+                                <div className="text-[11px]">
+                                  <span className="font-bold">{lesson.lessonNumber}:</span> {lesson.title}
+                                </div>
+                                <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                                  {lesson.domain}
+                                  {lesson.hasGeometryOrGraph ? ' • Có hình vẽ' : ''}
+                                </div>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Mạch kiến thức & Tùy chọn GeoGebra / Bài toán thực tiễn */}
+              <div className="pt-2 border-t border-teal-200/80 dark:border-teal-800/60 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <span className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                    Mạch kiến thức Toán GDPT 2018 tham gia trong đề:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
                     {[
-                      { id: 'phonetics', label: 'Ngữ âm (Phonetics)' },
-                      { id: 'grammar_vocab', label: 'Từ vựng & Ngữ pháp' },
-                      { id: 'cloze_test', label: 'Điền từ (Cloze Test)' },
-                      { id: 'reading', label: 'Đọc hiểu (Reading)' },
-                      { id: 'writing_transformation', label: 'Viết lại câu / Viết' },
-                    ].map((skill) => {
-                      const isSelected = (subjectConfig.englishSkills || []).includes(skill.id as any);
+                      { id: 'so_dai_so', label: 'Số và Đại số' },
+                      { id: 'hinh_hoc_do_luong', label: 'Hình học và Đo lường' },
+                      { id: 'thong_ke_xac_suat', label: 'Thống kê và Xác suất' },
+                    ].map((domain) => {
+                      const activeDomains = subjectConfig.mathDomains || [];
+                      const checked = activeDomains.includes(domain.id as any);
                       return (
                         <label
-                          key={skill.id}
-                          className={`flex items-center space-x-2 p-2 rounded-xl border cursor-pointer transition-all ${
-                            isSelected
-                              ? 'bg-sky-500/10 border-sky-500 text-sky-900 dark:text-sky-200 font-semibold'
-                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                          key={domain.id}
+                          className={`inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer ${
+                            checked
+                              ? 'bg-teal-600/10 border-teal-500 text-teal-900 dark:text-teal-200 font-semibold'
+                              : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
                           }`}
                         >
                           <input
                             type="checkbox"
-                            checked={isSelected}
+                            checked={checked}
                             onChange={(e) => {
-                              const cur = subjectConfig.englishSkills || [];
-                              const updated = e.target.checked
-                                ? [...cur, skill.id as any]
-                                : cur.filter((s) => s !== skill.id);
-                              setSubjectConfig((prev) => ({ ...prev, englishSkills: updated }));
+                              const next = e.target.checked
+                                ? [...activeDomains, domain.id as any]
+                                : activeDomains.filter((d) => d !== domain.id);
+                              setSubjectConfig((prev) => ({
+                                ...prev,
+                                mathDomains: next.length > 0 ? next : ['so_dai_so'],
+                              }));
                             }}
-                            className="rounded text-sky-600 focus:ring-sky-500"
+                            className="rounded text-teal-600 focus:ring-teal-500"
                           />
-                          <span className="text-[11px]">{skill.label}</span>
+                          <span>{domain.label}</span>
                         </label>
                       );
                     })}
                   </div>
                 </div>
-                <p className="text-[11px] text-sky-700 dark:text-sky-400 italic">
-                  * Toàn bộ câu hỏi, phương án A/B/C/D và bài đọc sẽ được tạo 100% bằng tiếng Anh chuẩn theo lứa tuổi {grade}.
-                </p>
-              </div>
-            )}
 
-            {subject === 'Vật lí' && (
-              <div className="md:col-span-2 lg:col-span-3 bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/60 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center space-x-2 text-indigo-800 dark:text-indigo-300 font-bold text-xs uppercase tracking-wide">
-                  <Sliders className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                  <span>Cấu hình Đặc thù Môn Vật lí (Thực nghiệm & Hiện tượng khoa học)</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Mạch chuyên đề trọng tâm:
-                    </label>
-                    <select
-                      value={subjectConfig.physicsDomain || 'tong_hop'}
-                      onChange={(e) => setSubjectConfig((prev) => ({ ...prev, physicsDomain: e.target.value as any }))}
-                      className="w-full px-3 py-2 rounded-xl border border-indigo-300 dark:border-indigo-800 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="tong_hop">Tổng hợp kiến thức theo chương trình</option>
-                      <option value="co_hoc">Cơ học (Động học, Động lực học, Năng lượng, Cân bằng)</option>
-                      <option value="nhiet_hoc">Nhiệt học (Chất khí, Nhiệt động lực học, Sự chuyển thể)</option>
-                      <option value="dien_quang">Điện trường, Từ trường & Dòng điện xoay chiều</option>
-                      <option value="song_anh_sang">Sóng cơ, Sóng âm & Giao thoa ánh sáng</option>
-                      <option value="hat_nhan">Vật lí hạt nhân & Lượng tử ánh sáng</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center pt-5">
-                    <label className="flex items-center space-x-2 cursor-pointer text-xs font-medium text-slate-700 dark:text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={subjectConfig.hasContextData ?? true}
-                        onChange={(e) => setSubjectConfig((prev) => ({ ...prev, hasContextData: e.target.checked }))}
-                        className="rounded text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span>Ưu tiên bài toán có số liệu thí nghiệm / Đồ thị hiện tượng thực tiễn</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            )}
+                <div className="flex flex-col justify-end space-y-1.5">
+                  <label className="flex items-center space-x-2 cursor-pointer text-xs font-medium text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={subjectConfig.prioritizeGeoGebraDiagrams ?? true}
+                      onChange={(e) =>
+                        setSubjectConfig((prev) => ({
+                          ...prev,
+                          prioritizeGeoGebraDiagrams: e.target.checked,
+                        }))
+                      }
+                      className="rounded text-teal-600 focus:ring-teal-500"
+                    />
+                    <Compass className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <span>Tự động sinh hình vẽ trực quan (SVG/GeoGebra) cho câu Hình học</span>
+                  </label>
 
-            {subject === 'Hóa học' && (
-              <div className="md:col-span-2 lg:col-span-3 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/60 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center space-x-2 text-emerald-800 dark:text-emerald-300 font-bold text-xs uppercase tracking-wide">
-                  <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  <span>Cấu hình Đặc thù Môn Hóa học (Công thức chuẩn LaTeX & Thí nghiệm)</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Mạch kiến thức Hóa học:
-                    </label>
-                    <select
-                      value={subjectConfig.chemistryDomain || 'tong_hop'}
-                      onChange={(e) => setSubjectConfig((prev) => ({ ...prev, chemistryDomain: e.target.value as any }))}
-                      className="w-full px-3 py-2 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium outline-none focus:ring-2 focus:ring-emerald-500"
-                    >
-                      <option value="tong_hop">Tổng hợp theo chủ đề bài học</option>
-                      <option value="vo_co">Hóa học Vô cơ (Kim loại, Phi kim, Axit, Muối)</option>
-                      <option value="huu_co">Hóa học Hữu cơ (Hydrocarbon, Dẫn xuất, Polymer)</option>
-                      <option value="hoa_dai_cuong">Hóa đại cương (Cấu tạo nguyên tử, Liên kết, Tốc độ phản ứng)</option>
-                      <option value="thi_nghiem">Hiện tượng thí nghiệm & Ứng dụng thực tế đời sống</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center pt-5">
-                    <span className="text-[11px] text-emerald-700 dark:text-emerald-400 italic">
-                      {`* Mọi công thức C2H5OH, CH3COOH, H2SO4 và phương trình phản ứng hóa học sẽ được tự động định dạng chuẩn công thức LaTeX.`}
-                    </span>
-                  </div>
+                  <label className="flex items-center space-x-2 cursor-pointer text-xs font-medium text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={subjectConfig.hasContextData ?? true}
+                      onChange={(e) =>
+                        setSubjectConfig((prev) => ({
+                          ...prev,
+                          hasContextData: e.target.checked,
+                        }))
+                      }
+                      className="rounded text-teal-600 focus:ring-teal-500"
+                    />
+                    <span>Ưu tiên bài toán thực tiễn gắn với đời sống theo tinh thần SGK KNTT</span>
+                  </label>
                 </div>
               </div>
-            )}
-
-            {subject === 'Sinh học' && (
-              <div className="md:col-span-2 lg:col-span-3 bg-teal-50/60 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900/60 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center space-x-2 text-teal-800 dark:text-teal-300 font-bold text-xs uppercase tracking-wide">
-                  <Sparkles className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                  <span>Cấu hình Đặc thù Môn Sinh học (Di truyền, Tiến hóa & Sinh thái)</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Mạch kiến thức Sinh học:
-                    </label>
-                    <select
-                      value={subjectConfig.biologyDomain || 'tong_hop'}
-                      onChange={(e) => setSubjectConfig((prev) => ({ ...prev, biologyDomain: e.target.value as any }))}
-                      className="w-full px-3 py-2 rounded-xl border border-teal-300 dark:border-teal-800 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-medium outline-none focus:ring-2 focus:ring-teal-500"
-                    >
-                      <option value="tong_hop">Tổng hợp theo chủ đề bài học</option>
-                      <option value="di_truyen">Di truyền học (ADN, Nhiễm sắc thể, Phép lai Men-đen, Phả hệ)</option>
-                      <option value="sinh_thai">Sinh thái học & Môi trường sống</option>
-                      <option value="te_bao">Sinh học tế bào & Vi sinh vật</option>
-                      <option value="co_the">Sinh học cơ thể (Thực vật & Động vật, Con người)</option>
-                      <option value="tien_hoa">Tiến hóa và các học thuyết</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center pt-5">
-                    <span className="text-[11px] text-teal-700 dark:text-teal-400 italic">
-                      * Đề sẽ tập trung vào phân tích quy luật, biện luận phép lai, sơ đồ chuỗi thức ăn hoặc sơ đồ phả hệ.
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
+            </div>
 
             {/* Khối bổ sung Nguồn Tài Liệu Tham Khảo & Giới Hạn Kiến Thức */}
             <div
@@ -2222,17 +2207,17 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleInsertSpecStructurePrompt('thpt_22')}
+                    onClick={() => handleInsertSpecStructurePrompt('mcq_only')}
                     className="text-xs px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-950 dark:text-indigo-200 font-semibold transition-all flex items-center space-x-1 cursor-pointer"
                   >
-                    <span>⚡ Chèn cấu trúc 22 câu (THPT 2025)</span>
+                    <span>⚡ Chèn cấu trúc 100% Trắc nghiệm Toán (31 câu)</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleInsertSpecStructurePrompt('van')}
+                    onClick={() => handleInsertSpecStructurePrompt('essay_5')}
                     className="text-xs px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-950 dark:text-indigo-200 font-semibold transition-all flex items-center space-x-1 cursor-pointer"
                   >
-                    <span>📖 Chèn cấu trúc Ngữ văn</span>
+                    <span>✍️ Chèn cấu trúc 100% Tự luận Toán (5 câu)</span>
                   </button>
                 </div>
               </div>
@@ -2418,17 +2403,17 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleInsertStructurePrompt('thpt_22')}
+                    onClick={() => handleInsertStructurePrompt('mcq_only')}
                     className="text-xs px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-950 dark:text-amber-200 font-semibold transition-all flex items-center space-x-1 cursor-pointer"
                   >
-                    <span>⚡ Chèn cấu trúc 22 câu (THPT 2025)</span>
+                    <span>⚡ Chèn cấu trúc 100% Trắc nghiệm Toán (31 câu)</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleInsertStructurePrompt('van')}
+                    onClick={() => handleInsertStructurePrompt('essay_5')}
                     className="text-xs px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-950 dark:text-amber-200 font-semibold transition-all flex items-center space-x-1 cursor-pointer"
                   >
-                    <span>📖 Chèn cấu trúc Ngữ văn</span>
+                    <span>✍️ Chèn cấu trúc 100% Tự luận Toán (5 câu)</span>
                   </button>
                 </div>
               </div>
@@ -3377,6 +3362,46 @@ export const TestGeneratorView: React.FC<TestGeneratorViewProps> = ({
           }
         }}
       />
+
+      {/* In-App SGK PDF Viewer Modal */}
+      {previewPdf &&
+        createPortal(
+          <div className="fixed inset-0 z-[100000] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-6xl h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900">
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center shrink-0">
+                    <BookOpen className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-extrabold text-slate-900 dark:text-white truncate">
+                      {previewPdf.title}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Tệp đính kèm: {previewPdf.fileName} • {previewPdf.pageCount} trang • NXB Giáo dục Việt Nam
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewPdf(null)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-700 dark:text-slate-200 hover:text-rose-700 text-xs font-bold flex items-center space-x-1 cursor-pointer shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Đóng</span>
+                </button>
+              </div>
+              <div className="flex-1 bg-slate-100 dark:bg-slate-950">
+                <iframe
+                  src={previewPdf.url}
+                  title={previewPdf.title}
+                  className="w-full h-full border-0 bg-white"
+                />
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

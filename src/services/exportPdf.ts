@@ -242,7 +242,7 @@ export class ExportPdf {
             <tr>
               <td style="width: 50%; text-align: center;">
                 <b>${(metadata.departmentName || 'SỞ GIÁO DỤC VÀ ĐÀO TẠO').toUpperCase()}</b><br>
-                <b>${(metadata.schoolName || 'TRƯỜNG THCS/THPT').toUpperCase()}</b>
+                <b>${(metadata.schoolName || 'TRƯỜNG THCS').toUpperCase()}</b>
               </td>
               <td style="width: 50%; text-align: center;">
                 <b>KỲ THI ${(metadata.examTitle || 'KIỂM TRA').toUpperCase()}</b><br>
@@ -380,7 +380,7 @@ export class ExportPdf {
               <tr>
                 <td style="width: 50%; text-align: center;">
                   <b>${(metadata.departmentName || 'SỞ GIÁO DỤC VÀ ĐÀO TẠO').toUpperCase()}</b><br>
-                  <b>${(metadata.schoolName || 'TRƯỜNG THCS/THPT').toUpperCase()}</b>
+                  <b>${(metadata.schoolName || 'TRƯỜNG THCS').toUpperCase()}</b>
                 </td>
                 <td style="width: 50%; text-align: center;">
                   <b>KỲ THI ${(metadata.examTitle || 'KIỂM TRA').toUpperCase()}</b><br>

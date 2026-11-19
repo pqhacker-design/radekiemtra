@@ -1,43 +1,19 @@
 /**
- * Các Kiểu dữ liệu Chuẩn cho Hệ thống AI Test Generator Pro
- * Theo định hướng Công văn 7991/BGDĐT cho THCS và THPT
+ * Các Kiểu dữ liệu Chuẩn cho Hệ thống AI Test Generator Pro — Chuyên biệt Môn Toán THCS (Lớp 6–9)
+ * Bám sát Công văn 7991/BGDĐT & Bộ SGK Kết nối tri thức với cuộc sống (NXB Giáo dục Việt Nam)
  */
 
-export type SubjectType =
-  | 'Toán'
-  | 'Ngữ văn'
-  | 'Tiếng Anh'
-  | 'Vật lí'
-  | 'Hóa học'
-  | 'Sinh học'
-  | 'KHTN'
-  | 'Lịch sử'
-  | 'Địa lí'
-  | 'Lịch sử và Địa lí'
-  | 'GDCD / GDKT&PL'
-  | 'Tin học'
-  | 'Công nghệ'
-  | 'Mỹ thuật'
-  | 'Âm nhạc'
-  | 'Giáo dục thể chất'
-  | 'Khác';
+export type SubjectType = 'Toán';
 
 export interface SubjectConfig {
-  readingPassageType?: 'truyen' | 'tho' | 'nghi_luan' | 'thong_tin' | 'tu_do'; // Ngữ văn: Thể loại ngữ liệu Đọc hiểu
-  writingGenre?: 'nghi_luan_xa_hoi' | 'nghi_luan_van_hoc' | 'tu_su' | 'bieu_cam' | 'thuyet_minh'; // Ngữ văn: Thể loại Viết
-  englishSkills?: ('phonetics' | 'grammar_vocab' | 'reading' | 'writing_transformation' | 'cloze_test')[]; // Tiếng Anh: Kỹ năng trọng tâm
-  physicsDomain?: 'co_hoc' | 'nhiet_hoc' | 'dien_quang' | 'song_anh_sang' | 'hat_nhan' | 'tong_hop'; // Vật lí
-  chemistryDomain?: 'vo_co' | 'huu_co' | 'hoa_dai_cuong' | 'thi_nghiem' | 'tong_hop'; // Hóa học
-  biologyDomain?: 'di_truyen' | 'sinh_thai' | 'tien_hoa' | 'te_bao' | 'co_the' | 'tong_hop'; // Sinh học
-  hasContextData?: boolean; // Yêu cầu có ngữ liệu/bảng số liệu/thực tiễn
+  mathDomains?: ('so_dai_so' | 'hinh_hoc_do_luong' | 'thong_ke_xac_suat')[]; // Mạch kiến thức Toán THCS
+  selectedKnttLessonIds?: string[]; // Danh sách ID các bài học được chọn trực tiếp từ 8 cuốn SGK Toán KNTT 6-9
+  prioritizeGeoGebraDiagrams?: boolean; // Ưu tiên sinh hình vẽ minh họa / đồ thị chuẩn GeoGebra/SVG
+  strictKnttTextbookOnly?: boolean; // Bám sát tuyệt đối nguồn SGK Toán KNTT đính kèm
+  hasContextData?: boolean; // Ưu tiên bài toán thực tiễn / bảng số liệu / biểu đồ
 }
 
-export type CurriculumType =
-  | 'Kết nối tri thức với cuộc sống'
-  | 'Chân trời sáng tạo'
-  | 'Cánh Diều'
-  | 'Bộ SGK thống nhất 2026'
-  | 'Chương trình GDPT 2018 khác';
+export type CurriculumType = 'Kết nối tri thức với cuộc sống';
 
 export type ExamMode = 'MCQ_ESSAY' | 'MCQ_ONLY' | 'ESSAY_ONLY';
 
@@ -164,7 +140,7 @@ export interface ExamMetadata {
   schoolName: string;
   departmentName: string;
   subject: SubjectType;
-  grade: string;             // Khối 6 -> Khối 12
+  grade: string;             // Khối 6 -> Khối 9 (THCS)
   className: string;         // e.g. 10A1
   semester: string;          // Học kỳ I, Học kỳ II
   schoolYear: string;        // e.g. 2026 - 2027

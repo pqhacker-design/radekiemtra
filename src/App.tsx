@@ -401,7 +401,7 @@ export default function App() {
               ? 'Đáp Án & Rubric Chấm Bài'
               : 'Cài Đặt Hệ Thống'
           }
-          subtitle="Ứng dụng biên soạn đề thi & ma trận đánh giá năng lực GDPT 2018"
+          subtitle="Chuyên biệt Môn Toán THCS (Lớp 6–9) • SGK Kết nối tri thức với cuộc sống"
           onOpenMobileMenu={() => setIsSidebarOpen(true)}
           settings={settings}
           currentExamPackage={currentExamPackage}

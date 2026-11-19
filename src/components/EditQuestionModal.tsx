@@ -22,7 +22,7 @@ interface MathSnippet {
   label: string;
   snippet: string;
   title: string;
-  category: 'all' | 'algebra' | 'geometry' | 'sets' | 'calculus' | 'science';
+  category: 'all' | 'algebra' | 'geometry' | 'sets' | 'trig_stats';
   isCommon?: boolean;
 }
 
@@ -119,38 +119,17 @@ const MATH_SNIPPETS: MathSnippet[] = [
   { label: '⇒', snippet: '\\Rightarrow', title: 'Suy ra / Kéo theo: \\Rightarrow', category: 'sets', isCommon: true },
   { label: '⇔', snippet: '\\Leftrightarrow', title: 'Tương đương: \\Leftrightarrow', category: 'sets', isCommon: true },
 
-  // 4. GIẢI TÍCH & LƯỢNG GIÁC
-  { label: 'sin x', snippet: '\\sin x', title: 'Hàm sin: \\sin x', category: 'calculus', isCommon: true },
-  { label: 'cos x', snippet: '\\cos x', title: 'Hàm cos: \\cos x', category: 'calculus', isCommon: true },
-  { label: 'tan x', snippet: '\\tan x', title: 'Hàm tan: \\tan x', category: 'calculus', isCommon: true },
-  { label: 'cot x', snippet: '\\cot x', title: 'Hàm cot: \\cot x', category: 'calculus', isCommon: true },
-  { label: 'sin² x', snippet: '\\sin^2 x', title: 'sin bình phương: \\sin^2 x', category: 'calculus' },
-  { label: 'cos² x', snippet: '\\cos^2 x', title: 'cos bình phương: \\cos^2 x', category: 'calculus' },
-  { label: 'lim x→x₀', snippet: '\\lim_{x \\to x_0}', title: 'Giới hạn hàm số: \\lim_{x \\to x_0}', category: 'calculus', isCommon: true },
-  { label: 'lim x→+∞', snippet: '\\lim_{x \\to +\\infty}', title: 'Giới hạn tại vô cực: \\lim_{x \\to +\\infty}', category: 'calculus' },
-  { label: "f'(x)", snippet: "f'(x)", title: "Đạo hàm cấp một: f'(x)", category: 'calculus', isCommon: true },
-  { label: "y'", snippet: "y'", title: "Đạo hàm y'", category: 'calculus' },
-  { label: "f''(x)", snippet: "f''(x)", title: "Đạo hàm cấp hai: f''(x)", category: 'calculus' },
-  { label: '∫ f(x)dx', snippet: '\\int f(x)\\,dx', title: 'Nguyên hàm / Tích phân bất định', category: 'calculus', isCommon: true },
-  { label: '∫ₐᵇ f(x)dx', snippet: '\\int_{a}^{b} f(x)\\,dx', title: 'Tích phân xác định từ a đến b', category: 'calculus' },
-  { label: 'logₐ b', snippet: '\\log_a b', title: 'Logarit cơ số a: \\log_a b', category: 'calculus', isCommon: true },
-  { label: 'ln x', snippet: '\\ln x', title: 'Logarit tự nhiên: \\ln x', category: 'calculus', isCommon: true },
-  { label: 'Cₙᵏ', snippet: 'C_n^k', title: 'Tổ hợp chập k của n: C_n^k', category: 'calculus', isCommon: true },
-  { label: 'Aₙᵏ', snippet: 'A_n^k', title: 'Chỉnh hợp chập k của n: A_n^k', category: 'calculus' },
-  { label: 'n!', snippet: 'n!', title: 'Giai thừa: n!', category: 'calculus' },
-  { label: 'P(A)', snippet: 'P(A)', title: 'Xác suất biến cố A: P(A)', category: 'calculus' },
-
-  // 5. HÓA HỌC & KHTN
-  { label: '25°C', snippet: '25^\\circ\\text{C}', title: 'Nhiệt độ 25°C: 25^\\circ\\text{C}', category: 'science', isCommon: true },
-  { label: '°C', snippet: '^\\circ\\text{C}', title: 'Ký hiệu độ C: ^\\circ\\text{C}', category: 'science' },
-  { label: '→', snippet: '\\rightarrow', title: 'Mũi tên phản ứng một chiều: \\rightarrow', category: 'science', isCommon: true },
-  { label: '⇌', snippet: '\\rightleftharpoons', title: 'Mũi tên phản ứng thuận nghịch: \\rightleftharpoons', category: 'science', isCommon: true },
-  { label: '→(t°)', snippet: '\\xrightarrow{t^\\circ}', title: 'Phản ứng có xúc tác nhiệt độ', category: 'science' },
-  { label: '↓', snippet: '\\downarrow', title: 'Ký hiệu chất kết tủa: \\downarrow', category: 'science', isCommon: true },
-  { label: '↑', snippet: '\\uparrow', title: 'Ký hiệu chất khí bay hơi: \\uparrow', category: 'science', isCommon: true },
-  { label: 'H₂O', snippet: 'H_2O', title: 'Công thức nước: H_2O', category: 'science' },
-  { label: 'CO₂', snippet: 'CO_2', title: 'Khí cacbonic: CO_2', category: 'science' },
-  { label: 'H₂SO₄', snippet: 'H_2SO_4', title: 'Axit sunfuric: H_2SO_4', category: 'science' },
+  // 4. LƯỢNG GIÁC & XÁC SUẤT THCS (TOÁN 7-8-9 KNTT)
+  { label: 'sin α', snippet: '\\sin\\alpha', title: 'Tỉ số lượng giác sin (Toán 9): \\sin\\alpha', category: 'trig_stats', isCommon: true },
+  { label: 'cos α', snippet: '\\cos\\alpha', title: 'Tỉ số lượng giác cos (Toán 9): \\cos\\alpha', category: 'trig_stats', isCommon: true },
+  { label: 'tan α', snippet: '\\tan\\alpha', title: 'Tỉ số lượng giác tan (Toán 9): \\tan\\alpha', category: 'trig_stats', isCommon: true },
+  { label: 'cot α', snippet: '\\cot\\alpha', title: 'Tỉ số lượng giác cot (Toán 9): \\cot\\alpha', category: 'trig_stats', isCommon: true },
+  { label: 'sin² α', snippet: '\\sin^2\\alpha', title: 'sin bình phương: \\sin^2\\alpha', category: 'trig_stats' },
+  { label: 'cos² α', snippet: '\\cos^2\\alpha', title: 'cos bình phương: \\cos^2\\alpha', category: 'trig_stats' },
+  { label: 'P(A)', snippet: 'P(A)', title: 'Xác suất của biến cố A: P(A)', category: 'trig_stats', isCommon: true },
+  { label: 'n(Ω)', snippet: 'n(\\Omega)', title: 'Số phần tử không gian mẫu (Toán 9): n(\\Omega)', category: 'trig_stats' },
+  { label: 'n(A)', snippet: 'n(A)', title: 'Số kết quả thuận lợi cho A: n(A)', category: 'trig_stats' },
+  { label: 'f = m/n', snippet: 'f = \\frac{m}{n}', title: 'Tần số tương đối: f = \\frac{m}{n}', category: 'trig_stats' },
 ];
 
 interface EditQuestionModalProps {
@@ -227,7 +206,7 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
 
   // Snippet toolbar state
   const [snippetCategory, setSnippetCategory] = useState<
-    'all' | 'algebra' | 'geometry' | 'sets' | 'calculus' | 'science'
+    'all' | 'algebra' | 'geometry' | 'sets' | 'trig_stats'
   >('all');
 
   // Caret tracking & active element ref
@@ -730,7 +709,7 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="flex items-center space-x-1.5 font-bold text-teal-700 dark:text-teal-400">
                     <Calculator className="w-4 h-4 shrink-0" />
-                    <span>Thanh công cụ chèn ký hiệu Toán - KHTN:</span>
+                    <span>Thanh công cụ chèn ký hiệu Toán học (KNTT):</span>
                   </div>
                   <div className="flex items-center space-x-1.5">
                     <span className="text-[11px] text-slate-500">Đang trỏ vào:</span>
@@ -744,11 +723,10 @@ export const EditQuestionModal: React.FC<EditQuestionModalProps> = ({
                 <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 dark:border-slate-800 pb-2">
                   {[
                     { id: 'all', label: 'Tất cả' },
-                    { id: 'algebra', label: 'Đại số & Hệ PT' },
-                    { id: 'geometry', label: 'Hình học & Vector' },
+                    { id: 'algebra', label: 'Số & Đại số' },
+                    { id: 'geometry', label: 'Hình học & Đo lường' },
                     { id: 'sets', label: 'Tập hợp & Logic' },
-                    { id: 'calculus', label: 'Giải tích & Lượng giác' },
-                    { id: 'science', label: 'Vật lý & Hóa học' },
+                    { id: 'trig_stats', label: 'Lượng giác & Xác suất' },
                   ].map((cat) => (
                     <button
                       key={cat.id}

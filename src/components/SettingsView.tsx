@@ -315,7 +315,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               type="text"
               value={schoolName}
               onChange={(e) => setSchoolName(e.target.value)}
-              placeholder="Ví dụ: Trường THPT Chu Văn An"
+              placeholder="Ví dụ: Trường THCS Bình San"
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
             />
           </div>

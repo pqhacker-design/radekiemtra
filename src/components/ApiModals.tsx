@@ -399,13 +399,13 @@ export const StartupNoticeModal: React.FC<StartupNoticeModalProps> = ({
   const utilities = [
     {
       icon: Sparkles,
-      title: 'Tạo đề chuẩn Công văn 7991/BGDĐT',
-      desc: 'Tự động sinh Ma trận 16 cột, Bảng đặc tả YCCĐ, Đề thi đủ 4 phần (TN, Đúng/Sai, Trả lời ngắn, Tự luận) và Rubric chấm điểm.',
+      title: 'Ra đề Môn Toán chuẩn CV 7991/BGDĐT',
+      desc: 'Tự động sinh Ma trận 16 cột, Bảng đặc tả YCCĐ, Đề thi Toán đủ 4 phần (TN, Đúng/Sai, Trả lời ngắn, Tự luận) và Rubric chấm điểm.',
     },
     {
       icon: BookOpen,
-      title: 'Bám sát tài liệu SGK & Ma trận riêng',
-      desc: 'Cho phép tải ảnh trang SGK, dán chữ giới hạn kiến thức hoặc nạp khung Ma trận/Bảng đặc tả có sẵn để AI ra đề đúng phạm vi.',
+      title: 'Nguồn chuẩn 8 cuốn SGK Toán KNTT 6–9 đính kèm',
+      desc: 'Tích hợp sẵn 8 cuốn SGK Toán Kết nối tri thức với cuộc sống (Lớp 6–9, Tập Một & Tập Hai); chọn bài học trực tiếp để AI ra đề đúng YCCĐ và phạm vi.',
     },
     {
       icon: Shuffle,
@@ -414,13 +414,13 @@ export const StartupNoticeModal: React.FC<StartupNoticeModalProps> = ({
     },
     {
       icon: Compass,
-      title: 'Soạn công thức & Vẽ hình GeoGebra',
-      desc: 'Tích hợp trình vẽ GeoGebra Web / Bảng vẽ nhanh (0ms) hỗ trợ AI tự dựng hình từ đề bài và chèn thẳng vào Đề bài hoặc Đáp án.',
+      title: 'Soạn công thức LaTeX & Vẽ hình GeoGebra',
+      desc: 'Tích hợp trình vẽ GeoGebra Web / Bảng vẽ nhanh (0ms) hỗ trợ AI tự dựng hình hình học từ đề bài và chèn thẳng vào Đề bài hoặc Đáp án.',
     },
     {
       icon: Download,
-      title: 'Ngân hàng câu hỏi & Xuất Word/PDF/Excel',
-      desc: 'Lưu trữ, phân loại ngân hàng câu hỏi và xuất trọn bộ đề thi, ma trận, đáp án ra file .docx, PDF, .xlsx sẵn sàng in ấn.',
+      title: 'Ngân hàng câu hỏi Toán & Xuất Word/PDF/Excel',
+      desc: 'Lưu trữ, phân loại ngân hàng câu hỏi Toán THCS và xuất trọn bộ đề thi, ma trận, đáp án ra file .docx, PDF, .xlsx sẵn sàng in ấn.',
     },
   ];
 
@@ -437,7 +437,7 @@ export const StartupNoticeModal: React.FC<StartupNoticeModalProps> = ({
               Chào mừng đến với AI Test Generator Pro
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-              Ứng dụng hỗ trợ giáo viên THCS và THPT tự động hóa quy trình biên soạn đề kiểm tra, ma trận, bảng đặc tả YCCĐ và đáp án chi tiết theo chương trình GDPT 2018.
+              Ứng dụng chuyên biệt cho giáo viên Môn Toán THCS (Lớp 6–9), tự động hóa biên soạn đề kiểm tra, ma trận, bảng đặc tả YCCĐ và đáp án chi tiết theo bộ SGK Kết nối tri thức với cuộc sống (đính kèm sẵn 8 tập PDF).
             </p>
           </div>
         </div>

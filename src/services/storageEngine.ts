@@ -63,9 +63,9 @@ const STORAGE_KEYS = {
 };
 
 export const defaultSettings: AppSettings = {
-  defaultSchoolName: 'Trường THCS / THPT',
+  defaultSchoolName: 'Trường THCS',
   defaultDepartmentName: 'Sở Giáo dục và Đào tạo',
-  defaultTeacherName: 'Giáo viên',
+  defaultTeacherName: 'Giáo viên Toán',
   selectedModel: 'gemini-3.1-flash-lite',
   theme: 'light',
   saveExamHistory: true,
@@ -321,7 +321,18 @@ export class StorageEngine {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.LAST_GENERATOR_STATE);
       if (!raw) return null;
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+
+      const validGrades = ['Khối 6', 'Khối 7', 'Khối 8', 'Khối 9'];
+      const normalizedGrade = validGrades.includes(parsed.grade) ? parsed.grade : 'Khối 6';
+
+      return {
+        ...parsed,
+        subject: 'Toán',
+        curriculum: 'Kết nối tri thức với cuộc sống',
+        grade: normalizedGrade,
+      } as ExamMetadata;
     } catch {
       return null;
     }

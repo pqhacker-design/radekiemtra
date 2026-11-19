@@ -263,7 +263,7 @@ function buildDocxHeaderBlock(
                 alignment: AlignmentType.CENTER,
                 children: [
                   new TextRun({
-                    text: (metadata.schoolName || 'TRƯỜNG THCS/THPT').toUpperCase(),
+                    text: (metadata.schoolName || 'TRƯỜNG THCS').toUpperCase(),
                     bold: true,
                     size: 22,
                     font: 'Times New Roman',

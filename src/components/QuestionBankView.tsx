@@ -74,7 +74,7 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
   const [deletingQuestionId, setDeletingQuestionId] = useState<string | null>(null);
   const [isDeletingSingle, setIsDeletingSingle] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSubject, setSelectedSubject] = useState<string>('ALL');
+  const [selectedPartType, setSelectedPartType] = useState<string>('ALL');
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
   const [selectedCognitive, setSelectedCognitive] = useState<string>('ALL');
 
@@ -160,19 +160,17 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
   // Bulk Delete Modal state
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
-  const [bulkDeleteType, setBulkDeleteType] = useState<'FILTER' | 'EXAM_NAME' | 'SUBJECT_GRADE' | 'TOPIC' | 'CLEAR_ALL'>('FILTER');
+  const [bulkDeleteType, setBulkDeleteType] = useState<'FILTER' | 'EXAM_NAME' | 'GRADE' | 'TOPIC' | 'CLEAR_ALL'>('FILTER');
   const [targetExamKey, setTargetExamKey] = useState<string>('');
   const [examSearchFilter, setExamSearchFilter] = useState<string>('');
-  const [targetSubject, setTargetSubject] = useState<string>('ALL');
   const [targetGrade, setTargetGrade] = useState<string>('ALL');
   const [targetTopic, setTargetTopic] = useState<string>('');
   const [confirmClearText, setConfirmClearText] = useState('');
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newContent, setNewContent] = useState('');
-  const [newSubject, setNewSubject] = useState<SubjectType>('Toán');
-  const [newGrade, setNewGrade] = useState('Khối 10');
-  const [newChapter, setNewChapter] = useState('Chương I. Hàm số');
+  const [newGrade, setNewGrade] = useState('Khối 6');
+  const [newChapter, setNewChapter] = useState('Chương I. Tập hợp các số tự nhiên');
   const [newCognitive, setNewCognitive] = useState<'REMEMBER' | 'UNDERSTAND' | 'APPLY' | 'ADVANCED'>('REMEMBER');
   const [newOptA, setNewOptA] = useState('');
   const [newOptB, setNewOptB] = useState('');
@@ -188,12 +186,12 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
       (item.topic && item.topic.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.sourceExamTitle && item.sourceExamTitle.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.examTitle && item.examTitle.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesSubject = selectedSubject === 'ALL' || item.subject === selectedSubject;
+    const matchesPart = selectedPartType === 'ALL' || item.partType === selectedPartType;
     const matchesGrade = selectedGrade === 'ALL' || item.grade === selectedGrade;
     const matchesCognitive =
       selectedCognitive === 'ALL' || item.cognitiveLevel === selectedCognitive;
 
-    return matchesSearch && matchesSubject && matchesGrade && matchesCognitive;
+    return matchesSearch && matchesPart && matchesGrade && matchesCognitive;
   });
 
   // Extract unique topics/chapters for bulk delete picker
@@ -205,10 +203,7 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
     )
   ).sort();
 
-  // Extract unique subjects & grades present in bank
-  const uniqueSubjectsInBank = Array.from(
-    new Set(questionBank.map((q) => q.subject).filter(Boolean))
-  );
+  // Extract unique grades present in bank
   const uniqueGradesInBank = Array.from(
     new Set(questionBank.map((q) => q.grade).filter(Boolean))
   );
@@ -356,11 +351,9 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
       if (!selectedOpt) return [];
       return questionBank.filter((q) => selectedOpt.ids.includes(q.id));
     }
-    if (bulkDeleteType === 'SUBJECT_GRADE') {
+    if (bulkDeleteType === 'GRADE') {
       return questionBank.filter((q) => {
-        const matchSub = targetSubject === 'ALL' || q.subject === targetSubject;
-        const matchGrd = targetGrade === 'ALL' || q.grade === targetGrade;
-        return matchSub && matchGrd;
+        return targetGrade === 'ALL' || q.grade === targetGrade;
       });
     }
     if (bulkDeleteType === 'TOPIC') {
@@ -426,7 +419,7 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
 
     const newItem: QuestionBankItem = {
       id: 'qb_' + Date.now(),
-      subject: newSubject,
+      subject: 'Toán',
       grade: newGrade,
       chapter: newChapter,
       curriculum: 'Kết nối tri thức với cuộc sống',
@@ -535,19 +528,18 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
           />
         </div>
 
-        {/* Subject Filter */}
+        {/* PartType Filter */}
         <div>
           <select
-            value={selectedSubject}
-            onChange={(e) => setSelectedSubject(e.target.value)}
+            value={selectedPartType}
+            onChange={(e) => setSelectedPartType(e.target.value)}
             className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium"
           >
-            <option value="ALL">Tất cả môn học</option>
-            <option value="Toán">Toán</option>
-            <option value="Ngữ văn">Ngữ văn</option>
-            <option value="Tiếng Anh">Tiếng Anh</option>
-            <option value="KHTN">KHTN</option>
-            <option value="Lịch sử và Địa lí">Lịch sử và Địa lí</option>
+            <option value="ALL">Tất cả dạng câu hỏi Toán</option>
+            <option value="PART1">Phần I: TN 4 lựa chọn</option>
+            <option value="PART2">Phần II: TN Đúng / Sai</option>
+            <option value="PART3">Phần III: TN Trả lời ngắn</option>
+            <option value="PART4">Phần IV: Tự luận</option>
           </select>
         </div>
 
@@ -558,14 +550,11 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
             onChange={(e) => setSelectedGrade(e.target.value)}
             className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium"
           >
-            <option value="ALL">Tất cả khối lớp</option>
-            <option value="Khối 6">Khối 6</option>
-            <option value="Khối 7">Khối 7</option>
-            <option value="Khối 8">Khối 8</option>
-            <option value="Khối 9">Khối 9</option>
-            <option value="Khối 10">Khối 10</option>
-            <option value="Khối 11">Khối 11</option>
-            <option value="Khối 12">Khối 12</option>
+            <option value="ALL">Tất cả khối lớp (6–9)</option>
+            <option value="Khối 6">Khối 6 (Toán KNTT)</option>
+            <option value="Khối 7">Khối 7 (Toán KNTT)</option>
+            <option value="Khối 8">Khối 8 (Toán KNTT)</option>
+            <option value="Khối 9">Khối 9 (Toán KNTT)</option>
           </select>
         </div>
 
@@ -586,7 +575,7 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
       </div>
 
       {/* Active Filter status bar & quick delete filtered */}
-      {(selectedSubject !== 'ALL' || selectedGrade !== 'ALL' || selectedCognitive !== 'ALL' || searchTerm) && (
+      {(selectedPartType !== 'ALL' || selectedGrade !== 'ALL' || selectedCognitive !== 'ALL' || searchTerm) && (
         <div className="p-3 bg-teal-50 dark:bg-teal-950/50 border border-teal-200 dark:border-teal-800/60 rounded-2xl flex items-center justify-between text-xs text-teal-900 dark:text-teal-200">
           <div className="flex items-center space-x-2">
             <Filter className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
@@ -1284,15 +1273,15 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => setBulkDeleteType('SUBJECT_GRADE')}
+                  onClick={() => setBulkDeleteType('GRADE')}
                   className={`py-1.5 px-1 rounded-xl transition-all flex flex-col items-center justify-center space-y-0.5 cursor-pointer ${
-                    bulkDeleteType === 'SUBJECT_GRADE'
+                    bulkDeleteType === 'GRADE'
                       ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-xs'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                   }`}
                 >
                   <Layers className="w-3.5 h-3.5" />
-                  <span className="truncate text-[10px] sm:text-[11px]">Môn & Khối</span>
+                  <span className="truncate text-[10px] sm:text-[11px]">Theo Khối Lớp</span>
                 </button>
 
                 <button
@@ -1329,7 +1318,8 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
                     Xóa tất cả câu hỏi hiện đang hiển thị theo bộ lọc tìm kiếm trên giao diện chính:
                   </p>
                   <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
-                    <div>Môn học: <strong>{selectedSubject === 'ALL' ? 'Tất cả' : selectedSubject}</strong></div>
+                    <div>Môn học: <strong>Toán (SGK KNTT)</strong></div>
+                    <div>Dạng thức: <strong>{selectedPartType === 'ALL' ? 'Tất cả' : selectedPartType}</strong></div>
                     <div>Khối lớp: <strong>{selectedGrade === 'ALL' ? 'Tất cả' : selectedGrade}</strong></div>
                     <div>Mức độ: <strong>{selectedCognitive === 'ALL' ? 'Tất cả' : selectedCognitive}</strong></div>
                     {searchTerm && <div>Từ khóa: <strong>"{searchTerm}"</strong></div>}
@@ -1452,41 +1442,23 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
                 </div>
               )}
 
-              {/* TAB CONTENT 3: SUBJECT & GRADE */}
-              {bulkDeleteType === 'SUBJECT_GRADE' && (
+              {/* TAB CONTENT 3: GRADE */}
+              {bulkDeleteType === 'GRADE' && (
                 <div className="space-y-2 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-200 dark:border-slate-700/80 text-xs">
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Chọn Môn học:</label>
-                      <select
-                        value={targetSubject}
-                        onChange={(e) => setTargetSubject(e.target.value)}
-                        className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
-                      >
-                        <option value="ALL">-- Tất cả môn --</option>
-                        {['Toán', 'Ngữ văn', 'Tiếng Anh', 'KHTN', 'Lịch sử và Địa lí', ...uniqueSubjectsInBank]
-                          .filter((v, i, a) => a.indexOf(v) === i)
-                          .map((sub) => (
-                            <option key={sub} value={sub}>{sub}</option>
-                          ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Chọn Khối lớp:</label>
-                      <select
-                        value={targetGrade}
-                        onChange={(e) => setTargetGrade(e.target.value)}
-                        className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
-                      >
-                        <option value="ALL">-- Tất cả khối --</option>
-                        {['Khối 6', 'Khối 7', 'Khối 8', 'Khối 9', 'Khối 10', 'Khối 11', 'Khối 12', ...uniqueGradesInBank]
-                          .filter((v, i, a) => a.indexOf(v) === i)
-                          .map((grd) => (
-                            <option key={grd} value={grd}>{grd}</option>
-                          ))}
-                      </select>
-                    </div>
+                  <div>
+                    <label className="font-semibold block mb-1 text-slate-700 dark:text-slate-300">Chọn Khối lớp (Toán THCS KNTT):</label>
+                    <select
+                      value={targetGrade}
+                      onChange={(e) => setTargetGrade(e.target.value)}
+                      className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
+                    >
+                      <option value="ALL">-- Tất cả khối (6–9) --</option>
+                      {['Khối 6', 'Khối 7', 'Khối 8', 'Khối 9', ...uniqueGradesInBank]
+                        .filter((v, i, a) => a.indexOf(v) === i)
+                        .map((grd) => (
+                          <option key={grd} value={grd}>{grd}</option>
+                        ))}
+                    </select>
                   </div>
 
                   <div className="p-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-rose-600 dark:text-rose-400 font-bold flex items-center justify-between">
@@ -1602,29 +1574,22 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
             <form onSubmit={handleCreateNew} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="font-semibold block mb-1">Môn học</label>
-                  <select
-                    value={newSubject}
-                    onChange={(e) => setNewSubject(e.target.value as SubjectType)}
-                    className="w-full p-2 border rounded-xl"
-                  >
-                    <option value="Toán">Toán</option>
-                    <option value="Ngữ văn">Ngữ văn</option>
-                    <option value="Tiếng Anh">Tiếng Anh</option>
-                    <option value="KHTN">KHTN</option>
-                  </select>
+                  <label className="font-semibold block mb-1">Môn học & Bộ sách</label>
+                  <div className="w-full p-2 border border-teal-200 dark:border-teal-800 bg-teal-50/70 dark:bg-teal-950/40 text-teal-800 dark:text-teal-200 rounded-xl font-bold">
+                    Toán học • SGK Kết nối tri thức
+                  </div>
                 </div>
                 <div>
                   <label className="font-semibold block mb-1">Khối lớp</label>
                   <select
                     value={newGrade}
                     onChange={(e) => setNewGrade(e.target.value)}
-                    className="w-full p-2 border rounded-xl"
+                    className="w-full p-2 border rounded-xl bg-white dark:bg-slate-800"
                   >
-                    <option value="Khối 6">Khối 6</option>
-                    <option value="Khối 10">Khối 10</option>
-                    <option value="Khối 11">Khối 11</option>
-                    <option value="Khối 12">Khối 12</option>
+                    <option value="Khối 6">Khối 6 (THCS)</option>
+                    <option value="Khối 7">Khối 7 (THCS)</option>
+                    <option value="Khối 8">Khối 8 (THCS)</option>
+                    <option value="Khối 9">Khối 9 (THCS)</option>
                   </select>
                 </div>
               </div>

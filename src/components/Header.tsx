@@ -252,7 +252,7 @@ export const Header: React.FC<HeaderProps> = ({
                 Thông Tin Tác Giả
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Ứng dụng biên soạn đề kiểm tra & ma trận chuẩn CV 7991/BGDĐT
+                Ứng dụng biên soạn đề kiểm tra Môn Toán THCS chuẩn CV 7991/BGDĐT (SGK KNTT)
               </p>
 
               {/* Author details card */}
